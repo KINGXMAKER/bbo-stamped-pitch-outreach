@@ -22,7 +22,15 @@ try {
 }
 
 function getSupabaseClient() {
-  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    throw new Error(
+      'Supabase is not configured on the server — missing SUPABASE_URL or SUPABASE_ANON_KEY. ' +
+      'Set these env vars in the Netlify project (all contexts) and redeploy.'
+    );
+  }
+  return createClient(url, key);
 }
 
 function getGeminiClient() {
