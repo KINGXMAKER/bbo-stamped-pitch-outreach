@@ -1,2 +1,15 @@
 # Local Netlify folder
 .netlify
+
+# Dependencies
+node_modules/
+netlify/functions/node_modules/
+
+# Environment variables
+.env
+
+# Claude settings
+.claude/
+
+# Logs
+*.log
