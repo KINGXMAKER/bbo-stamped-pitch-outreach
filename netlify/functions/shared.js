@@ -38,46 +38,113 @@ function getGeminiClient() {
 }
 
 function getModelName() {
-  return process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  return process.env.GEMINI_MODEL_PRIMARY || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 }
 
-function getModel(genAI) {
-  const modelName = getModelName();
-  return genAI.getGenerativeModel({ model: modelName });
+// Ordered list of models to try: primary first, then fallbacks. De-duped.
+function getModelChain() {
+  const primary = getModelName();
+  const fallbacks = (process.env.GEMINI_MODEL_FALLBACKS || 'gemini-2.5-flash-lite,gemini-2.0-flash')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  return [...new Set([primary, ...fallbacks])];
+}
+
+const TRANSIENT_CODES = ['429', '500', '502', '503', '504'];
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Retry these — temporary overload / capacity. Backoff then fall back to next model.
+function isTransientError(err) {
+  const m = (err && err.message) ? err.message : '';
+  return TRANSIENT_CODES.some(c => m.includes(c)) ||
+    /overload|unavailable|high demand|try again later|deadline|timeout|ETIMEDOUT|ECONNRESET/i.test(m);
+}
+
+// A missing/removed model (404) is not transient, but we should still skip to the next model in the chain.
+function isModelUnavailable(err) {
+  const m = (err && err.message) ? err.message : '';
+  return /404|not found|is not supported/i.test(m);
+}
+
+// Hard failures — never retry, never fall back. Auth, bad key, malformed request, invalid image.
+function isHardError(err) {
+  const m = (err && err.message) ? err.message : '';
+  if (isModelUnavailable(err)) return false; // 404 handled separately (try next model)
+  return /401|403|400|API key|api_key|permission|invalid argument|invalid image|unsupported/i.test(m);
+}
+
+// Core resilient caller. contentArg is whatever the SDK's generateContent accepts
+// (a string for text, or a parts array for multimodal). Returns { text, modelUsed }.
+// deadlineMs caps total wall-clock so we never blow past the Netlify function timeout.
+async function generateContentResilient(genAI, contentArg, modelConfigExtra, deadlineMs) {
+  const models = getModelChain();
+  const deadline = Date.now() + (deadlineMs || 25000);
+  const MAX_ATTEMPTS = 3;
+  let lastErr;
+
+  for (const modelName of models) {
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      if (Date.now() >= deadline) {
+        const e = new Error(`Gemini deadline exceeded before completing. Last error: ${lastErr ? lastErr.message : 'none'}`);
+        e.lastError = lastErr;
+        throw e;
+      }
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName, ...(modelConfigExtra || {}) });
+        const result = await model.generateContent(contentArg);
+        if (attempt > 0 || modelName !== models[0]) {
+          console.log(`[gemini] succeeded on ${modelName} (attempt ${attempt + 1})`);
+        }
+        return { text: result.response.text(), modelUsed: modelName };
+      } catch (err) {
+        lastErr = err;
+
+        if (isHardError(err)) {
+          console.error(`[gemini] hard error on ${modelName} — not retrying: ${err.message}`);
+          throw err;
+        }
+
+        if (isTransientError(err) && attempt < MAX_ATTEMPTS - 1) {
+          const backoff = 800 * Math.pow(2, attempt) + Math.floor(Math.random() * 400); // 800/1600/3200 + jitter
+          if (Date.now() + backoff >= deadline) {
+            console.warn(`[gemini] ${modelName} transient but no time left to retry — falling back.`);
+            break;
+          }
+          console.warn(`[gemini] ${modelName} transient (attempt ${attempt + 1}): ${err.message}. retrying in ${backoff}ms`);
+          await sleep(backoff);
+          continue;
+        }
+
+        // Out of retries, or a non-transient model-availability issue — move to next model.
+        console.warn(`[gemini] ${modelName} exhausted/unavailable: ${err.message}. trying next model.`);
+        break;
+      }
+    }
+  }
+
+  const e = new Error(`All Gemini models failed. Last error: ${lastErr ? lastErr.message : 'unknown'}`);
+  e.allModelsFailed = true;
+  e.lastError = lastErr;
+  throw e;
 }
 
 async function generateText(genAI, prompt, systemInstruction) {
-  const modelName = getModelName();
-  try {
-    const model = genAI.getGenerativeModel({
-      model: modelName,
-      ...(systemInstruction ? { systemInstruction } : {})
-    });
-    const result = await model.generateContent(prompt);
-    return result.response.text();
-  } catch (err) {
-    if (err.message && (err.message.includes('404') || err.message.includes('not found'))) {
-      throw new Error(`Gemini model "${modelName}" unavailable — check GEMINI_MODEL env var. Original: ${err.message}`);
-    }
-    throw err;
-  }
+  const extra = systemInstruction ? { systemInstruction } : {};
+  const { text } = await generateContentResilient(genAI, prompt, extra);
+  return text;
 }
 
+// Returns { text, modelUsed } so callers can report which model handled the request.
 async function generateWithImage(genAI, textPrompt, base64Image, mimeType) {
-  const modelName = getModelName();
-  try {
-    const model = genAI.getGenerativeModel({ model: modelName });
-    const result = await model.generateContent([
-      { text: textPrompt },
-      { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64Image } }
-    ]);
-    return result.response.text();
-  } catch (err) {
-    if (err.message && (err.message.includes('404') || err.message.includes('not found'))) {
-      throw new Error(`Gemini model "${modelName}" unavailable — check GEMINI_MODEL env var. Original: ${err.message}`);
-    }
-    throw err;
-  }
+  const parts = [
+    { text: textPrompt },
+    { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64Image } }
+  ];
+  return generateContentResilient(genAI, parts, {});
 }
 
 async function extractVoiceProfile(supabase, genAI) {
@@ -181,8 +248,13 @@ module.exports = {
   getSupabaseClient,
   getGeminiClient,
   getModelName,
+  getModelChain,
   generateText,
   generateWithImage,
+  generateContentResilient,
+  isTransientError,
+  isModelUnavailable,
+  isHardError,
   extractVoiceProfile,
   getMatchingExamples,
   updatePitchHistoryAndExtractCorrections

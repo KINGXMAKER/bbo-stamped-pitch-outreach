@@ -954,8 +954,14 @@
         </div>
         <div id="drop-zone-loading" style="display:none;">
           <div class="mini-loader" style="width:24px; height:24px; margin:0 auto 10px;"></div>
-          <span style="font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:2px; color:var(--pink); animation:pulse 1.4s ease-in-out infinite;">READING SCREENSHOT...</span>
+          <span style="font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:2px; color:var(--pink); animation:pulse 1.4s ease-in-out infinite;">SCANNING SCREENSHOT...</span>
           <p style="font-size:10px; color:var(--muted); font-family:'Space Mono',monospace; letter-spacing:1px; margin-top:4px; text-transform:uppercase;">Gemini is extracting profile details & auditing vibe</p>
+        </div>
+        <div id="drop-zone-error" style="display:none;">
+          <span style="font-size:28px; display:block; margin-bottom:8px;">⚠️</span>
+          <span style="font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:1.5px; color:#fbbf24;">SCREENSHOT SCAN UNAVAILABLE</span>
+          <p id="drop-zone-error-msg" style="font-size:11px; color:var(--muted); font-family:'Space Mono',monospace; line-height:1.5; margin:8px auto 12px; max-width:340px;">Screenshot scan is temporarily busy. Please try again in a minute or enter the details manually below.</p>
+          <button type="button" onclick="event.stopPropagation(); retryScan();" style="font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:2px; background:var(--pink); color:#000; border:none; border-radius:4px; padding:8px 20px; cursor:pointer;">↻ TRY SCAN AGAIN</button>
         </div>
       </div>
 
@@ -1426,22 +1432,82 @@ function loadScript(src) {
   });
 }
 
-async function processScreenshotFile(file) {
-  const isHeic = file.type === 'image/heic' || 
-                 file.type === 'image/heif' || 
-                 file.name.toLowerCase().endsWith('.heic') || 
-                 file.name.toLowerCase().endsWith('.heif');
+let isScanning = false;
+let lastScannedFile = null;
+const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8MB
+const ALLOWED_EXT = ['png', 'jpg', 'jpeg', 'webp'];
 
-  if (!isHeic && !file.type.startsWith('image/')) {
-    alert('Please upload an image file.');
+function showScanError(message) {
+  const dropZoneContent = document.getElementById('drop-zone-content');
+  const dropZoneLoading = document.getElementById('drop-zone-loading');
+  const dropZoneError = document.getElementById('drop-zone-error');
+  const dropZoneErrorMsg = document.getElementById('drop-zone-error-msg');
+  const dropZone = document.getElementById('drop-zone');
+  if (dropZoneContent) dropZoneContent.style.display = 'none';
+  if (dropZoneLoading) dropZoneLoading.style.display = 'none';
+  if (dropZoneError) dropZoneError.style.display = 'block';
+  if (dropZoneErrorMsg && message) dropZoneErrorMsg.textContent = message;
+  if (dropZone) {
+    dropZone.style.pointerEvents = 'auto';
+    dropZone.style.borderColor = '#fbbf24';
+    dropZone.style.background = 'rgba(251,191,36,0.05)';
+  }
+}
+
+function resetDropZone() {
+  const dropZoneContent = document.getElementById('drop-zone-content');
+  const dropZoneLoading = document.getElementById('drop-zone-loading');
+  const dropZoneError = document.getElementById('drop-zone-error');
+  const dropZone = document.getElementById('drop-zone');
+  if (dropZoneContent) dropZoneContent.style.display = 'block';
+  if (dropZoneLoading) dropZoneLoading.style.display = 'none';
+  if (dropZoneError) dropZoneError.style.display = 'none';
+  if (dropZone) {
+    dropZone.style.pointerEvents = 'auto';
+    dropZone.style.borderColor = 'var(--pink-border)';
+    dropZone.style.background = '#080808';
+  }
+}
+
+function retryScan() {
+  if (lastScannedFile) {
+    processScreenshotFile(lastScannedFile);
+  } else {
+    document.getElementById('screenshot-file').click();
+  }
+}
+
+async function processScreenshotFile(file) {
+  if (isScanning) return; // block duplicate submissions while a scan is in flight
+
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const isHeic = file.type === 'image/heic' ||
+                 file.type === 'image/heif' ||
+                 ext === 'heic' || ext === 'heif';
+
+  // --- Client-side validation ---
+  if (!isHeic) {
+    const typeOk = file.type.startsWith('image/') && (ALLOWED_EXT.includes(ext) || ['image/png','image/jpeg','image/webp'].includes(file.type));
+    if (!typeOk) {
+      showScanError('Unsupported file type. Please upload a PNG, JPG, or WEBP screenshot — or enter the details manually below.');
+      return;
+    }
+  }
+  if (file.size > MAX_FILE_BYTES) {
+    showScanError('That screenshot is too large (max 8MB). Try a smaller image or enter the details manually below.');
     return;
   }
 
+  lastScannedFile = file;
+  isScanning = true;
+
   const dropZoneContent = document.getElementById('drop-zone-content');
   const dropZoneLoading = document.getElementById('drop-zone-loading');
+  const dropZoneError = document.getElementById('drop-zone-error');
   const dropZone = document.getElementById('drop-zone');
 
   if (dropZoneContent) dropZoneContent.style.display = 'none';
+  if (dropZoneError) dropZoneError.style.display = 'none';
   if (dropZoneLoading) {
     dropZoneLoading.style.display = 'block';
     const subText = dropZoneLoading.querySelector('p');
@@ -1452,6 +1518,8 @@ async function processScreenshotFile(file) {
   if (dropZone) dropZone.style.pointerEvents = 'none';
 
   let activeFile = file;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
   try {
     if (isHeic) {
@@ -1478,18 +1546,26 @@ async function processScreenshotFile(file) {
     const response = await fetch('/api/analyze-screenshot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: base64Image })
+      body: JSON.stringify({ image: base64Image }),
+      signal: controller.signal
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(errText || `Server error status ${response.status}`);
+    clearTimeout(timeoutId);
+
+    let payload = {};
+    try { payload = await response.json(); } catch (e) { payload = {}; }
+
+    // Consistent envelope: { ok:true, data, modelUsed } | { ok:false, code, message }
+    if (!response.ok || payload.ok === false) {
+      const friendly = payload.message || 'Screenshot scan is temporarily busy. Please try again in a minute or enter the details manually.';
+      console.error('[scan] failed:', payload.code || response.status, payload);
+      isScanning = false;
+      showScanError(friendly);
+      return; // keep all entered form data; user can retry or fill manually
     }
 
-    const data = await response.json();
-    if (data.error) {
-      throw new Error(data.error);
-    }
+    const data = payload.data || {};
+    if (payload.modelUsed) console.log('[scan] model used:', payload.modelUsed);
 
     // Populate Form Fields
     document.getElementById('inp-name').value = data.businessName || '';
@@ -1512,9 +1588,10 @@ async function processScreenshotFile(file) {
       });
     }
 
-    // Restore Drop Zone UI
+    // Restore Drop Zone UI (success — green flash)
     if (dropZoneContent) dropZoneContent.style.display = 'block';
     if (dropZoneLoading) dropZoneLoading.style.display = 'none';
+    if (dropZoneError) dropZoneError.style.display = 'none';
     if (dropZone) {
       dropZone.style.pointerEvents = 'auto';
       dropZone.style.borderColor = '#4ade80';
@@ -1525,15 +1602,20 @@ async function processScreenshotFile(file) {
       }, 3000);
     }
 
+    isScanning = false;
+
     // Auto-trigger pitch generation
     generatePitch();
 
   } catch (err) {
-    console.error(err);
-    alert('Screenshot scan failed: ' + err.message);
-    if (dropZoneContent) dropZoneContent.style.display = 'block';
-    if (dropZoneLoading) dropZoneLoading.style.display = 'none';
-    if (dropZone) dropZone.style.pointerEvents = 'auto';
+    clearTimeout(timeoutId);
+    isScanning = false;
+    console.error('[scan] exception:', err);
+    if (err && err.name === 'AbortError') {
+      showScanError('Screenshot scan timed out after 30 seconds. Please try again or enter the details manually below.');
+    } else {
+      showScanError('Screenshot scan failed. Please try again in a minute or enter the details manually below.');
+    }
   }
 }
 
