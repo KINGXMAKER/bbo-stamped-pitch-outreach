@@ -1,0 +1,67 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/analyze-screenshot"
+  to = "/.netlify/functions/analyze-screenshot"
+  status = 200
+
+[[redirects]]
+  from = "/api/generate-pitch"
+  to = "/.netlify/functions/generate-pitch"
+  status = 200
+
+[[redirects]]
+  from = "/api/scrape"
+  to = "/.netlify/functions/scrape"
+  status = 200
+
+[[redirects]]
+  from = "/api/scrape-ig"
+  to = "/.netlify/functions/scrape-ig"
+  status = 200
+
+[[redirects]]
+  from = "/api/send-email"
+  to = "/.netlify/functions/send-email"
+  status = 200
+
+[[redirects]]
+  from = "/api/save-to-sheets"
+  to = "/.netlify/functions/save-to-sheets"
+  status = 200
+
+[[redirects]]
+  from = "/api/save-examples"
+  to = "/.netlify/functions/save-examples"
+  status = 200
+
+[[redirects]]
+  from = "/api/refresh-voice"
+  to = "/.netlify/functions/refresh-voice"
+  status = 200
+
+[[redirects]]
+  from = "/api/get-voice-profile"
+  to = "/.netlify/functions/get-voice-profile"
+  status = 200
+
+[[redirects]]
+  from = "/api/update-outcome"
+  to = "/.netlify/functions/update-outcome"
+  status = 200
+
+[[redirects]]
+  from = "/api/update-pitch-sent"
+  to = "/.netlify/functions/update-pitch-sent"
+  status = 200
+
+[[redirects]]
+  from = "/api/list-models"
+  to = "/.netlify/functions/list-models"
+  status = 200
+
