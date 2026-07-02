@@ -145,17 +145,6 @@
     background:var(--card); border:1px solid var(--border);
     border-top:3px solid var(--pink); padding:30px; border-radius:2px; margin-bottom:14px;
   }
-  .vertical-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:28px; }
-  .v-card {
-    background:var(--card2); border:1px solid var(--border); border-radius:6px;
-    padding:18px 10px; text-align:center; cursor:pointer;
-    transition:border-color .18s, background .18s; user-select:none;
-  }
-  .v-card:hover { border-color:var(--pink-border); background:var(--pink-dim); }
-  .v-card.selected { border-color:var(--pink); background:var(--pink-dim); }
-  .v-emoji { font-size:26px; margin-bottom:9px; display:block; }
-  .v-label { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--off-white); }
-  .v-card.selected .v-label { color:var(--pink); }
   .field-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
   .field-label { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:7px; }
   .field-input {
@@ -198,10 +187,6 @@
     .container{padding:36px 18px 80px;}
     .header{padding:18px 20px;}
     .grid-list,.activation-cols,.field-row{grid-template-columns:1fr;}
-    .vertical-grid{grid-template-columns:repeat(3,1fr);gap:6px;}
-    .v-card{padding:12px 6px;}
-    .v-emoji{font-size:20px!important;}
-    .v-label{font-size:8px!important;}
   }
 
   /* Copy Button */
@@ -716,54 +701,9 @@
     </div>
   </div>
 
-  <!-- 02 — COMBINED: WHAT WE BRING + WHAT YOU GET -->
+  <!-- 02 — THE OFFER -->
   <div class="section">
-    <div class="section-label"><span class="section-num">02</span><span class="section-title">WHAT WE BRING & WHAT YOU GET</span></div>
-    <p class="note">This is the value exchange. Read it with confidence — don't rush it.</p>
-
-    <div class="activation-cols" style="margin-bottom:14px;">
-      <!-- WHAT WE BRING -->
-      <div class="act-card" style="border-top:3px solid var(--pink);">
-        <div class="act-card-title" style="color:var(--pink);">WHAT WE BRING</div>
-        <div class="act-card-sub">BBO Side</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--pink);"></span>Curated women & creators</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--pink);"></span>BBO brand presence</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--pink);"></span>Photographer / videographer</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--pink);"></span>Content direction</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--pink);"></span>Lifestyle footage</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--pink);"></span>Food, drink & product content</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--pink);"></span>Story posts & tags</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--pink);"></span>Reels & recap content</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--pink);"></span>Voiceover review potential</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--pink);"></span>Local cultural reach</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--pink);"></span>Social energy in the room</div>
-      </div>
-
-      <!-- WHAT VENUE GETS -->
-      <div class="act-card" style="border-top:3px solid var(--gold);">
-        <div class="act-card-title" style="color:var(--gold);">WHAT YOU GET</div>
-        <div class="act-card-sub">Venue Side</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--gold);"></span>Edited recap reel</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--gold);"></span>Photos & videos to repost</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--gold);"></span>Organic story tags</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--gold);"></span>Location exposure</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--gold);"></span>Lifestyle content with real people</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--gold);"></span>Food, drink & product shots</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--gold);"></span>Potential collab post</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--gold);"></span>Content usable for future ads</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--gold);"></span>Stronger visual identity online</div>
-        <div class="act-item"><span class="act-dot" style="background:var(--gold);"></span>Social proof — venue feels alive</div>
-      </div>
-    </div>
-
-    <div class="script-block" style="margin-top:14px;">
-      <p>"Everything we produce — you can use it. Repost it, run it as an ad, put it on your website. I can even walk you through how to boost it if that's helpful."</p>
-    </div>
-  </div>
-
-  <!-- 03 — THE OFFER -->
-  <div class="section">
-    <div class="section-label"><span class="section-num">03</span><span class="section-title">THE OFFER · TWO OPTIONS</span></div>
+    <div class="section-label"><span class="section-num">02</span><span class="section-title">THE OFFER · TWO OPTIONS</span></div>
     <p class="note">Walk them through this. Lead with Option 1 — only mention Option 2 if they're interested in scale.</p>
 
     <div class="activation-cols" style="margin-bottom:22px;">
@@ -834,106 +774,13 @@
       </div>
     </div>
 
-    <div class="rule-box">
-      <div class="rule-box-title">⚡ The Non-Negotiable</div>
-      <p><strong>The 7 core comped guests for Option 2 are my pick.</strong> That's how the content ecosystem works — those are the women on camera, doing the voiceovers, and producing the recap. Everyone else can come at 50% off. 30% is not the floor.</p>
-    </div>
   </div>
 
   <hr class="divider">
 
-  <!-- 04 — COLD OUTREACH -->
+  <!-- 03 — BBO STAMPED PITCH AGENT -->
   <div class="section">
-    <div class="section-label"><span class="section-num">04</span><span class="section-title">COLD OUTREACH COPY</span></div>
-    <p class="note">Three versions. Pick the right one for the channel and moment. All copy is ready to send.</p>
-
-    <div class="tab-bar">
-      <button class="tab-btn active" onclick="switchTab('dm')" id="tab-dm">Short DM</button>
-      <button class="tab-btn" onclick="switchTab('email')" id="tab-email">Professional Email</button>
-      <button class="tab-btn" onclick="switchTab('followup')" id="tab-followup">Follow-Up</button>
-    </div>
-
-    <!-- VERSION 1: SHORT DM -->
-    <div class="tab-panel active" id="panel-dm">
-      <div class="email-block">
-        <div class="email-header">
-          <div class="email-dot d1"></div><div class="email-dot d2"></div><div class="email-dot d3"></div>
-          <span class="email-label">Version 01 · Instagram DM</span>
-        </div>
-        <div class="email-body">
-          <span class="version-badge">Instagram DM · LinkedIn · Text</span>
-          <p>Love the [Business Name] concept – [specific concept/vibe details] is truly unique for [Location]. We activate spots like yours, and do curated content activations for restaurants, lounges, and bars that actually want to look like the place to be — not just another spot with a flyer and a plate shot.</p>
-          <p>We bring multiple creators to generate lifestyle content for your business. The best part? You get various creators posting tagging and collabing with your brand as people buy from recommendations of other real people they know. I can then show you how to run targeted ads with the curated content local to your business to bring in additional foot traffic.</p>
-          <p>Here are a few content activations we did:<br>
-          <a href="https://www.instagram.com/dabboshow/reel/DXvH2HIRf-3/" target="_blank" style="color:var(--pink); text-decoration:none;">https://www.instagram.com/dabboshow/reel/DXvH2HIRf-3/</a><br>
-          <a href="https://www.instagram.com/reel/DYYanF-Fr96/" target="_blank" style="color:var(--pink); text-decoration:none;">https://www.instagram.com/reel/DYYanF-Fr96/</a><br>
-          <a href="https://www.instagram.com/dabboshow/reel/DXzJIMmRKmz/" target="_blank" style="color:var(--pink); text-decoration:none;">https://www.instagram.com/dabboshow/reel/DXzJIMmRKmz/</a><br>
-          <a href="https://www.instagram.com/p/DX7Ro4jGsnt/?img_index=2" target="_blank" style="color:var(--pink); text-decoration:none;">https://www.instagram.com/p/DX7Ro4jGsnt/?img_index=2</a></p>
-        </div>
-        <div class="email-actions">
-          <button class="copy-btn" onclick="copyEmail('panel-dm')">📋 Copy DM</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- VERSION 2: PROFESSIONAL EMAIL -->
-    <div class="tab-panel" id="panel-email">
-      <div class="email-block">
-        <div class="email-header">
-          <div class="email-dot d1"></div><div class="email-dot d2"></div><div class="email-dot d3"></div>
-          <span class="email-label">Version 02 · Professional Email</span>
-        </div>
-        <div class="email-body">
-          <span class="version-badge gold">Email · Cold Outreach · Formal</span>
-          <p><strong>Subject: BBO Stamped x [Business Name] — Content Activation</strong></p>
-          <p>I came across [Business Name] and had to reach out. The [specific aesthetic/details], the location in [Location] — the product is clearly there. You've built something real.</p>
-          <p>But here's what I noticed: your Instagram feels mostly product-focused right now. The food looks good, but there isn’t enough lifestyle content showing real people eating, reacting, posting, and experiencing [Business Name]. That matters because people don’t only choose where to eat based on the food anymore — they choose based on what looks active, trusted, and worth pulling up to. People are choosing based on what looks alive online. If the feed feels quiet, the restaurant feels quiet — even when it's not.</p>
-          <p>That's exactly what BBO Stamped was built to fix.</p>
-          <p>We activate your space with a curated group of creators and a media team. Real people eating your food, reacting to it, posting it, tagging it across social media — turning [Business Name] into the spot people are already talking about. Not staged. Not stiff. Actual lifestyle energy that makes someone stop scrolling and pull up.</p>
-          <p>Would love to schedule a quick 5 minute call to discuss this more.</p>
-          <p>Here are past activations we did:<br>
-          <strong>1Republik in North Arlington, NJ.</strong><br>
-          <a href="https://www.instagram.com/dabboshow/reel/DXvH2HIRf-3/" target="_blank" style="color:var(--pink); text-decoration:none;">https://www.instagram.com/dabboshow/reel/DXvH2HIRf-3/</a><br>
-          <a href="https://www.instagram.com/p/DX7Ro4jGsnt/?img_index=6" target="_blank" style="color:var(--pink); text-decoration:none;">https://www.instagram.com/p/DX7Ro4jGsnt/?img_index=6</a><br>
-          <a href="https://www.instagram.com/dabboshow/reel/DXzJIMmRKmz/" target="_blank" style="color:var(--pink); text-decoration:none;">https://www.instagram.com/dabboshow/reel/DXzJIMmRKmz/</a></p>
-          <p><strong>Hyde and Seek speakeasy in Brooklyn:</strong><br>
-          <a href="https://www.instagram.com/reels/DYYanF-Fr96/" target="_blank" style="color:var(--pink); text-decoration:none;">https://www.instagram.com/reels/DYYanF-Fr96/</a><br>
-          <a href="https://www.instagram.com/p/DYiLhhnocst/" target="_blank" style="color:var(--pink); text-decoration:none;">https://www.instagram.com/p/DYiLhhnocst/</a><br>
-          <a href="https://www.instagram.com/bbohub/p/DZFleqljodX/" target="_blank" style="color:var(--pink); text-decoration:none;">https://www.instagram.com/bbohub/p/DZFleqljodX/</a></p>
-        </div>
-        <div class="email-actions">
-          <button class="copy-btn" onclick="copyEmail('panel-email')">📋 Copy Email</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- VERSION 3: FOLLOW-UP -->
-    <div class="tab-panel" id="panel-followup">
-      <div class="email-block">
-        <div class="email-header">
-          <div class="email-dot d1"></div><div class="email-dot d2"></div><div class="email-dot d3"></div>
-          <span class="email-label">Version 03 · Stronger Follow-Up</span>
-        </div>
-        <div class="email-body">
-          <span class="version-badge">Follow-Up · 3-5 Days After First Touch</span>
-          <p>Hey [Name], wanted to circle back on BBO Stamped.</p>
-          <p>I know you're running a business, so I'll keep it direct: the reason I think this matters for [Business Name] is that the content gap is costing real attention.</p>
-          <p>People aren't choosing restaurants, lounges, and bars based on the menu anymore. They're choosing based on whether the experience looks alive, social, and worth being part of. If the page doesn't show that — the right energy, the right crowd, the right vibe — they keep scrolling and pick somewhere that does.</p>
-          <p>That's exactly the gap BBO Stamped closes. We don't just promote a business. We position it. We bring the culture, the creators, and the content direction so the venue doesn't just get seen — it gets wanted.</p>
-          <p>I sent over the pitch deck already. If you got a chance to look, I'd love to hear your thoughts. If not, still worth a 10-minute conversation — I think once you see the activation model it clicks fast.</p>
-          <p>What does the next couple weeks look like for you?</p>
-          <p>— [Your Name] | BBO · @DABBOSHOW</p>
-        </div>
-        <div class="email-actions">
-          <button class="copy-btn" onclick="copyEmail('panel-followup')">📋 Copy Follow-Up</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 05 — BBO STAMPED PITCH AGENT -->
-  <div class="section">
-    <div class="section-label"><span class="section-num">05</span><span class="section-title">BBO STAMPED PITCH AGENT</span></div>
+    <div class="section-label"><span class="section-num">03</span><span class="section-title">BBO STAMPED PITCH AGENT</span></div>
     <p class="note">Drop in the details or upload a screenshot · Get a fully custom pitch, negotiation asks, follow-up script & CRM status</p>
     <!-- Tab Bar for Generator vs Learning Center -->
     <div class="agent-nav-bar">
@@ -967,37 +814,6 @@
 
 
 
-      <!-- VERTICAL SELECTOR -->
-      <div style="margin-bottom:22px;">
-        <label class="field-label" style="margin-bottom:10px; display:block;">Venue Type *</label>
-        <div class="vertical-grid">
-          <div class="v-card selected" data-v="Restaurant" onclick="selectVertical(this)">
-            <span class="v-emoji">🍽️</span>
-            <span class="v-label">Restaurant</span>
-          </div>
-          <div class="v-card" data-v="Bar" onclick="selectVertical(this)">
-            <span class="v-emoji">🍸</span>
-            <span class="v-label">Bar</span>
-          </div>
-          <div class="v-card" data-v="Lounge" onclick="selectVertical(this)">
-            <span class="v-emoji">🛋️</span>
-            <span class="v-label">Lounge</span>
-          </div>
-          <div class="v-card" data-v="Speakeasy" onclick="selectVertical(this)">
-            <span class="v-emoji">🕵️</span>
-            <span class="v-label">Speakeasy</span>
-          </div>
-          <div class="v-card" data-v="Cafe" onclick="selectVertical(this)">
-            <span class="v-emoji">☕</span>
-            <span class="v-label">Cafe</span>
-          </div>
-          <div class="v-card" data-v="Club" onclick="selectVertical(this)">
-            <span class="v-emoji">🎉</span>
-            <span class="v-label">Club</span>
-          </div>
-        </div>
-      </div>
-
       <div class="field-row">
         <div>
           <label class="field-label">Business Name *</label>
@@ -1008,29 +824,24 @@
           <input id="inp-location" type="text" class="field-input" placeholder="e.g. Newark, NJ" />
         </div>
       </div>
-      <div class="field-row">
-        <div>
-          <label class="field-label">Instagram Handle</label>
-          <div style="display:flex; gap:8px;">
-            <input id="inp-ig" type="text" class="field-input" placeholder="e.g. @1republiknewark" style="flex:1;" />
-            <button class="sync-btn" id="ig-sync-btn" onclick="syncIGVibe()">
-              <span id="sync-text">SYNC VIBE</span>
-              <span id="sync-loader" style="display:none;" class="mini-loader"></span>
-            </button>
-          </div>
-        </div>
-        <div>
-          <label class="field-label">Website URL</label>
-          <input id="inp-website-url" type="text" class="field-input" placeholder="e.g. 1republiknewark.com" />
+      <div style="margin-bottom:14px;">
+        <label class="field-label">Instagram Handle</label>
+        <div style="display:flex; gap:8px;">
+          <input id="inp-ig" type="text" class="field-input" placeholder="e.g. @1republiknewark" style="flex:1;" />
+          <button class="sync-btn" id="ig-sync-btn" onclick="syncIGVibe()">
+            <span id="sync-text">SYNC VIBE</span>
+            <span id="sync-loader" style="display:none;" class="mini-loader"></span>
+          </button>
         </div>
       </div>
 
-      <!-- 🎯 Gap Analysis Fields -->
+      <!-- 🎯 Gap Analysis Fields — YOU choose the pitch angle -->
+      <p class="note" style="margin-bottom:12px;">You pick the angle. Primary Gap leads the pitch; Secondary Gap supports it. The screenshot only informs context — it never chooses these for you.</p>
       <div class="field-row">
         <div>
-          <label class="field-label">Primary Gap (Ranked 1st by Severity) *</label>
+          <label class="field-label">Primary Gap (Lead Angle) *</label>
           <select id="inp-primary-gap" class="field-input">
-            <option value="">-- Detect/Select Primary Gap --</option>
+            <option value="">-- Select Primary Gap --</option>
             <option value="The “No People” Gap">1. The “No People” Gap (Food/decor, no people)</option>
             <option value="The “Empty Room” Gap">2. The “Empty Room” Gap (Venue feels quiet/still)</option>
             <option value="The “Product-Only” Gap">3. The “Product-Only” Gap (Plates/products, no lifestyle)</option>
@@ -1044,9 +855,9 @@
           </select>
         </div>
         <div>
-          <label class="field-label">Secondary Gap (Ranked 2nd by Severity)</label>
+          <label class="field-label">Secondary Gap (Supporting Angle)</label>
           <select id="inp-secondary-gap" class="field-input">
-            <option value="">-- Detect/Select Secondary Gap --</option>
+            <option value="">-- Select Secondary Gap --</option>
             <option value="The “No People” Gap">1. The “No People” Gap (Food/decor, no people)</option>
             <option value="The “Empty Room” Gap">2. The “Empty Room” Gap (Venue feels quiet/still)</option>
             <option value="The “Product-Only” Gap">3. The “Product-Only” Gap (Plates/products, no lifestyle)</option>
@@ -1066,23 +877,8 @@
         <textarea id="inp-vibe" rows="3" class="field-input" placeholder="e.g. Upscale rooftop lounge, Caribbean food, good lighting, already posts reels but low engagement."></textarea>
       </div>
       <div style="margin-bottom:20px;">
-        <label class="field-label">Instagram / Website Content Snapshot (optional)</label>
-        <textarea id="inp-ig-notes" rows="3" class="field-input" placeholder="e.g. Mostly food photos, no lifestyle shots, last reel 3 weeks ago. Website is just a menu PDF and contact form. No gallery, no story, no people."></textarea>
-      </div>
-
-      <!-- 🌐 AI WEBSITE DEEP DIVE TOGGLE -->
-      <div style="background:#080808; border:1px solid var(--border); border-left:3px solid var(--gold); border-radius:2px; padding:18px 20px; margin-bottom:20px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:2px; color:var(--gold);">🌐 AI WEBSITE DEEP DIVE</span>
-            <span id="backend-status" style="font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; border:1px solid var(--border); padding:3px 8px; border-radius:2px;">Backend Required</span>
-          </div>
-          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;">
-            <input type="checkbox" id="toggle-deepdive" style="width:18px; height:18px; accent-color:var(--gold); cursor:pointer;" />
-            <span style="font-family:'Space Mono',monospace; font-size:10px; color:var(--off-white); letter-spacing:1.5px; text-transform:uppercase;">Enable</span>
-          </label>
-        </div>
-        <p style="font-size:12px; color:#888; font-family:'Space Mono',monospace; letter-spacing:.5px; line-height:1.6; margin:0;">When enabled, the agent calls the Netlify scrape function for the website URL above and uses live site details in the pitch. If the site blocks scraping, you will get a visible prompt to add Instagram or pasted notes.</p>
+        <label class="field-label">Instagram Content Snapshot (optional)</label>
+        <textarea id="inp-ig-notes" rows="3" class="field-input" placeholder="e.g. Mostly food photos, no lifestyle shots, last reel 3 weeks ago. No people, no story, low engagement. Feed is flyer-heavy."></textarea>
       </div>
 
       <button class="gen-btn" id="generate-btn" onclick="generatePitch()">GENERATE PITCH</button>
@@ -1094,7 +890,6 @@
         <div class="loading-sub">Writing your custom pitch with AI.</div>
       </div>
       <div id="ig-notice-box" style="display:none;"></div>
-      <div id="scrape-notice-box" style="display:none;"></div>
 
       <div class="out-card" id="out-oneliner" style="display:none;">
         <div class="out-card-header"><span class="out-label">✨ Custom One-Liner</span><button class="copy-btn" onclick="copySection('text-oneliner', this)">📋 Copy</button></div>
@@ -1234,7 +1029,7 @@
       <div>
         <div class="learning-card">
           <div class="learning-card-title">📥 FEED EXAMPLE BANK</div>
-          <div class="learning-card-sub">Add real emails or DMs you've sent to help the AI learn your writing style.</div>
+          <div class="learning-card-sub">Paste real emails or DMs you've written. The AI studies and copies your exact voice from every example — outcome doesn't matter.</div>
           
           <div style="margin-bottom:16px;">
             <label class="field-label" style="display:block; margin-bottom:6px; font-family:'Space Mono',monospace; font-size:10px; color:var(--pink);">Channel</label>
@@ -1274,16 +1069,6 @@
             </div>
           </div>
 
-          <div style="margin-bottom:16px;">
-            <label class="field-label" style="display:block; margin-bottom:6px; font-family:'Space Mono',monospace; font-size:10px; color:var(--pink);">Outcome</label>
-            <select id="ex-outcome" class="field-input" style="width:100%;">
-              <option value="booked">🟢 Booked Activation</option>
-              <option value="replied">🔵 Got a Reply / Conversation</option>
-              <option value="ghosted">🔴 Ghosted / No Response</option>
-              <option value="pending">🟡 Sent (Pending Outcome)</option>
-            </select>
-          </div>
-
           <div style="margin-bottom:20px;">
             <label class="field-label" style="display:block; margin-bottom:6px; font-family:'Space Mono',monospace; font-size:10px; color:var(--pink);">Pitched Message Content</label>
             <textarea id="ex-content" rows="8" class="field-input" style="width:100%; font-family:sans-serif; background:#080808; border:1px solid var(--border); color:#fff; padding:10px;" placeholder="Paste the exact text of the email or DM you sent..."></textarea>
@@ -1314,35 +1099,15 @@
 </div>
 
 <script>
-const SCRAPE_ENDPOINT = '/api/scrape';
 const PITCH_ENDPOINT = '/api/generate-pitch';
-const DEEP_DIVE_AVAILABLE = true;
 
-let selectedVertical = 'Restaurant';
 let currentHistoryIds = null; // Stores { dm, email } IDs for currently generated pitch
 let currentHistoryList = []; // Local cache of outreach history
 
-// On load, update the badge, setup listeners & load voice profile data
+// On load, setup listeners & load voice profile data
 document.addEventListener('DOMContentLoaded', () => {
   // Load voice stats in background
   setTimeout(loadVoiceProfileAndHistory, 500);
-
-  const statusEl = document.getElementById('backend-status');
-  const toggle   = document.getElementById('toggle-deepdive');
-  if (DEEP_DIVE_AVAILABLE && SCRAPE_ENDPOINT) {
-    if (statusEl) {
-      statusEl.textContent = '—  Connected';
-      statusEl.style.color = '#4ade80';
-      statusEl.style.borderColor = 'rgba(74,222,128,0.4)';
-      statusEl.style.background = 'rgba(74,222,128,0.08)';
-    }
-  } else {
-    if (toggle) {
-      toggle.disabled = true;
-      toggle.style.opacity = '0.4';
-      toggle.style.cursor = 'not-allowed';
-    }
-  }
 
   // Bind drag & drop handlers
   const dropZone = document.getElementById('drop-zone');
@@ -1567,26 +1332,28 @@ async function processScreenshotFile(file) {
     const data = payload.data || {};
     if (payload.modelUsed) console.log('[scan] model used:', payload.modelUsed);
 
-    // Populate Form Fields
+    // Populate identity fields extracted from the screenshot
     document.getElementById('inp-name').value = data.businessName || '';
     document.getElementById('inp-location').value = data.location || '';
     document.getElementById('inp-ig').value = data.instagram || '';
-    document.getElementById('inp-website-url').value = data.websiteUrl || '';
-    document.getElementById('inp-vibe').value = data.vibe || '';
-    document.getElementById('inp-ig-notes').value = data.igNotes || '';
-    document.getElementById('inp-primary-gap').value = data.primaryGap || '';
-    document.getElementById('inp-secondary-gap').value = data.secondaryGap || '';
 
-    // Update vertical selected
-    if (data.vertical) {
-      selectedVertical = data.vertical;
-      const cards = document.querySelectorAll('.v-card');
-      cards.forEach(c => {
-        if (c.dataset.v === data.vertical) {
-          selectVertical(c);
-        }
-      });
-    }
+    // Vibe field: what type of business it reads as + the visual vibe (context only)
+    const typeLine = data.inferredBusinessType
+      ? `Reads as: ${data.inferredBusinessType}${data.confidence ? ` (confidence ${data.confidence}/10)` : ''}.`
+      : '';
+    document.getElementById('inp-vibe').value = [typeLine, data.visualVibe].filter(Boolean).join(' ').trim();
+
+    // Content snapshot: everything Gemini read from the feed, for personalizing the pitch
+    const notesParts = [
+      data.feedSummary,
+      data.socialProofNotes    ? `Social proof: ${data.socialProofNotes}` : '',
+      data.contentStyleNotes   ? `Content style: ${data.contentStyleNotes}` : '',
+      data.personalizationDetails ? `Details to use: ${data.personalizationDetails}` : '',
+      data.suggestedPitchContext  ? `Pitch context: ${data.suggestedPitchContext}` : ''
+    ].filter(Boolean);
+    document.getElementById('inp-ig-notes').value = notesParts.join('\n');
+
+    // NOTE: Primary/Secondary Gap are intentionally NOT set here — you choose the angle.
 
     // Restore Drop Zone UI (success — green flash)
     if (dropZoneContent) dropZoneContent.style.display = 'block';
@@ -1604,8 +1371,7 @@ async function processScreenshotFile(file) {
 
     isScanning = false;
 
-    // Auto-trigger pitch generation
-    generatePitch();
+    // Do NOT auto-generate — you pick the Primary/Secondary Gap first, then hit Generate.
 
   } catch (err) {
     clearTimeout(timeoutId);
@@ -1619,26 +1385,10 @@ async function processScreenshotFile(file) {
   }
 }
 
-function selectVertical(el) {
-  document.querySelectorAll('.v-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  selectedVertical = el.dataset.v;
-}
-
 let lastPitchPayload = null;
 let lastPitchData = null;
 function escapeHTML(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function listHTML(a){return '<ul>'+a.map(i=>'<li>'+escapeHTML(i)+'</li>').join('')+'</ul>';}
-function normalizeUrl(u){const v=String(u||'').trim();if(!v)return '';return /^https?:\/\//i.test(v)?v:'https://'+v;}
-
-async function scrapeWebsite(url,name,location){
-  try{
-    const r=await fetch(SCRAPE_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:normalizeUrl(url),businessName:name,location})});
-    const ct=r.headers.get('content-type')||'';
-    if(!ct.includes('application/json'))return {scrapedSuccessfully:false,error:'SCRAPE_FAILED',reason:'Site scan timed out — pitch will use your manual inputs instead.'};
-    return await r.json();
-  }catch(e){return {scrapedSuccessfully:false,error:'SCRAPE_FAILED',reason:e.message};}
-}
 
 function copySection(id, btnElement){
   const el=document.getElementById(id);if(!el)return;
@@ -1658,25 +1408,6 @@ function copySection(id, btnElement){
   }).catch(()=>{});
 }
 
-function copyEmail(id) {
-  const panel = document.getElementById(id);
-  if (!panel) return;
-  const body = panel.querySelector('.email-body');
-  if (!body) return;
-  const text = body.innerText || body.textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const btn = panel.querySelector('.copy-btn');
-    if (btn) {
-      const origText = btn.textContent;
-      btn.classList.add('copied');
-      btn.textContent = '✓ Copied';
-      setTimeout(() => {
-        btn.classList.remove('copied');
-        btn.textContent = origText;
-      }, 1800);
-    }
-  }).catch(() => {});
-}
 
 function renderPitch(data){
   const hide=id=>{const e=document.getElementById(id);if(e)e.style.display='none';};
@@ -1738,11 +1469,12 @@ async function generatePitch(tone){
   const name=document.getElementById('inp-name').value.trim();
   const location=document.getElementById('inp-location').value.trim();
   const ig=document.getElementById('inp-ig').value.trim();
-  const websiteUrl=document.getElementById('inp-website-url')?.value.trim()||'';
   const vibe=document.getElementById('inp-vibe').value.trim();
   const igNotes=document.getElementById('inp-ig-notes').value.trim();
-  const useDeepDive=document.getElementById('toggle-deepdive')?.checked||false;
+  const primaryGap = document.getElementById('inp-primary-gap').value;
+  const secondaryGap = document.getElementById('inp-secondary-gap').value;
   if(!name){alert('Business name is required.');return;}
+  if(!primaryGap&&!tone){alert('Pick a Primary Gap — that\'s the angle the pitch leads with.');return;}
   const btn=document.getElementById('generate-btn');
   const out=document.getElementById('agent-output');
   btn.disabled=true;btn.textContent='GENERATING...';
@@ -1750,33 +1482,16 @@ async function generatePitch(tone){
   document.getElementById('loading-state').style.display='block';
   ['out-oneliner','out-threesentence','out-strategy','out-angles','out-dm','out-email','out-callpts','regen-bar'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
   document.getElementById('ig-notice-box').style.display='none';
-  document.getElementById('scrape-notice-box').style.display='none';
 
-  // Step 1: Scrape if enabled
-  let websiteInsights=null;
-  if(useDeepDive&&websiteUrl){
-    document.querySelector('#loading-state .loading-title').textContent='SCANNING WEBSITE...';
-    document.querySelector('#loading-state .loading-sub').textContent='Pulling public site details.';
-    const scrape=await scrapeWebsite(websiteUrl,name,location);
-    if(scrape&&scrape.scrapedSuccessfully&&scrape.insights){
-      websiteInsights=scrape.insights;
-    }else{
-      const nb=document.getElementById('scrape-notice-box');
-      nb.innerHTML='<div class="err-notice">Website scan returned limited data'+(scrape.reason?' — '+escapeHTML(scrape.reason):'')+'. Pitch will use your manual inputs instead.</div>';
-      nb.style.display='block';
-    }
-  }
   // IG notice
   if(ig&&!igNotes){
     const nb=document.getElementById('ig-notice-box');
-    nb.innerHTML='<div class="ig-notice">Instagram handle provided but no content notes. The AI won\'t reference their IG content. Paste captions, bio, or observations into the Content Snapshot field for a sharper pitch.</div>';
+    nb.innerHTML='<div class="ig-notice">Instagram handle provided but no content notes. The AI won\'t reference their feed. Drop a screenshot or paste observations into the Content Snapshot field for a sharper pitch.</div>';
     nb.style.display='block';
   }
 
-  // Step 2: Call AI pitch generator
-  const primaryGap = document.getElementById('inp-primary-gap').value;
-  const secondaryGap = document.getElementById('inp-secondary-gap').value;
-  const payload={businessName:name,location,vertical:selectedVertical,instagram:ig,websiteUrl,vibe,igNotes,websiteInsights,tone:tone||null,primaryGap,secondaryGap};
+  // Call AI pitch generator — YOUR selected gaps drive the strategy
+  const payload={businessName:name,location,instagram:ig,vibe,igNotes,tone:tone||null,primaryGap,secondaryGap};
   lastPitchPayload=payload;
   try{
     const r=await fetch(PITCH_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -1867,15 +1582,7 @@ async function syncIGVibe() {
         targetArea.classList.remove('glow-pulse');
       }, 3000);
 
-      // Update primary and secondary gaps dropdowns if detected
-      if (data.primaryGap) {
-        const primSelect = document.getElementById('inp-primary-gap');
-        if (primSelect) primSelect.value = data.primaryGap;
-      }
-      if (data.secondaryGap) {
-        const secSelect = document.getElementById('inp-secondary-gap');
-        if (secSelect) secSelect.value = data.secondaryGap;
-      }
+      // Gaps are intentionally left for you to choose — sync only fills the content notes.
     } else if (data.error) {
       alert("Sync error: " + data.error);
     }
@@ -1994,9 +1701,9 @@ async function saveToSheets() {
     businessName:       lastPitchPayload.businessName || '',
     city:               lastPitchPayload.location     || '',
     igHandle:           lastPitchPayload.instagram    || '',
-    website:            lastPitchPayload.websiteUrl   || '',
+    website:            '',
     contactEmail:       contactEmail,
-    vertical:           lastPitchPayload.vertical     || '',
+    vertical:           '',
     dmPitch:            dmText,
     emailSubject:       emailSubjectText,
     emailPitch:         emailBodyText,
@@ -2029,8 +1736,7 @@ async function saveToSheets() {
 
 function resetAgent() {
   document.getElementById('agent-output').style.display='none';
-  ['inp-name','inp-location','inp-ig','inp-website-url','inp-vibe','inp-ig-notes','inp-primary-gap','inp-secondary-gap'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  if(document.getElementById('toggle-deepdive'))document.getElementById('toggle-deepdive').checked=false;
+  ['inp-name','inp-location','inp-ig','inp-vibe','inp-ig-notes','inp-primary-gap','inp-secondary-gap'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   lastPitchPayload=null;
   lastPitchData=null;
   lastPitchAudit=null;
@@ -2255,7 +1961,6 @@ async function saveExample() {
   const channel = document.getElementById('ex-channel').value;
   const venueType = document.getElementById('ex-venue-type').value;
   const gapType = document.getElementById('ex-gap-type').value;
-  const outcome = document.getElementById('ex-outcome').value;
   const content = document.getElementById('ex-content').value.trim();
   
   const statusEl = document.getElementById('ex-status');
@@ -2274,7 +1979,7 @@ async function saveExample() {
     const res = await fetch('/api/save-examples', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channel, venueType, gapType, outcome, content })
+      body: JSON.stringify({ channel, venueType, gapType, content })
     });
     const d = await res.json();
     

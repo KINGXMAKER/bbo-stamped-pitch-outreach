@@ -227,20 +227,25 @@ async function updatePitchHistoryAndExtractCorrections(supabase, genAI, historyI
 }
 
 async function getMatchingExamples(supabase, channel, venueType, gapType) {
+  // Outcome does not matter — the AI copies the user's voice from ALL of their
+  // examples. We surface the most relevant ones first (matching gap/venue), then
+  // fill with the most recent examples so the voice stays current. Ordering is by
+  // recency, never by outcome score.
+  const TARGET = 6;
   let results = [];
   const fetchMore = async (filters, limit) => {
+    if (limit <= 0) return;
     const excl = results.map(r => r.id);
     let q = supabase.from('pitch_examples').select('*').eq('channel', channel);
     filters.forEach(([k, v]) => { if (v) q = q.eq(k, v); });
     if (excl.length) q = q.not('id', 'in', `(${excl.join(',')})`);
-    const { data } = await q.order('outcome_score', { ascending: false }).limit(limit);
+    const { data } = await q.order('created_at', { ascending: false }).limit(limit);
     if (data) results = results.concat(data);
   };
 
-  if (venueType && gapType) await fetchMore([['venue_type', venueType], ['gap_type', gapType]], 3);
-  if (results.length < 3) await fetchMore([['gap_type', gapType]], 3 - results.length);
-  if (results.length < 3) await fetchMore([['venue_type', venueType]], 3 - results.length);
-  if (results.length < 3) await fetchMore([], 3 - results.length);
+  if (gapType) await fetchMore([['gap_type', gapType]], TARGET);
+  if (venueType) await fetchMore([['venue_type', venueType]], TARGET - results.length);
+  await fetchMore([], TARGET - results.length);
 
   return results;
 }

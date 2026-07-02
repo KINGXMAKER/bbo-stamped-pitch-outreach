@@ -67,23 +67,26 @@ exports.handler = async (event) => {
     const mimeType = (mimeMatch && mimeMatch[1]) ? mimeMatch[1] : 'image/jpeg';
     const ai = getGeminiClient();
 
-    const prompt = `You are analyzing an Instagram profile screenshot for a sales pitch tool called BBO Stamped.
+    const prompt = `You are analyzing an Instagram profile screenshot for a pitch tool called BBO Stamped.
 
-Extract ALL visible details from this screenshot and return a JSON object with these exact fields:
+Your job is ONLY to observe and describe the feed so the founder can personalize a pitch. You must NOT choose a pitch angle, primary gap, or secondary gap — the founder decides that themselves.
+
+Extract what's visible and return a JSON object with these exact fields:
 {
-  "businessName": "the business/restaurant/venue name visible",
-  "location": "city, state if visible",
-  "instagram": "@handle if visible",
-  "websiteUrl": "website URL if visible in bio",
-  "vibe": "2-3 sentence description of their aesthetic, content style, energy level, and what type of audience they attract",
-  "igNotes": "detailed observations: what content they post (food shots, lifestyle, people, events, reels, stories), posting frequency, engagement style, what's missing, overall quality",
-  "primaryGap": "the single most critical content gap from this list: The \\"No People\\" Gap | The \\"Empty Room\\" Gap | The \\"Product-Only\\" Gap | The \\"No Social Proof\\" Gap | The \\"Good Business, Weak Perception\\" Gap | The \\"No Vibe\\" Gap | The \\"No Target Customer\\" Gap | The \\"Flyer-Only Marketing\\" Gap | The \\"General Pitch\\" Angle | The \\"Low Engagement\\" Gap",
-  "secondaryGap": "second most critical gap from the same list",
-  "vertical": "Restaurant | Bar | Lounge | Speakeasy | Cafe | Club | Other",
-  "confidence": 1-10
+  "businessName": "the business name visible, or empty string",
+  "location": "city, state if visible, or empty string",
+  "instagram": "@handle if visible, or empty string",
+  "inferredBusinessType": "what kind of business this appears to be (e.g. restaurant, bar, lounge, med spa, esthetician, beauty studio, nightlife spot, brunch spot, local experience business)",
+  "confidence": 1-10,
+  "feedSummary": "2-3 sentences on what the feed is selling visually and what it's mostly made of",
+  "visualVibe": "the aesthetic, energy level, and overall feeling — e.g. packed, empty, premium, menu-heavy, service-heavy, flyer-heavy, content-light, trust-building, or low-engagement",
+  "socialProofNotes": "what social proof is or isn't present: real people, customers, tags, reactions, reviews, crowd energy",
+  "contentStyleNotes": "content mix and cadence: product/food shots vs lifestyle vs reels vs stories vs flyers, posting frequency, engagement signals",
+  "personalizationDetails": "specific concrete details worth referencing in a pitch (signature items, standout posts, location cues, aesthetic hooks)",
+  "suggestedPitchContext": "a short read on the social-media context that could help personalize a pitch — NOT a chosen gap, just useful framing"
 }
 
-Be specific and detailed. If you can't determine something, use an empty string. Return ONLY valid JSON, no markdown.`;
+Be specific and detailed. If you can't determine something, use an empty string. Do NOT include any gap or pitch-angle selection. Return ONLY valid JSON, no markdown.`;
 
     const { text, modelUsed } = await generateWithImage(ai, prompt, base64Data, mimeType);
     const cleaned = text.replace(/^```json\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();

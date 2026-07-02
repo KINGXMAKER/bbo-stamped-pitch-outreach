@@ -1,22 +1,36 @@
 const { getGeminiClient, getSupabaseClient, getMatchingExamples, generateText } = require('./shared');
 
 function buildSystemPrompt(voicePrompt, examplesPrompt) {
-  return `You are a founder-level brand strategist and sales closer for BBO Stamped — a premium lifestyle content activation brand. Your job is to write highly personalized, confident, and persuasive pitches for restaurants, bars, lounges, and lifestyle venues.
+  return `You are the founder of BBO Stamped writing your own outreach — a premium lifestyle content activation brand. You write highly personalized, confident, founder-led pitches for restaurants, bars, lounges, med spas, estheticians, beauty and nightlife businesses, brunch spots, and local experience-based businesses.
 
-BBO Stamped brings a curated group of women and creators to a venue and produces lifestyle content: reels, photos, stories, voiceovers, and social proof. The venue gets content they can repost, run as ads, and use to position themselves as the place to be.
+BBO Stamped brings a curated group of women and creators to a business and produces lifestyle content: reels, photos, stories, real reactions, and customer-style content that builds social proof. The business gets content they can repost, run as ads, and use to become the spot people save, share, tag friends about, book, and pull up to.
+
+THE STRATEGY IS FIXED BY THE USER:
+- The Primary Gap is the ANGLE THE PITCH MUST LEAD WITH. Build the entire pitch around it.
+- The Secondary Gap is the supporting weakness to mention once, reinforcing the primary angle.
+- Do NOT invent a different gap or override the user's choice. Their selected gaps are the strategy.
+
+FOCUS THE PITCH ON:
+- The business's Instagram / social media feed and what it is (and isn't) doing.
+- The user's Primary Gap first, Secondary Gap in support.
+- What their page is missing, and how BBO Stamped creates social proof.
+- Creators, real reactions, customer-style content, and local attention.
+- Getting more people to save, share, tag friends, visit, book, or pull up.
+
+NEVER mention website audits, website deep dives, or their website. This is about their social feed only.
 ${voicePrompt}
 ${examplesPrompt}
-PITCH ANGLES (use the primaryGap to drive the entire pitch):
-- "No People" Gap: Great food/product shots but nobody in them. The venue looks empty.
-- "Empty Room" Gap: Posts exist but the venue never looks busy or alive.
+GAP REFERENCE (the user's selected Primary Gap maps to one of these — lead with it):
+- "No People" Gap: Great food/product shots but nobody in them. The place looks empty.
+- "Empty Room" Gap: Posts exist but the place never looks busy or alive.
 - "Product-Only" Gap: All plates and products, no lifestyle, no people, no energy.
 - "No Social Proof" Gap: No customer photos, no tags, no evidence real people show up and love it.
-- "Good Business, Weak Perception" Gap: The business is clearly strong but the Instagram doesn't match the quality.
+- "Good Business, Weak Perception" Gap: The business is clearly strong but the feed doesn't match the quality.
 - "No Vibe" Gap: Posts exist but there's no atmosphere, energy, or feeling.
 - "No Target Customer" Gap: You can't tell who this place is for from the feed.
-- "Flyer-Only Marketing" Gap: The feed is all announcements, menus, and promotions — no lifestyle.
+- "Flyer-Only Marketing" Gap: The feed is all announcements, menus, and promotions — no lifestyle content.
 - "Low Engagement" Gap: Good content but no reach, no comments, no shares.
-- "General Pitch" Angle: Use when no specific gap is detected — focus on lifestyle content gap universally.
+- "General Pitch" Angle: Use only when the user leaves the gap blank — focus on the lifestyle/social-proof gap universally.
 
 Return a JSON object with these exact fields. No markdown, no backticks, just raw JSON.`;
 }
@@ -32,7 +46,7 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const { businessName, location, vertical, instagram, websiteUrl, vibe, igNotes, websiteInsights, tone, primaryGap, secondaryGap } = body;
+    const { businessName, location, instagram, vibe, igNotes, tone, primaryGap, secondaryGap } = body;
 
     if (!businessName) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business name is required' }) };
 
@@ -40,7 +54,7 @@ exports.handler = async (event) => {
 
     // 1. Fetch voice profile and matching examples from Supabase
     const supabase = getSupabaseClient();
-    
+
     const { data: profileRow } = await supabase
       .from('voice_profiles')
       .select('*')
@@ -48,8 +62,9 @@ exports.handler = async (event) => {
       .limit(1)
       .maybeSingle();
 
-    const emailExamples = await getMatchingExamples(supabase, 'email', vertical, primaryGap);
-    const dmExamples = await getMatchingExamples(supabase, 'dm', vertical, primaryGap);
+    // Match examples by the user's selected gap; outcome is never used to rank them.
+    const emailExamples = await getMatchingExamples(supabase, 'email', null, primaryGap);
+    const dmExamples = await getMatchingExamples(supabase, 'dm', null, primaryGap);
 
     // 2. Build dynamic writing rules
     const voiceProfile = profileRow ? profileRow.profile_data : null;
@@ -71,11 +86,11 @@ YOUR VOICE (learned from your real successful pitches):
       voicePrompt = `
 WRITING RULES:
 - Write like a confident founder who genuinely sees the gap and knows how to close it
-- Never say "I noticed your website says" or "The site states" — speak from the angle, not the source
+- Speak from the angle, not the source — reference what their Instagram feed shows, never a website
 - Be specific to their actual business, location, and vibe
 - Zero corporate language, zero fluff, zero robotic phrases
 - The DM should feel like it came from a real person who actually looked at their page
-- Every pitch angle must reference something real about their business
+- Every pitch angle must reference something real about their feed or business
 - Keep all descriptions in the audit (visible_vibe, already_do_well, missing, bbo_angle, risk_caution) extremely concise (1-2 punchy sentences max)
 - Keep the email body under 200 words (2-3 short paragraphs maximum). Be direct, crisp, and high-impact
 `;
@@ -85,15 +100,15 @@ WRITING RULES:
     let examplesPrompt = '';
     if (emailExamples.length > 0 || dmExamples.length > 0) {
       examplesPrompt = `
-REAL EXAMPLES OF PITCHES THAT WORKED:
+REAL EXAMPLES THE FOUNDER PERSONALLY WROTE (copy this voice exactly):
 ${emailExamples.length > 0 ? `
 --- EMAIL EXAMPLES ---
-${emailExamples.map((e, idx) => `[Example #${idx+1} — Outcome: ${e.outcome}]\n${e.content}`).join('\n\n')}` : ''}
+${emailExamples.map((e, idx) => `[Example #${idx+1}]\n${e.content}`).join('\n\n')}` : ''}
 ${dmExamples.length > 0 ? `
 --- DM EXAMPLES ---
-${dmExamples.map((e, idx) => `[Example #${idx+1} — Outcome: ${e.outcome}]\n${e.content}`).join('\n\n')}` : ''}
+${dmExamples.map((e, idx) => `[Example #${idx+1}]\n${e.content}`).join('\n\n')}` : ''}
 
-CRITICAL: Carefully study the tone, pacing, sentence length, and structure of these real examples. Your generated email and DM MUST sound exactly like they were written by the same person who wrote these examples. Avoid formulas; copy the human rhythm.
+CRITICAL: These are the founder's own words. Study and copy the tone, pacing, sentence length, word choice, and structure of every example. Your generated email and DM MUST sound exactly like the same person wrote them — direct, strategic, natural, founder-led, not corporate, not generic agency language, not too long. Avoid formulas; copy the human rhythm. Outcome is irrelevant — adapt to and copy the style of ALL of these.
 `;
     }
 
@@ -107,21 +122,15 @@ CRITICAL: Carefully study the tone, pacing, sentence length, and structure of th
       ? 'Make the DM significantly shorter — under 200 characters for Part 1. Keep the core angle.'
       : '';
 
-    const websiteContext = websiteInsights
-      ? `Website analysis: ${JSON.stringify(websiteInsights)}`
-      : websiteUrl ? `Website: ${websiteUrl} (not analyzed)` : 'No website data available.';
-
-    const userPrompt = `Write a full BBO Stamped pitch for this business:
+    const userPrompt = `Write a full BBO Stamped pitch for this business. Lead the entire pitch with the Primary Gap the user selected; use the Secondary Gap in support. Keep the focus on their Instagram/social feed and building social proof.
 
 Business: ${businessName}
 Location: ${location || 'Unknown'}
-Vertical: ${vertical || 'Restaurant/Venue'}
 Instagram: ${instagram || 'Not provided'}
-Primary Content Gap: ${primaryGap || 'General Pitch / Fallback'}
-Secondary Content Gap: ${secondaryGap || 'None identified'}
+>> PRIMARY GAP (lead the pitch with this — the user chose it): ${primaryGap || 'General Pitch / Fallback'}
+>> SECONDARY GAP (support angle — the user chose it): ${secondaryGap || 'None identified'}
 Vibe/Notes: ${vibe || 'Not provided'}
-Instagram Content Observations: ${igNotes || 'Not provided'}
-${websiteContext}
+Instagram Feed Observations: ${igNotes || 'Not provided'}
 ${toneInstructions ? `Tone Adjustment: ${toneInstructions}` : ''}
 
 Return ONLY this JSON structure (no markdown, no backticks):
@@ -183,7 +192,7 @@ The dm_part2 should always be:
         .from('pitch_history')
         .insert({
           business_name: businessName,
-          venue_type: vertical || null,
+          venue_type: null,
           gap_type: primaryGap || null,
           channel: 'dm',
           ai_draft: data.dm_version,
@@ -199,7 +208,7 @@ The dm_part2 should always be:
         .from('pitch_history')
         .insert({
           business_name: businessName,
-          venue_type: vertical || null,
+          venue_type: null,
           gap_type: primaryGap || null,
           channel: 'email',
           ai_draft: data.email_body,
