@@ -24,10 +24,10 @@ try {
 
 function getSupabaseClient() {
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
     throw new Error(
-      'Supabase is not configured on the server — missing SUPABASE_URL or SUPABASE_ANON_KEY. ' +
+      'Supabase is not configured on the server — missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. ' +
       'Set these env vars in the Netlify project (all contexts) and redeploy.'
     );
   }
