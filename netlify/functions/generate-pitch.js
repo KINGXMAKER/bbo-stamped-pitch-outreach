@@ -170,7 +170,7 @@ Return ONLY this JSON structure (no markdown, no backticks):
   ],
   "dm_version": "Instagram DM Part 1 — the pitch. Under 500 chars. Personal, specific, confident. No emojis spam. Opens with something real about their page. Uses [Business Name] placeholder if needed.",
   "dm_part2": "Instagram DM Part 2 — fixed closing CTA linking to the BBO Stamped page.",
-  "email_subject": "BBO Stamped x ${businessName} — Content Activation",
+  "email_subject": "Your Instagram may be costing you customers",
   "email_body": "Full professional email pitch. 4-5 paragraphs. Personalized opener, specific gap observation, BBO solution, CTA for 5-min call. MUST end with the fixed closing line: 'Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped'",
   "call_talking_points": ["4-5 talking points for a phone pitch"],
   "follow_up": "3-5 day follow up DM — references the first message, adds urgency, keeps it short. Ends with the same fixed closing line: 'Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped'",
@@ -197,6 +197,9 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
     const text = (await generateText(ai, userPrompt, systemPrompt, pitchOpts)).trim();
     const cleaned = text.replace(/^```json\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
     const data = JSON.parse(cleaned);
+
+    // Fixed subject line for all Stamped pitches — enforced here so the model can never drift.
+    data.email_subject = 'Your Instagram may be costing you customers';
 
     // 4. Log the generation to pitch_history in Supabase
     let dmHistoryId = null;
