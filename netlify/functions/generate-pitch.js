@@ -185,7 +185,16 @@ The email_body must end with this exact same closing line (on its own lines, aft
 
 Do NOT include any Instagram reel/post links or "past activations" links anywhere in dm_version, dm_part2, or email_body. The BBO Stamped page link above is the only link that should ever appear.`;
 
-    const text = (await generateText(ai, userPrompt, systemPrompt)).trim();
+    // JSON mode kills malformed-output parse failures. Optionally set GEMINI_MODEL_PITCH
+    // (e.g. gemini-2.5-pro on a paid key) to try a stronger model first — single attempt,
+    // capped so the flash fallback still fits in the deadline.
+    const pitchOpts = { json: true };
+    if (process.env.GEMINI_MODEL_PITCH) {
+      pitchOpts.primaryModel = process.env.GEMINI_MODEL_PITCH;
+      pitchOpts.primaryTimeoutMs = 15000;
+      pitchOpts.primaryMaxAttempts = 1;
+    }
+    const text = (await generateText(ai, userPrompt, systemPrompt, pitchOpts)).trim();
     const cleaned = text.replace(/^```json\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
     const data = JSON.parse(cleaned);
 

@@ -45,6 +45,8 @@ exports.handler = async (event) => {
 Profile data:
 ${profileData.slice(0, 2000)}
 
+Do NOT choose a pitch angle or content gap — the founder decides that themselves. Only observe and describe.
+
 Return ONLY JSON (no markdown):
 {
   "businessName": "business name from profile",
@@ -52,15 +54,15 @@ Return ONLY JSON (no markdown):
   "bio": "the bio text",
   "vibe": "2-3 sentence description of their aesthetic, content style, energy, and audience",
   "igNotes": "detailed observations about content type, posting patterns, engagement, what's missing",
-  "primaryGap": "most critical gap: The \"No People\" Gap | The \"Empty Room\" Gap | The \"Product-Only\" Gap | The \"No Social Proof\" Gap | The \"Good Business, Weak Perception\" Gap | The \"No Vibe\" Gap | The \"No Target Customer\" Gap | The \"Flyer-Only Marketing\" Gap | The \"General Pitch\" Angle | The \"Low Engagement\" Gap",
-  "secondaryGap": "second gap from same list",
-  "followers": "follower count if visible",
-  "vertical": "Restaurant | Bar/Lounge | Cafe | Beauty/Wellness | Retail | Other"
+  "followers": "follower count if visible"
 }`;
 
-    const text = (await generateText(ai, prompt)).trim();
+    const text = (await generateText(ai, prompt, null, { json: true })).trim();
     const cleaned = text.replace(/^```json\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
     const data = JSON.parse(cleaned);
+
+    // The frontend SYNC VIBE button fills the Content Snapshot field from `audit`.
+    data.audit = [data.vibe, data.igNotes].filter(Boolean).join('\n\n');
 
     return { statusCode: 200, headers, body: JSON.stringify(data) };
 

@@ -16,11 +16,6 @@
   status = 200
 
 [[redirects]]
-  from = "/api/scrape"
-  to = "/.netlify/functions/scrape"
-  status = 200
-
-[[redirects]]
   from = "/api/scrape-ig"
   to = "/.netlify/functions/scrape-ig"
   status = 200

@@ -88,7 +88,7 @@ Extract what's visible and return a JSON object with these exact fields:
 
 Be specific and detailed. If you can't determine something, use an empty string. Do NOT include any gap or pitch-angle selection. Return ONLY valid JSON, no markdown.`;
 
-    const { text, modelUsed } = await generateWithImage(ai, prompt, base64Data, mimeType);
+    const { text, modelUsed } = await generateWithImage(ai, prompt, base64Data, mimeType, { json: true });
     const cleaned = text.replace(/^```json\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
 
     let data;

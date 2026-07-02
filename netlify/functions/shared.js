@@ -43,13 +43,15 @@ function getModelName() {
 }
 
 // Ordered list of models to try: primary first, then fallbacks. De-duped.
-function getModelChain() {
+// An optional primaryOverride is prepended (the regular chain becomes its fallback).
+function getModelChain(primaryOverride) {
   const primary = getModelName();
   const fallbacks = (process.env.GEMINI_MODEL_FALLBACKS || 'gemini-2.5-flash-lite,gemini-2.0-flash')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean);
-  return [...new Set([primary, ...fallbacks])];
+  const chain = primaryOverride ? [primaryOverride, primary, ...fallbacks] : [primary, ...fallbacks];
+  return [...new Set(chain)];
 }
 
 const TRANSIENT_CODES = ['429', '500', '502', '503', '504'];
@@ -78,24 +80,73 @@ function isHardError(err) {
   return /401|403|400|API key|api_key|permission|invalid argument|invalid image|unsupported/i.test(m);
 }
 
+// Cross-provider fallback: NVIDIA NIM (OpenAI-compatible, free tier).
+// Text-only — fires when every Gemini model in the chain has failed.
+async function generateWithNvidia(prompt, systemInstruction, timeoutMs) {
+  const key = process.env.NVIDIA_API_KEY;
+  const model = process.env.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        messages: [
+          ...(systemInstruction ? [{ role: 'system', content: systemInstruction }] : []),
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.6,
+        max_tokens: 4096,
+        stream: false
+      }),
+      signal: controller.signal
+    });
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => '')).slice(0, 200);
+      throw new Error(`NVIDIA fallback returned ${res.status}: ${detail}`);
+    }
+    const data = await res.json();
+    const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (!text) throw new Error('NVIDIA fallback returned an empty response');
+    console.log(`[nvidia] fallback succeeded on ${model}`);
+    return { text, modelUsed: `nvidia:${model}` };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Core resilient caller. contentArg is whatever the SDK's generateContent accepts
 // (a string for text, or a parts array for multimodal). Returns { text, modelUsed }.
 // deadlineMs caps total wall-clock so we never blow past the Netlify function timeout.
-async function generateContentResilient(genAI, contentArg, modelConfigExtra, deadlineMs) {
-  const models = getModelChain();
+// opts:
+//   json              — force valid JSON output (Gemini responseMimeType)
+//   primaryModel      — prepend this model; the regular chain becomes its fallback
+//   primaryTimeoutMs  — cap the primary's request time so fallbacks still fit in the deadline
+//   primaryMaxAttempts— attempts allowed for the primary (default: same as fallbacks)
+async function generateContentResilient(genAI, contentArg, modelConfigExtra, deadlineMs, opts) {
+  opts = opts || {};
+  const models = getModelChain(opts.primaryModel);
   const deadline = Date.now() + (deadlineMs || 25000);
   const MAX_ATTEMPTS = 3;
   let lastErr;
 
+  const config = { ...(modelConfigExtra || {}) };
+  if (opts.json) {
+    config.generationConfig = { ...(config.generationConfig || {}), responseMimeType: 'application/json' };
+  }
+
   for (const modelName of models) {
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      if (Date.now() >= deadline) {
-        const e = new Error(`Gemini deadline exceeded before completing. Last error: ${lastErr ? lastErr.message : 'none'}`);
-        e.lastError = lastErr;
-        throw e;
-      }
+    const isPrimary = modelName === models[0];
+    const attemptsAllowed = (isPrimary && opts.primaryMaxAttempts) ? opts.primaryMaxAttempts : MAX_ATTEMPTS;
+    for (let attempt = 0; attempt < attemptsAllowed; attempt++) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
       try {
-        const model = genAI.getGenerativeModel({ model: modelName, ...(modelConfigExtra || {}) });
+        // Per-request timeout: never let one slow call eat the whole deadline.
+        const reqTimeout = (isPrimary && opts.primaryTimeoutMs) ? Math.min(remaining, opts.primaryTimeoutMs) : remaining;
+        const model = genAI.getGenerativeModel({ model: modelName, ...config }, { timeout: reqTimeout });
         const result = await model.generateContent(contentArg);
         if (attempt > 0 || modelName !== models[0]) {
           console.log(`[gemini] succeeded on ${modelName} (attempt ${attempt + 1})`);
@@ -109,7 +160,7 @@ async function generateContentResilient(genAI, contentArg, modelConfigExtra, dea
           throw err;
         }
 
-        if (isTransientError(err) && attempt < MAX_ATTEMPTS - 1) {
+        if (isTransientError(err) && attempt < attemptsAllowed - 1) {
           const backoff = 800 * Math.pow(2, attempt) + Math.floor(Math.random() * 400); // 800/1600/3200 + jitter
           if (Date.now() + backoff >= deadline) {
             console.warn(`[gemini] ${modelName} transient but no time left to retry — falling back.`);
@@ -127,25 +178,38 @@ async function generateContentResilient(genAI, contentArg, modelConfigExtra, dea
     }
   }
 
+  // Last rung: cross-provider NVIDIA fallback (text prompts only).
+  const remaining = deadline - Date.now();
+  if (process.env.NVIDIA_API_KEY && typeof contentArg === 'string' && remaining > 3000) {
+    try {
+      console.warn('[gemini] all Gemini models failed — trying NVIDIA fallback');
+      const systemInstruction = (modelConfigExtra && modelConfigExtra.systemInstruction) || null;
+      return await generateWithNvidia(contentArg, systemInstruction, remaining);
+    } catch (nvErr) {
+      console.error('[nvidia] fallback failed:', nvErr.message);
+      lastErr = nvErr;
+    }
+  }
+
   const e = new Error(`All Gemini models failed. Last error: ${lastErr ? lastErr.message : 'unknown'}`);
   e.allModelsFailed = true;
   e.lastError = lastErr;
   throw e;
 }
 
-async function generateText(genAI, prompt, systemInstruction) {
+async function generateText(genAI, prompt, systemInstruction, opts) {
   const extra = systemInstruction ? { systemInstruction } : {};
-  const { text } = await generateContentResilient(genAI, prompt, extra);
+  const { text } = await generateContentResilient(genAI, prompt, extra, opts && opts.deadlineMs, opts);
   return text;
 }
 
 // Returns { text, modelUsed } so callers can report which model handled the request.
-async function generateWithImage(genAI, textPrompt, base64Image, mimeType) {
+async function generateWithImage(genAI, textPrompt, base64Image, mimeType, opts) {
   const parts = [
     { text: textPrompt },
     { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64Image } }
   ];
-  return generateContentResilient(genAI, parts, {});
+  return generateContentResilient(genAI, parts, {}, opts && opts.deadlineMs, opts);
 }
 
 async function extractVoiceProfile(supabase, genAI) {
@@ -187,7 +251,7 @@ Message content:\n"""\n${e.content}\n"""`).join('\n\n---\n\n');
   "emotional_register": "..."
 }`;
 
-  const text = await generateText(genAI, `Analyze these pitches and extract the Voice Profile JSON:\n\n${formattedExamples}${correctionsText}`, systemInstruction);
+  const text = await generateText(genAI, `Analyze these pitches and extract the Voice Profile JSON:\n\n${formattedExamples}${correctionsText}`, systemInstruction, { json: true });
   const cleaned = text.replace(/^```json\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
   const profileData = JSON.parse(cleaned);
 
