@@ -77,9 +77,9 @@ YOUR VOICE (learned from your real successful pitches):
 - Sentence Structure: ${voiceProfile.sentence_structure || 'Short, punchy, direct'}
 - Vocabulary Preferences: ${Array.isArray(voiceProfile.vocabulary_preferences) ? voiceProfile.vocabulary_preferences.join(', ') : 'activation, content gap, lifestyle, social proof'}
 - Forbidden Phrases (NEVER USE THESE): ${Array.isArray(voiceProfile.forbidden_phrases) ? voiceProfile.forbidden_phrases.join(', ') : 'I noticed, I came across, I\'d love to, just reaching out'}
-- Signature Moves: ${Array.isArray(voiceProfile.signature_moves) ? voiceProfile.signature_moves.map(m => `- ${m}`).join('\n') : '- Name-drops past activations early\n- Focuses on the gap\n- Ends with a peer-to-peer call CTA'}
+- Signature Moves: ${Array.isArray(voiceProfile.signature_moves) ? voiceProfile.signature_moves.map(m => `- ${m}`).join('\n') : '- Focuses on the gap\n- Ends with a peer-to-peer call CTA'}
 - DM Structure: ${voiceProfile.dm_structure || 'Hook -> specific observation -> offer -> question CTA'}
-- Email Structure: ${voiceProfile.email_structure || 'Subject -> short paragraphs -> portfolio links -> CTA'}
+- Email Structure: ${voiceProfile.email_structure || 'Subject -> short paragraphs -> CTA -> BBO Stamped page link'}
 - Emotional Register: ${voiceProfile.emotional_register || 'Peer-to-peer, collaborative'}
 `;
     } else {
@@ -169,16 +169,21 @@ Return ONLY this JSON structure (no markdown, no backticks):
     {"name": "secondary angle", "why": "why this angle", "how": "how to pitch it"}
   ],
   "dm_version": "Instagram DM Part 1 — the pitch. Under 500 chars. Personal, specific, confident. No emojis spam. Opens with something real about their page. Uses [Business Name] placeholder if needed.",
-  "dm_part2": "Instagram DM Part 2 — portfolio links. Fixed text with past activation links.",
+  "dm_part2": "Instagram DM Part 2 — fixed closing CTA linking to the BBO Stamped page.",
   "email_subject": "BBO Stamped x ${businessName} — Content Activation",
-  "email_body": "Full professional email pitch. 4-5 paragraphs. Personalized opener, specific gap observation, BBO solution, past activation references, CTA for 5-min call.",
+  "email_body": "Full professional email pitch. 4-5 paragraphs. Personalized opener, specific gap observation, BBO solution, CTA for 5-min call. MUST end with the fixed closing line: 'Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped'",
   "call_talking_points": ["4-5 talking points for a phone pitch"],
-  "follow_up": "3-5 day follow up DM — references the first message, adds urgency, keeps it short",
+  "follow_up": "3-5 day follow up DM — references the first message, adds urgency, keeps it short. Ends with the same fixed closing line: 'Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped'",
   "internal_notes": "Brief internal note on why this pitch approach was chosen"
 }
 
-The dm_part2 should always be:
-"Here are past activations we did.\\n\\n1Republik in North Arlington, NJ.\\nhttps://www.instagram.com/dabboshow/reel/DXvH2HIRf-3/\\nhttps://www.instagram.com/p/DX7Ro4jGsnt/?img_index=6\\nhttps://www.instagram.com/dabboshow/reel/DXzJIMmRKmz/\\n\\nHyde and Seek speakeasy in Brooklyn:\\nhttps://www.instagram.com/reels/DYYanF-Fr96/\\nhttps://www.instagram.com/p/DYiLhhnocst/\\nhttps://www.instagram.com/bbohub/p/DZFleqljodX/"`;
+The dm_part2 should always be exactly:
+"Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped"
+
+The email_body must end with this exact same closing line (on its own lines, after the CTA paragraph):
+"Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped"
+
+Do NOT include any Instagram reel/post links or "past activations" links anywhere in dm_version, dm_part2, or email_body. The BBO Stamped page link above is the only link that should ever appear.`;
 
     const text = (await generateText(ai, userPrompt, systemPrompt)).trim();
     const cleaned = text.replace(/^```json\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
