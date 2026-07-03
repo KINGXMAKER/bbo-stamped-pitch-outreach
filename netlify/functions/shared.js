@@ -55,29 +55,44 @@ function getModelChain(primaryOverride) {
 }
 
 const TRANSIENT_CODES = ['429', '500', '502', '503', '504'];
+const HARD_CODES = ['400', '401', '403'];
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// The Gemini SDK renders HTTP errors as "[NNN Reason] ...", e.g. "[429 Too Many Requests]".
+// Anchor on that bracketed form instead of a bare substring search — a naive `.includes('400')`
+// can false-positive on unrelated 3-digit numbers elsewhere in the message (a retry-delay like
+// "2.199104009s" contains "400" and was misclassifying transient 429 quota errors as hard errors).
+function getStatusCode(err) {
+  const m = (err && err.message) ? err.message : '';
+  const match = m.match(/\[(\d{3})[\s\]]/);
+  return match ? match[1] : null;
+}
+
 // Retry these — temporary overload / capacity. Backoff then fall back to next model.
 function isTransientError(err) {
   const m = (err && err.message) ? err.message : '';
-  return TRANSIENT_CODES.some(c => m.includes(c)) ||
+  const code = getStatusCode(err);
+  return (code && TRANSIENT_CODES.includes(code)) ||
     /overload|unavailable|high demand|try again later|deadline|timeout|ETIMEDOUT|ECONNRESET/i.test(m);
 }
 
 // A missing/removed model (404) is not transient, but we should still skip to the next model in the chain.
 function isModelUnavailable(err) {
+  const code = getStatusCode(err);
   const m = (err && err.message) ? err.message : '';
-  return /404|not found|is not supported/i.test(m);
+  return code === '404' || /not found|is not supported/i.test(m);
 }
 
 // Hard failures — never retry, never fall back. Auth, bad key, malformed request, invalid image.
 function isHardError(err) {
-  const m = (err && err.message) ? err.message : '';
   if (isModelUnavailable(err)) return false; // 404 handled separately (try next model)
-  return /401|403|400|API key|api_key|permission|invalid argument|invalid image|unsupported/i.test(m);
+  const code = getStatusCode(err);
+  const m = (err && err.message) ? err.message : '';
+  return (code && HARD_CODES.includes(code)) ||
+    /API key|api_key|permission|invalid argument|invalid image|unsupported/i.test(m);
 }
 
 // Cross-provider fallback: NVIDIA NIM (OpenAI-compatible, free tier).
