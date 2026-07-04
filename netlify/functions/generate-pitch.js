@@ -1,6 +1,50 @@
-const { getGeminiClient, getSupabaseClient, getMatchingExamples, generateText } = require('./shared');
+const { getGeminiClient, getSupabaseClient, getMatchingExamples, generateText, isHardError } = require('./shared');
 
-function buildSystemPrompt(voicePrompt, examplesPrompt) {
+// Long, plain-language gap explanations used on the normal (non-condensed) path.
+const GAP_REFERENCE_FULL = `GAP REFERENCE (the user's selected Primary Gap leads; keep it plain-spoken):
+- "No People" Gap: The food/product shots are there, but there aren't real people in them, so the place can look empty.
+- "Empty Room" Gap: Posts exist, but the place never looks busy or alive.
+- "Product-Only" Gap: Your page does a good job showing the products, but it's missing more real people actually enjoying the spot. Right now the feed sells what you offer more than the feeling of being there.
+- "No Social Proof" Gap: The page looks clean, but there isn't enough content showing real customers, real reactions, and people choosing the spot. That's what makes someone feel like they should pull up.
+- "Good Business, Weak Perception" Gap: The business is clearly strong, but the feed doesn't match the quality.
+- "No Vibe" Gap: The products look good, but the page doesn't fully show the energy of the space. People need to see the vibe before they decide to visit.
+- "No Target Customer" Gap: You can't tell who this place is for from the feed.
+- "Flyer-Only Marketing" Gap: The feed is mostly announcements, menus, and flyers — not real lifestyle content.
+- "Low Engagement" Gap: The content is decent, but it isn't getting reach, comments, or shares.
+- "General Pitch" Angle: Use only when the user leaves the gap blank — focus on the lifestyle / social-proof gap generally.`;
+
+// Same gaps, one line each — used on the condensed/fallback path so the prompt stays
+// small enough to finish inside the function timeout when the first attempt was too slow.
+const GAP_REFERENCE_SHORT = `GAP REFERENCE (the user's selected Primary Gap leads; keep it plain-spoken):
+- "No People": good shots, but no real people in them.
+- "Empty Room": posts exist, but the place never looks busy or alive.
+- "Product-Only": strong product shots, missing people actually enjoying the spot.
+- "No Social Proof": no real customer reactions/tags showing people choosing the spot.
+- "Good Business, Weak Perception": business is strong, feed doesn't match the quality.
+- "No Vibe": products look good, but the energy/atmosphere isn't showing.
+- "No Target Customer": unclear who the feed is for.
+- "Flyer-Only Marketing": mostly announcements/menus/flyers, no lifestyle content.
+- "Low Engagement": decent content, low reach/comments/shares.
+- "General Pitch": no gap selected — focus on the lifestyle/social-proof gap generally.`;
+
+// condensed=true drops the Learning Center examples and trims the voice/gap sections to
+// the essentials — used for the fast fallback attempt so the prompt is small and quick.
+function buildSystemPrompt(voicePrompt, examplesPrompt, condensed) {
+  if (condensed) {
+    return `You are the founder of BBO Stamped writing your own outreach — a lifestyle content activation brand. Write a personalized, confident, founder-led pitch for this business, focused strictly on their Instagram/social feed and building social proof.
+
+THE STRATEGY IS FIXED BY THE USER: the Primary Gap is the angle the pitch must lead with; the Secondary Gap supports it once. Do NOT invent a different gap.
+
+EMAIL: "Hi," greeting, then straight into the intro + gap observation, one short paragraph on what a BBO Stamped activation is (curated creators, real reactions/reels/photos, content the business can repost/run as ads), then a CTA. 120-170 words, hard cap 190.
+DM: open with a line on running BBO Stamped and curating creators to raise social presence and drive foot traffic, then straight into the gap, then one line on what BBO Stamped brings. 70-110 words, hard cap 130. Do not include the CTA link in dm_version (that is dm_part2).
+
+Plain-spoken, founder-led, never corporate. No made-up facts about the business.
+
+${GAP_REFERENCE_SHORT}
+
+Return a JSON object with the exact fields requested. No markdown, no backticks, just raw JSON.`;
+  }
+
   return `You are the founder of BBO Stamped writing your own outreach — a lifestyle content activation brand. You write personalized, confident, founder-led pitches for restaurants, lounges, bars, med spas, beauty businesses, brunch spots, dessert spots, cafes, nightlife spots, and local experience-based businesses.
 
 WHAT BBO STAMPED IS:
@@ -52,17 +96,7 @@ VOICE — founder-led and plain-spoken, not agency-corporate. Lean on patterns l
 (Use these as tone guides, not verbatim requirements.)
 ${voicePrompt}
 ${examplesPrompt}
-GAP REFERENCE (the user's selected Primary Gap leads; keep it plain-spoken):
-- "No People" Gap: The food/product shots are there, but there aren't real people in them, so the place can look empty.
-- "Empty Room" Gap: Posts exist, but the place never looks busy or alive.
-- "Product-Only" Gap: Your page does a good job showing the products, but it's missing more real people actually enjoying the spot. Right now the feed sells what you offer more than the feeling of being there.
-- "No Social Proof" Gap: The page looks clean, but there isn't enough content showing real customers, real reactions, and people choosing the spot. That's what makes someone feel like they should pull up.
-- "Good Business, Weak Perception" Gap: The business is clearly strong, but the feed doesn't match the quality.
-- "No Vibe" Gap: The products look good, but the page doesn't fully show the energy of the space. People need to see the vibe before they decide to visit.
-- "No Target Customer" Gap: You can't tell who this place is for from the feed.
-- "Flyer-Only Marketing" Gap: The feed is mostly announcements, menus, and flyers — not real lifestyle content.
-- "Low Engagement" Gap: The content is decent, but it isn't getting reach, comments, or shares.
-- "General Pitch" Angle: Use only when the user leaves the gap blank — focus on the lifestyle / social-proof gap generally.
+${GAP_REFERENCE_FULL}
 
 Return a JSON object with these exact fields. No markdown, no backticks, just raw JSON.`;
 }
@@ -73,13 +107,22 @@ function countWords(s) {
   return (String(s || '').trim().match(/\S+/g) || []).length;
 }
 
+// Trim long free-text inputs before they hit the prompt. Mobile screenshot-scan notes in
+// particular can run to several thousand characters — that bulk was a major contributor to
+// generation running past the function timeout. Cuts on a word boundary, keeps meaning intact.
+function capText(s, maxChars) {
+  const str = String(s || '').trim();
+  if (str.length <= maxChars) return str;
+  return str.slice(0, maxChars).replace(/\s+\S*$/, '') + '…';
+}
+
 // Ask the model to compress one field to a word budget while preserving voice, the
 // locked opener, and (for emails) the CTA link. Returns compressed text or null on failure.
-async function compressField(ai, label, textValue, maxWords) {
+async function compressField(ai, label, textValue, maxWords, deadlineMs) {
   const sys = `You compress outreach copy. Return ONLY the rewritten ${label} as plain text — no JSON, no quotes, no markdown. Keep the same founder-led voice, the exact opening line, every fact, and any link. Do not add anything new. Never exceed ${maxWords} words.`;
   const prompt = `Rewrite this ${label} so it is ${maxWords} words or fewer while keeping the opener, the gap point, and the CTA. Stay plain and direct.\n\n${label}:\n"""\n${textValue}\n"""`;
   try {
-    const out = (await generateText(ai, prompt, sys, { deadlineMs: 12000 })).trim();
+    const out = (await generateText(ai, prompt, sys, { deadlineMs })).trim();
     return out.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '').replace(/^"+|"+$/g, '').trim();
   } catch (e) {
     console.error(`[length-guard] compression of ${label} failed:`, e.message);
@@ -88,20 +131,35 @@ async function compressField(ai, label, textValue, maxWords) {
 }
 
 // Server-side length enforcement so we never depend on the model self-policing.
-async function enforceLength(ai, data) {
+// budgetMs is how much time is left in the request — the two compressions run in parallel
+// (not sequentially) and are skipped entirely once there isn't enough time left to risk them,
+// since returning a slightly-over-cap draft beats blowing the whole request past the timeout.
+async function enforceLength(ai, data, budgetMs) {
+  const MIN_BUDGET_MS = 2500;
+  if (budgetMs < MIN_BUDGET_MS) return data;
+  const perCallDeadline = Math.min(6000, budgetMs - 500);
+
+  const jobs = [];
   if (countWords(data.email_body) > 190) {
-    const compressed = await compressField(ai, 'email', data.email_body, 170);
-    if (compressed && countWords(compressed) <= 200) {
-      // Guarantee the fixed CTA link survived compression.
-      data.email_body = compressed.includes('bbouniverse.com/pages/bbo-stamped')
-        ? compressed
-        : compressed.trimEnd() + '\n\n' + BBO_CTA;
-    }
+    jobs.push(
+      compressField(ai, 'email', data.email_body, 170, perCallDeadline).then(compressed => {
+        if (compressed && countWords(compressed) <= 200) {
+          // Guarantee the fixed CTA link survived compression.
+          data.email_body = compressed.includes('bbouniverse.com/pages/bbo-stamped')
+            ? compressed
+            : compressed.trimEnd() + '\n\n' + BBO_CTA;
+        }
+      })
+    );
   }
   if (countWords(data.dm_version) > 130) {
-    const compressed = await compressField(ai, 'Instagram DM', data.dm_version, 110);
-    if (compressed && countWords(compressed) <= 140) data.dm_version = compressed;
+    jobs.push(
+      compressField(ai, 'Instagram DM', data.dm_version, 110, perCallDeadline).then(compressed => {
+        if (compressed && countWords(compressed) <= 140) data.dm_version = compressed;
+      })
+    );
   }
+  if (jobs.length) await Promise.all(jobs);
   return data;
 }
 
@@ -114,30 +172,55 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
 
+  const requestStart = Date.now();
+  // Total soft budget for this invocation. Netlify's default sync function timeout is 10s;
+  // generate-pitch.js is configured for the higher 26s ceiling in netlify.toml where the plan
+  // supports it, but we still budget conservatively so the common case finishes well inside
+  // whichever limit actually applies, instead of depending on the higher ceiling being honored.
+  const TOTAL_BUDGET_MS = 22000;
+  const timeLeft = () => TOTAL_BUDGET_MS - (Date.now() - requestStart);
+
   try {
     const body = JSON.parse(event.body || '{}');
-    const { businessName, location, instagram, vibe, igNotes, tone, primaryGap, secondaryGap } = body;
+    const { businessName, location, instagram, vibe, igNotes, tone, primaryGap, secondaryGap, fastMode } = body;
 
     if (!businessName) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business name is required' }) };
 
-    const ai = getGeminiClient();
+    // Long screenshot-scan notes / vibe text were the biggest single driver of slow generation
+    // on mobile — cap them before they ever reach the prompt. Typical hand-typed notes are well
+    // under these caps, so this only kicks in for the heavy-paste case the timeout was hit on.
+    const cappedVibe = capText(vibe, 400);
+    const cappedIgNotes = capText(igNotes, 900);
 
-    // 1. Fetch voice profile and matching examples from Supabase
+    const ai = getGeminiClient();
     const supabase = getSupabaseClient();
 
-    const { data: profileRow } = await supabase
-      .from('voice_profiles')
-      .select('*')
-      .order('last_refreshed', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // fastMode (set by the frontend's "Try Again" after a timeout) skips the Learning Center
+    // lookup entirely and goes straight to the condensed prompt — fewer round trips, smaller
+    // prompt, best chance of finishing quickly on a retry. pitch_history logging still uses
+    // this same supabase client further down regardless of fastMode.
+    let voiceProfile = null;
+    let emailExamples = [];
+    let dmExamples = [];
 
-    // Match examples by the user's selected gap; outcome is never used to rank them.
-    const emailExamples = await getMatchingExamples(supabase, 'email', null, primaryGap);
-    const dmExamples = await getMatchingExamples(supabase, 'dm', null, primaryGap);
+    if (!fastMode) {
+      // 1. Fetch voice profile and matching examples from Supabase
+      const { data: profileRow } = await supabase
+        .from('voice_profiles')
+        .select('*')
+        .order('last_refreshed', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      voiceProfile = profileRow ? profileRow.profile_data : null;
+
+      // Match examples by the user's selected gap; outcome is never used to rank them.
+      [emailExamples, dmExamples] = await Promise.all([
+        getMatchingExamples(supabase, 'email', null, primaryGap),
+        getMatchingExamples(supabase, 'dm', null, primaryGap)
+      ]);
+    }
 
     // 2. Build dynamic writing rules
-    const voiceProfile = profileRow ? profileRow.profile_data : null;
     let voicePrompt = '';
     if (voiceProfile) {
       voicePrompt = `
@@ -182,7 +265,11 @@ CRITICAL: These are the founder's own words. Study and copy the tone, pacing, se
 `;
     }
 
-    const systemPrompt = buildSystemPrompt(voicePrompt, examplesPrompt);
+    // The condensed prompt is built alongside the full one (cheap — no extra model call) so
+    // it's ready immediately if a fallback attempt is needed below.
+    const systemPromptFull = buildSystemPrompt(voicePrompt, examplesPrompt, false);
+    const systemPromptCondensed = buildSystemPrompt(voicePrompt, examplesPrompt, true);
+    const systemPrompt = fastMode ? systemPromptCondensed : systemPromptFull;
 
     const toneInstructions = tone === 'luxury'
       ? 'Make the pitch feel MORE premium, exclusive, and aspirational. More confident luxury language.'
@@ -199,8 +286,8 @@ Location: ${location || 'Unknown'}
 Instagram: ${instagram || 'Not provided'}
 >> PRIMARY GAP (lead the pitch with this — the user chose it): ${primaryGap || 'General Pitch / Fallback'}
 >> SECONDARY GAP (support angle — the user chose it): ${secondaryGap || 'None identified'}
-Vibe/Notes: ${vibe || 'Not provided'}
-Instagram Feed Observations: ${igNotes || 'Not provided'}
+Vibe/Notes: ${cappedVibe || 'Not provided'}
+Instagram Feed Observations: ${cappedIgNotes || 'Not provided'}
 ${toneInstructions ? `Tone Adjustment: ${toneInstructions}` : ''}
 
 Return ONLY this JSON structure (no markdown, no backticks):
@@ -247,10 +334,7 @@ Return ONLY this JSON structure (no markdown, no backticks):
   "internal_notes": "Brief internal note on why this pitch approach was chosen"
 }
 
-The dm_part2 should always be exactly:
-"Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped"
-
-The email_body must end with this exact same closing line (on its own lines, after the CTA paragraph):
+Both dm_part2 and the closing lines of email_body must be exactly this fixed CTA text (on its own lines, after the CTA paragraph in email_body):
 "Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped"
 
 Do NOT include any Instagram reel/post links or "past activations" links anywhere in dm_version, dm_part2, or email_body. The BBO Stamped page link above is the only link that should ever appear.`;
@@ -264,15 +348,32 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
       pitchOpts.primaryTimeoutMs = 15000;
       pitchOpts.primaryMaxAttempts = 1;
     }
-    const text = (await generateText(ai, userPrompt, systemPrompt, pitchOpts)).trim();
+
+    // Reserve time after generation for the length guard + Supabase logging + response encoding.
+    const RESERVE_AFTER_GEN_MS = 3000;
+
+    let text;
+    try {
+      const primaryDeadline = Math.max(5000, Math.min(9000, timeLeft() - RESERVE_AFTER_GEN_MS));
+      text = (await generateText(ai, userPrompt, systemPrompt, { ...pitchOpts, deadlineMs: primaryDeadline })).trim();
+    } catch (genErr) {
+      // fastMode is already the condensed attempt — nothing lighter left to fall back to.
+      // Hard errors (bad key, auth, invalid request) won't be fixed by a smaller prompt either.
+      if (fastMode || isHardError(genErr) || timeLeft() < RESERVE_AFTER_GEN_MS + 4000) throw genErr;
+      console.warn('[generate-pitch] primary attempt failed, retrying once with condensed fallback prompt:', genErr.message);
+      const fallbackDeadline = Math.max(4000, timeLeft() - RESERVE_AFTER_GEN_MS);
+      text = (await generateText(ai, userPrompt, systemPromptCondensed, { json: true, deadlineMs: fallbackDeadline })).trim();
+    }
+
     const cleaned = text.replace(/^```json\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
     const data = JSON.parse(cleaned);
 
     // Fixed subject line for all Stamped pitches — enforced here so the model can never drift.
     data.email_subject = 'Your Instagram may be costing you customers';
 
-    // Server-side length guard: compress over-cap email/DM bodies before returning.
-    await enforceLength(ai, data);
+    // Server-side length guard: compress over-cap email/DM bodies before returning. Budget-aware
+    // so it's skipped once there isn't enough time left to risk it (see enforceLength above).
+    await enforceLength(ai, data, timeLeft());
 
     // 4. Log the generation to pitch_history in Supabase
     let dmHistoryId = null;
@@ -323,10 +424,15 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
 
   } catch (err) {
     console.error('generate-pitch error:', err);
+    const msg = (err && err.message) || '';
+    const looksLikeTimeout = /deadline|timeout|timed out|overload|unavailable|high demand|429|too many requests/i.test(msg);
+    const errorMessage = looksLikeTimeout
+      ? 'Generation timed out. Your inputs are saved — tap Try Again to retry with the faster fallback.'
+      : 'Pitch generation failed: ' + msg;
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Pitch generation failed: ' + err.message })
+      body: JSON.stringify({ error: errorMessage })
     };
   }
 };

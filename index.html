@@ -1475,45 +1475,67 @@ async function generatePitch(tone){
   const secondaryGap = document.getElementById('inp-secondary-gap').value;
   if(!name){alert('Business name is required.');return;}
   if(!primaryGap&&!tone){alert('Pick a Primary Gap — that\'s the angle the pitch leads with.');return;}
+
+  // IG notice
+  const nb=document.getElementById('ig-notice-box');
+  if(ig&&!igNotes){
+    nb.innerHTML='<div class="ig-notice">Instagram handle provided but no content notes. The AI won\'t reference their feed. Drop a screenshot or paste observations into the Content Snapshot field for a sharper pitch.</div>';
+    nb.style.display='block';
+  }else{
+    nb.style.display='none';
+  }
+
+  // Call AI pitch generator — YOUR selected gaps drive the strategy
+  const payload={businessName:name,location,instagram:ig,vibe,igNotes,tone:tone||null,primaryGap,secondaryGap};
+  lastPitchPayload=payload;
+  await runPitchRequest(payload);
+}
+
+// "Try Again" after a timeout/error reuses the exact inputs already saved in lastPitchPayload
+// (including any Instagram notes from a screenshot scan) and asks the server for the faster,
+// condensed fallback prompt instead of redoing everything from scratch.
+async function retryPitchFast(){
+  if(!lastPitchPayload){ resetAgent(); return; }
+  await runPitchRequest({...lastPitchPayload, fastMode:true});
+}
+
+async function runPitchRequest(payload){
   const btn=document.getElementById('generate-btn');
   const out=document.getElementById('agent-output');
   btn.disabled=true;btn.textContent='GENERATING...';
   out.style.display='block';
   document.getElementById('loading-state').style.display='block';
   ['out-oneliner','out-threesentence','out-strategy','out-angles','out-dm','out-email','out-callpts','regen-bar'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
-  document.getElementById('ig-notice-box').style.display='none';
 
-  // IG notice
-  if(ig&&!igNotes){
-    const nb=document.getElementById('ig-notice-box');
-    nb.innerHTML='<div class="ig-notice">Instagram handle provided but no content notes. The AI won\'t reference their feed. Drop a screenshot or paste observations into the Content Snapshot field for a sharper pitch.</div>';
-    nb.style.display='block';
-  }
-
-  // Call AI pitch generator — YOUR selected gaps drive the strategy
-  const payload={businessName:name,location,instagram:ig,vibe,igNotes,tone:tone||null,primaryGap,secondaryGap};
-  lastPitchPayload=payload;
+  const TIMEOUT_MSG='Generation timed out. Your inputs are saved — tap Try Again to retry with the faster fallback.';
+  // Client-side guard slightly above the server's own internal budget, so a hung connection
+  // doesn't leave the user staring at a spinner forever even if the platform never returns.
+  const controller=new AbortController();
+  const timeoutId=setTimeout(()=>controller.abort(), 28000);
   try{
-    const r=await fetch(PITCH_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const r=await fetch(PITCH_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
+    clearTimeout(timeoutId);
     const ct=r.headers.get('content-type')||'';
     if(!ct.includes('application/json')){
       // Netlify timeout returns HTML — give a clear retry message
       document.getElementById('loading-state').style.display='none';
-      out.innerHTML='<div class="err-notice">The AI took too long to respond (server timeout). This can happen with heavy prompts — try again or reduce the amount of notes/details.</div><button class="reset-btn" onclick="resetAgent()">↩ Try Again</button>';
+      out.innerHTML='<div class="err-notice">'+TIMEOUT_MSG+'</div><button class="reset-btn" onclick="retryPitchFast()">↩ Try Again</button>';
       btn.disabled=false;btn.textContent='GENERATE PITCH';
       return;
     }
     const d=await r.json();
     document.getElementById('loading-state').style.display='none';
     if(d.error){
-      out.innerHTML='<div class="err-notice">'+escapeHTML(d.error)+'</div><button class="reset-btn" onclick="resetAgent()">↩ Try Again</button>';
+      out.innerHTML='<div class="err-notice">'+escapeHTML(d.error)+'</div><button class="reset-btn" onclick="retryPitchFast()">↩ Try Again</button>';
     }else{
       currentHistoryIds = d.history_ids || null;
       renderPitch(d);
     }
   }catch(e){
+    clearTimeout(timeoutId);
     document.getElementById('loading-state').style.display='none';
-    out.innerHTML='<div class="err-notice">Network error: '+escapeHTML(e.message)+'</div><button class="reset-btn" onclick="resetAgent()">↩ Try Again</button>';
+    const msg = (e && e.name==='AbortError') ? TIMEOUT_MSG : 'Network error: '+escapeHTML(e.message);
+    out.innerHTML='<div class="err-notice">'+msg+'</div><button class="reset-btn" onclick="retryPitchFast()">↩ Try Again</button>';
   }
   btn.disabled=false;btn.textContent='GENERATE PITCH';
 }

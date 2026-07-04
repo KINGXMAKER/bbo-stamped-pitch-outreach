@@ -310,7 +310,9 @@ async function getMatchingExamples(supabase, channel, venueType, gapType) {
   // examples. We surface the most relevant ones first (matching gap/venue), then
   // fill with the most recent examples so the voice stays current. Ordering is by
   // recency, never by outcome score.
-  const TARGET = 6;
+  // Capped at 3 (was 6): injecting fewer, more relevant examples keeps the prompt
+  // small enough that generation reliably finishes inside the function timeout.
+  const TARGET = 3;
   let results = [];
   const fetchMore = async (filters, limit) => {
     if (limit <= 0) return;
