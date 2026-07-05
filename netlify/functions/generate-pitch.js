@@ -103,6 +103,23 @@ Return a JSON object with these exact fields. No markdown, no backticks, just ra
 
 const BBO_CTA = 'Please checkout our website for a further breakdown on what we can do for your business:\nhttps://bbouniverse.com/pages/bbo-stamped';
 
+// Distinguishes timeout/abort vs quota vs auth/config vs a genuine unexpected error, so the
+// banner shown to the user is actionable instead of a wall of raw provider JSON. The full raw
+// error is always console.error'd above this for admin debugging in the Netlify function logs.
+function friendlyErrorMessage(err) {
+  const msg = (err && err.message) || '';
+  if (/API key|api_key|invalid argument.*key|permission/i.test(msg)) {
+    return 'Pitch generation is misconfigured (invalid or missing Gemini API key). Contact the site admin.';
+  }
+  if (/429|too many requests|quota/i.test(msg)) {
+    return 'Gemini API quota was hit. Wait a moment and tap Try Again — quotas usually reset within a minute.';
+  }
+  if (/aborted|abort|deadline|timeout|timed out|overload|unavailable|high demand/i.test(msg)) {
+    return 'Generation timed out. Your inputs are saved — tap Try Again to retry with the faster fallback.';
+  }
+  return 'Pitch generation failed: ' + msg;
+}
+
 function countWords(s) {
   return (String(s || '').trim().match(/\S+/g) || []).length;
 }
@@ -173,11 +190,12 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
 
   const requestStart = Date.now();
-  // Total soft budget for this invocation. Netlify's default sync function timeout is 10s;
-  // generate-pitch.js is configured for the higher 26s ceiling in netlify.toml where the plan
-  // supports it, but we still budget conservatively so the common case finishes well inside
-  // whichever limit actually applies, instead of depending on the higher ceiling being honored.
-  const TOTAL_BUDGET_MS = 22000;
+  // Total soft budget for this invocation, aligned with generate-pitch's configured 26s
+  // ceiling in netlify.toml (2s safety margin). This used to be capped much lower (9s) for
+  // the primary attempt alone, which was too tight for this prompt's size — Gemini's own SDK
+  // request timeout (an AbortController under the hood) fired first and produced "This
+  // operation was aborted" before the model could finish, well before Netlify's own limit.
+  const TOTAL_BUDGET_MS = 24000;
   const timeLeft = () => TOTAL_BUDGET_MS - (Date.now() - requestStart);
 
   try {
@@ -354,7 +372,10 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
 
     let text;
     try {
-      const primaryDeadline = Math.max(5000, Math.min(9000, timeLeft() - RESERVE_AFTER_GEN_MS));
+      // Give the primary attempt nearly the whole budget — this is a large, structured-JSON
+      // prompt and 9s (the old cap) was routinely too tight, causing the SDK's own request
+      // timeout to abort the call before Gemini could finish. See TOTAL_BUDGET_MS comment above.
+      const primaryDeadline = Math.max(8000, timeLeft() - RESERVE_AFTER_GEN_MS);
       text = (await generateText(ai, userPrompt, systemPrompt, { ...pitchOpts, deadlineMs: primaryDeadline })).trim();
     } catch (genErr) {
       // fastMode is already the condensed attempt — nothing lighter left to fall back to.
@@ -424,15 +445,10 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
 
   } catch (err) {
     console.error('generate-pitch error:', err);
-    const msg = (err && err.message) || '';
-    const looksLikeTimeout = /deadline|timeout|timed out|overload|unavailable|high demand|429|too many requests/i.test(msg);
-    const errorMessage = looksLikeTimeout
-      ? 'Generation timed out. Your inputs are saved — tap Try Again to retry with the faster fallback.'
-      : 'Pitch generation failed: ' + msg;
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: errorMessage })
+      body: JSON.stringify({ error: friendlyErrorMessage(err) })
     };
   }
 };
