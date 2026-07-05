@@ -36,7 +36,7 @@ function buildSystemPrompt(voicePrompt, examplesPrompt, condensed) {
 THE STRATEGY IS FIXED BY THE USER: the Primary Gap is the angle the pitch must lead with; the Secondary Gap supports it once. Do NOT invent a different gap.
 
 EMAIL: "Hi," greeting, then straight into the intro + gap observation, one short paragraph on what a BBO Stamped activation is (curated creators, real reactions/reels/photos, content the business can repost/run as ads), then a CTA. 120-170 words, hard cap 190.
-DM: open with a line on running BBO Stamped and curating creators to raise social presence and drive foot traffic, then straight into the gap, then one line on what BBO Stamped brings. 70-110 words, hard cap 130. Do not include the CTA link in dm_version (that is dm_part2).
+DM: (1) a short warm personal opener in your own words saying you came across / were browsing their Instagram feed and think you can bring more life to their page; (2) then the line "I run BBO Stamped, where I curate creators to raise social media presence and drive foot traffic to places like yours."; (3) the gap in first person ("as I browsed your page I noticed..."); (4) one line on what BBO Stamped brings with a quick parenthetical of content types (think photos, skits, recaps, voiceovers, etc.), then how it makes people pull up. 80-120 words, hard cap 140. Do not include the CTA link in dm_version (that is dm_part2).
 
 Plain-spoken, founder-led, never corporate. No made-up facts about the business.
 
@@ -81,17 +81,22 @@ EMAIL STRUCTURE (mandatory):
 - Target 120–170 words. HARD CAP 190 words. Max 4 short paragraphs. No giant paragraphs.
 
 DM STRUCTURE (mandatory):
-1. Open exactly: "I run BBO Stamped, where I curate creators to raise social media presence and drive foot traffic to places like yours."
-2. Go straight into the gap: compliment as a short clause, then what's missing, then one line on what BBO Stamped brings.
-3. CTA: the BBO Stamped page link (this is the dm_part2 field — keep it out of dm_version).
-- Target 70–110 words for the DM body. HARD CAP 130 words. Max 2 short paragraphs.
+1. Warm personal opener — one short, natural line before anything else, in the founder's own voice. It should say (in your own words, not verbatim) that you came across / were browsing their Instagram feed and think you can bring more life to their page. Keep it warm and human, never salesy. Example feel: "Hi, you came across my Instagram feed and I think I can bring more life to your page."
+2. Locked intro line, right after the opener, used exactly: "I run BBO Stamped, where I curate creators to raise social media presence and drive foot traffic to places like yours."
+3. The gap, in first person and plain-spoken — write it like you personally looked at their page (e.g. "As I browsed your page I noticed..."). Compliment as a short clause, then what's missing.
+4. One line on what BBO Stamped brings, with a quick parenthetical of concrete content types — e.g. "(think photos, skits, recaps, voiceovers, etc.)" — then how it makes people stop scrolling and pull up.
+5. CTA: the BBO Stamped page link (this is the dm_part2 field — keep it out of dm_version).
+- Target 80–120 words for the DM body. HARD CAP 140 words. Max 2 short paragraphs.
 
-VOICE — founder-led and plain-spoken, not agency-corporate. Lean on patterns like:
+VOICE — founder-led and plain-spoken, not agency-corporate. Warm and personal, like you actually looked at their page. Lean on patterns like:
+- "you came across my Instagram feed and I think I can bring more life to your page"
+- "as I browsed your page I noticed it's mainly event flyers and lifestyle content is lacking"
 - "your page looks good, but it doesn't fully show the experience"
 - "the food looks strong, but people need to see people enjoying it"
 - "right now the page sells the product more than the vibe"
 - "that's where BBO Stamped fits"
-- "real women, real reactions, creators posting, and content the business can reuse"
+- "real women, real reactions, creators posting, and content the business can reuse and customers can see"
+- "authentic lifestyle content (think photos, skits, recaps, voiceovers, etc.)"
 - "make people stop scrolling, save the post, tag friends, and pull up"
 (Use these as tone guides, not verbatim requirements.)
 ${voicePrompt}
@@ -169,10 +174,10 @@ async function enforceLength(ai, data, budgetMs) {
       })
     );
   }
-  if (countWords(data.dm_version) > 130) {
+  if (countWords(data.dm_version) > 140) {
     jobs.push(
-      compressField(ai, 'Instagram DM', data.dm_version, 110, perCallDeadline).then(compressed => {
-        if (compressed && countWords(compressed) <= 140) data.dm_version = compressed;
+      compressField(ai, 'Instagram DM', data.dm_version, 120, perCallDeadline).then(compressed => {
+        if (compressed && countWords(compressed) <= 150) data.dm_version = compressed;
       })
     );
   }
@@ -343,7 +348,7 @@ Return ONLY this JSON structure (no markdown, no backticks):
     {"name": "primary angle", "why": "why this angle", "how": "how to pitch it"},
     {"name": "secondary angle", "why": "why this angle", "how": "how to pitch it"}
   ],
-  "dm_version": "Instagram DM body — follow the DM STRUCTURE exactly. Open with the locked DM line, then the gap (compliment as a short clause, what's missing, one line on what BBO Stamped brings). Do NOT include the CTA link here (that is dm_part2). 70-110 words, hard cap 130. Max 2 short paragraphs.",
+  "dm_version": "Instagram DM body — follow the DM STRUCTURE exactly. Start with a short warm personal opener (came across / browsing their feed, can bring more life to their page), then the locked 'I run BBO Stamped...' line, then the gap in first person ('as I browsed your page I noticed...'), then one line on what BBO Stamped brings with a quick parenthetical of content types (think photos, skits, recaps, voiceovers, etc.). Do NOT include the CTA link here (that is dm_part2). 80-120 words, hard cap 140. Max 2 short paragraphs.",
   "dm_part2": "Instagram DM Part 2 — fixed closing CTA linking to the BBO Stamped page.",
   "email_subject": "Your Instagram may be costing you customers",
   "email_body": "Full email pitch following the EMAIL STRUCTURE exactly: 'Hi,' greeting, the locked intro line, straight into the personalized gap observation, one short paragraph on what a BBO Stamped activation is, the 60K/NJ-NY line only if natural, then the CTA. 120-170 words, hard cap 190, max 4 short paragraphs. MUST end with the fixed closing line: 'Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped'",
