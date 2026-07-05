@@ -5,6 +5,12 @@
 [functions]
   node_bundler = "esbuild"
 
+# Best-effort only — Netlify caps sync function execution at 10s unless the plan supports a
+# higher ceiling, in which case this raises it to reduce timeouts on heavy prompts. The actual
+# fix is generate-pitch.js budgeting itself well under 10s; this is a safety margin, not the fix.
+[functions."generate-pitch"]
+  timeout = 26
+
 [[redirects]]
   from = "/api/analyze-screenshot"
   to = "/.netlify/functions/analyze-screenshot"
