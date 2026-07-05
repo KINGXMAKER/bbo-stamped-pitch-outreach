@@ -72,11 +72,14 @@ function getStatusCode(err) {
 }
 
 // Retry these — temporary overload / capacity. Backoff then fall back to next model.
+// Includes SDK-level request-timeout aborts ("This operation was aborted") — the
+// @google/generative-ai SDK implements its `timeout` option via AbortController, and an
+// abort is functionally identical to a timeout: worth retrying, not a reason to give up.
 function isTransientError(err) {
   const m = (err && err.message) ? err.message : '';
   const code = getStatusCode(err);
   return (code && TRANSIENT_CODES.includes(code)) ||
-    /overload|unavailable|high demand|try again later|deadline|timeout|ETIMEDOUT|ECONNRESET/i.test(m);
+    /overload|unavailable|high demand|try again later|deadline|timeout|ETIMEDOUT|ECONNRESET|aborted|AbortError/i.test(m);
 }
 
 // A missing/removed model (404) is not transient, but we should still skip to the next model in the chain.
@@ -152,42 +155,50 @@ async function generateContentResilient(genAI, contentArg, modelConfigExtra, dea
     config.generationConfig = { ...(config.generationConfig || {}), responseMimeType: 'application/json' };
   }
 
+  // Below this, a request is essentially guaranteed to abort before Gemini can respond —
+  // don't bother issuing it, just move on (next attempt/model/NVIDIA/give up).
+  const MIN_REQUEST_TIMEOUT_MS = 3000;
+
   for (const modelName of models) {
     const isPrimary = modelName === models[0];
     const attemptsAllowed = (isPrimary && opts.primaryMaxAttempts) ? opts.primaryMaxAttempts : MAX_ATTEMPTS;
     for (let attempt = 0; attempt < attemptsAllowed; attempt++) {
       const remaining = deadline - Date.now();
-      if (remaining <= 0) break;
+      if (remaining < MIN_REQUEST_TIMEOUT_MS) {
+        console.warn(`[gemini] ${modelName} skipped — only ${remaining}ms left in budget (floor is ${MIN_REQUEST_TIMEOUT_MS}ms).`);
+        break;
+      }
+      const attemptStart = Date.now();
+      // Per-request timeout: never let one slow call eat the whole deadline.
+      const reqTimeout = (isPrimary && opts.primaryTimeoutMs) ? Math.min(remaining, opts.primaryTimeoutMs) : remaining;
+      console.log(`[gemini] → ${modelName} attempt ${attempt + 1}/${attemptsAllowed}, timeout=${reqTimeout}ms, budget left=${remaining}ms`);
       try {
-        // Per-request timeout: never let one slow call eat the whole deadline.
-        const reqTimeout = (isPrimary && opts.primaryTimeoutMs) ? Math.min(remaining, opts.primaryTimeoutMs) : remaining;
         const model = genAI.getGenerativeModel({ model: modelName, ...config }, { timeout: reqTimeout });
         const result = await model.generateContent(contentArg);
-        if (attempt > 0 || modelName !== models[0]) {
-          console.log(`[gemini] succeeded on ${modelName} (attempt ${attempt + 1})`);
-        }
+        console.log(`[gemini] ✓ ${modelName} responded in ${Date.now() - attemptStart}ms (attempt ${attempt + 1})`);
         return { text: result.response.text(), modelUsed: modelName };
       } catch (err) {
+        const elapsed = Date.now() - attemptStart;
         lastErr = err;
 
         if (isHardError(err)) {
-          console.error(`[gemini] hard error on ${modelName} — not retrying: ${err.message}`);
+          console.error(`[gemini] ✗ hard error on ${modelName} after ${elapsed}ms — not retrying: ${err.message}`);
           throw err;
         }
 
         if (isTransientError(err) && attempt < attemptsAllowed - 1) {
           const backoff = 800 * Math.pow(2, attempt) + Math.floor(Math.random() * 400); // 800/1600/3200 + jitter
           if (Date.now() + backoff >= deadline) {
-            console.warn(`[gemini] ${modelName} transient but no time left to retry — falling back.`);
+            console.warn(`[gemini] ✗ ${modelName} transient after ${elapsed}ms but no time left to retry — falling back.`);
             break;
           }
-          console.warn(`[gemini] ${modelName} transient (attempt ${attempt + 1}): ${err.message}. retrying in ${backoff}ms`);
+          console.warn(`[gemini] ✗ ${modelName} transient after ${elapsed}ms (attempt ${attempt + 1}): ${err.message}. retrying in ${backoff}ms`);
           await sleep(backoff);
           continue;
         }
 
         // Out of retries, or a non-transient model-availability issue — move to next model.
-        console.warn(`[gemini] ${modelName} exhausted/unavailable: ${err.message}. trying next model.`);
+        console.warn(`[gemini] ✗ ${modelName} exhausted/unavailable after ${elapsed}ms: ${err.message}. trying next model.`);
         break;
       }
     }
