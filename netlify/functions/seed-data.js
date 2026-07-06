@@ -36,7 +36,7 @@ const examples = [
   {
     channel: 'email',
     venue_type: 'Lounge',
-    gap_type: 'Product-Only',
+    gap_type: 'No People / No Lifestyle Content',
     content: `Let me keep this short.
 
 I came across AYA Hookah Lounge and had to reach out. The upscale branding, the specific entertainment like karaoke — you've clearly built a premium experience in New Jersey. But here's what I noticed: your Instagram feels mostly event-focused and product-focused right now. The lounge looks great, but there isn't enough lifestyle content showing real people eating, reacting, posting, and experiencing AYA. That matters because people don't only choose where to go based on what's happening; they choose based on what looks active, trusted, and worth pulling up to. If the feed feels quiet, the lounge feels quiet — even when it's not. That's exactly what BBO Stamped was built to fix. We activate your space with a curated group of creators and a media team. Real people enjoying your atmosphere, reacting to it, posting it, tagging it across social media — turning AYA into the spot people are already talking about. Not staged. Not stiff. Actual lifestyle energy that makes someone stop scrolling and pull up. Would love to schedule a quick 5 minute call to discuss this more.
@@ -53,7 +53,7 @@ Instagram: @dabboshow`,
   {
     channel: 'email',
     venue_type: 'Restaurant',
-    gap_type: 'Flyer-Only Marketing',
+    gap_type: 'No People / No Lifestyle Content',
     content: `Hey,
 
 I'll keep this short — I run BBO, and we have a content series called BBO Stamped. We bring a curated group of women and creators to a venue and produce lifestyle content around the food, drinks, service, and vibe.

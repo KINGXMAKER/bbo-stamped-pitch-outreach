@@ -1,31 +1,20 @@
 const { getGeminiClient, getSupabaseClient, getMatchingExamples, generateText, isHardError } = require('./shared');
 
 // Long, plain-language gap explanations used on the normal (non-condensed) path.
-const GAP_REFERENCE_FULL = `GAP REFERENCE (the user's selected Primary Gap leads; keep it plain-spoken):
-- "No People" Gap: The food/product shots are there, but there aren't real people in them, so the place can look empty.
-- "Empty Room" Gap: Posts exist, but the place never looks busy or alive.
-- "Product-Only" Gap: Your page does a good job showing the products, but it's missing more real people actually enjoying the spot. Right now the feed sells what you offer more than the feeling of being there.
-- "No Social Proof" Gap: The page looks clean, but there isn't enough content showing real customers, real reactions, and people choosing the spot. That's what makes someone feel like they should pull up.
-- "Good Business, Weak Perception" Gap: The business is clearly strong, but the feed doesn't match the quality.
-- "No Vibe" Gap: The products look good, but the page doesn't fully show the energy of the space. People need to see the vibe before they decide to visit.
-- "No Target Customer" Gap: You can't tell who this place is for from the feed.
-- "Flyer-Only Marketing" Gap: The feed is mostly announcements, menus, and flyers — not real lifestyle content.
-- "Low Engagement" Gap: The content is decent, but it isn't getting reach, comments, or shares.
-- "General Pitch" Angle: Use only when the user leaves the gap blank — focus on the lifestyle / social-proof gap generally.`;
+// Four consolidated gaps — never insulting, always framed as an opportunity.
+const GAP_REFERENCE_FULL = `GAP REFERENCE (the user's selected Primary Gap leads; keep it plain-spoken and NEVER insulting — frame every gap as an opportunity, not a criticism):
+- "No People / No Lifestyle Content": The page is mostly flyers, food photos, product shots, empty-venue shots, staff-only content, reposts, graphics, and promo posts — but it isn't showing enough real customers, patrons, women, groups, or lifestyle moments of people actually enjoying the business. Frame it as: the page shows the business, but not enough of the experience. BBO Stamped makes the place look more alive by bringing curated people/creators into the space and shooting lifestyle content that shows real people enjoying it.
+- "Good Business, Weak Perception": The business may be genuinely good in person, but the page doesn't make it look as valuable, popular, premium, active, or culturally relevant as it probably is. Frame it as: sometimes the business is stronger than the page makes it look. BBO Stamped raises the perception of the page with the content we shoot — curated lifestyle content, creator presence, recap clips, social proof, and better visual storytelling.
+- "Low Engagement": They may be posting, but the audience isn't reacting enough. Only mention specific signals like low likes, comments, shares, or saves if the user provided that info or the snapshot clearly supports it — NEVER invent numbers. BBO Stamped creates content that gives people more reason to stop scrolling, engage, tag friends, and see the business as a place to pull up to.
+- "No Target Customer / General Pitch": Use for a broader pitch that doesn't need a narrow critique. Do NOT force a harsh audit angle. Simply explain what BBO Stamped does: we curate creators and real people, come to the business, and shoot lifestyle content that makes the page feel more active, social, and desirable — turning the business into somewhere people want to visit, post, and talk about.`;
 
-// Same gaps, one line each — used on the condensed/fallback path so the prompt stays
-// small enough to finish inside the function timeout when the first attempt was too slow.
-const GAP_REFERENCE_SHORT = `GAP REFERENCE (the user's selected Primary Gap leads; keep it plain-spoken):
-- "No People": good shots, but no real people in them.
-- "Empty Room": posts exist, but the place never looks busy or alive.
-- "Product-Only": strong product shots, missing people actually enjoying the spot.
-- "No Social Proof": no real customer reactions/tags showing people choosing the spot.
-- "Good Business, Weak Perception": business is strong, feed doesn't match the quality.
-- "No Vibe": products look good, but the energy/atmosphere isn't showing.
-- "No Target Customer": unclear who the feed is for.
-- "Flyer-Only Marketing": mostly announcements/menus/flyers, no lifestyle content.
-- "Low Engagement": decent content, low reach/comments/shares.
-- "General Pitch": no gap selected — focus on the lifestyle/social-proof gap generally.`;
+// Same four gaps, one line each — used on the condensed/fallback path so the prompt
+// stays small enough to finish inside the function timeout when the first attempt was slow.
+const GAP_REFERENCE_SHORT = `GAP REFERENCE (Primary Gap leads; never insulting — frame as opportunity):
+- "No People / No Lifestyle Content": page is mostly flyers/food/product/promo/staff/reposts, not enough real people enjoying the space. BBO brings curated people/creators to shoot lifestyle content that makes it look alive. Frame as "shows the business, not enough of the experience."
+- "Good Business, Weak Perception": the spot is stronger than the page makes it look. BBO raises the page's perception with curated content, creators, recap clips, and social proof.
+- "Low Engagement": posting but low reaction. Mention low likes/comments/shares/saves ONLY if the user gave that info — never invent numbers. BBO gives people a reason to stop scrolling, engage, and pull up.
+- "No Target Customer / General Pitch": broad pitch, no harsh critique. Explain what BBO does: curate creators/real people, come shoot lifestyle content, make the page active, social, and worth visiting.`;
 
 // condensed=true drops the Learning Center examples and trims the voice/gap sections to
 // the essentials — used for the fast fallback attempt so the prompt is small and quick.
@@ -33,7 +22,7 @@ function buildSystemPrompt(voicePrompt, examplesPrompt, condensed) {
   if (condensed) {
     return `You are the founder of BBO Stamped writing your own outreach — a lifestyle content activation brand. Write a personalized, confident, founder-led pitch for this business, focused strictly on their Instagram/social feed and building social proof.
 
-THE STRATEGY IS FIXED BY THE USER: the Primary Gap is the angle the pitch must lead with; the Secondary Gap supports it once. Do NOT invent a different gap.
+THE STRATEGY IS FIXED BY THE USER: the Primary Gap is the angle the pitch must lead with; the Secondary Gap supports it once. Do NOT invent a different gap. COMBINE the two gaps into ONE natural angle — never two repetitive paragraphs. If they're the same or the Secondary is blank, make the point once. Never insulting — frame the gap as an opportunity.
 
 EMAIL: "Hi," greeting, then straight into the intro + gap observation, one short paragraph on what a BBO Stamped activation is (curated creators, real reactions/reels/photos, content the business can repost/run as ads), then a CTA. 120-170 words, hard cap 190.
 DM: (1) a short warm personal opener in your own words saying you came across / were browsing their Instagram feed and think you can bring more life to their page; (2) then the line "I run BBO Stamped, where I curate creators to raise social media presence and drive foot traffic to places like yours."; (3) the gap in first person ("as I browsed your page I noticed..."); (4) one line on what BBO Stamped brings with a quick parenthetical of content types (think photos, skits, recaps, voiceovers, etc.), then how it makes people pull up. 80-120 words, hard cap 140. Do not include the CTA link in dm_version (that is dm_part2).
@@ -56,6 +45,8 @@ THE STRATEGY IS FIXED BY THE USER:
 - The Primary Gap is the ANGLE THE PITCH MUST LEAD WITH. Build the entire pitch around it.
 - The Secondary Gap is the supporting weakness to mention once, reinforcing the primary angle.
 - Do NOT invent a different gap or override the user's choice. Their selected gaps are the strategy.
+- COMBINE the Primary and Secondary Gap into ONE natural, flowing angle — never write two separate repetitive paragraphs, one per gap. Weave the secondary point into the primary narrative in a single breath (e.g. "the business itself looks solid, but the content is mostly product and promos — what's missing is real people enjoying the space, which would also raise how the page comes across").
+- If the Primary and Secondary Gap are the SAME (or the Secondary is blank/None), treat it as ONE angle and make the point once — never restate the same critique twice.
 
 FOCUS THE PITCH ON:
 - The business's Instagram / social media feed and what it is (and isn't) doing.
@@ -68,7 +59,7 @@ HARD RULES:
 - NEVER mention website audits, website deep dives, or website analysis. Pitches are based strictly on the Instagram / social feed.
 - NEVER invent facts about the business. Reference only what's visible in the feed or clearly implied by the business type.
 - Do NOT overdo compliments. Any compliment lives inside the gap observation as a short clause (e.g. "the food shots are strong, but...").
-- FORBIDDEN PHRASES — never use any of these: "aspirational lifestyle", "discerning women", "consequently", "ignite social proof", "client journey", "full creative production", "premium lens", "social presence isn't optional anymore", "discover you, trust you, decide to spend money with you".
+- FORBIDDEN PHRASES — never use any of these AI/agency-sounding lines: "aspirational lifestyle", "discerning women", "consequently", "ignite social proof", "client journey", "full creative production", "premium lens", "social presence isn't optional anymore", "discover you, trust you, decide to spend money with you", "I hope this message finds you well", "elevate your digital presence", "synergy", "unlock your brand potential", "comprehensive marketing solutions".
 - Do NOT include any Instagram reel/post links or "past activations" links anywhere in the output.
 
 EMAIL STRUCTURE (mandatory):
@@ -94,7 +85,11 @@ VOICE — founder-led and plain-spoken, not agency-corporate. Warm and personal,
 - "your page looks good, but it doesn't fully show the experience"
 - "the food looks strong, but people need to see people enjoying it"
 - "right now the page sells the product more than the vibe"
+- "the business looks solid, but the page could show more of the actual experience"
+- "I think BBO Stamped can help"
 - "that's where BBO Stamped fits"
+- "we bring curated people/creators in and shoot content that makes the place look active, social, and worth pulling up to"
+- "BBO Stamped helps raise the perception of your page with content we shoot for you"
 - "real women, real reactions, creators posting, and content the business can reuse and customers can see"
 - "authentic lifestyle content (think photos, skits, recaps, voiceovers, etc.)"
 - "make people stop scrolling, save the post, tag friends, and pull up"
@@ -307,8 +302,9 @@ CRITICAL: These are the founder's own words. Study and copy the tone, pacing, se
 Business: ${businessName}
 Location: ${location || 'Unknown'}
 Instagram: ${instagram || 'Not provided'}
->> PRIMARY GAP (lead the pitch with this — the user chose it): ${primaryGap || 'General Pitch / Fallback'}
+>> PRIMARY GAP (lead the pitch with this — the user chose it): ${primaryGap || 'No Target Customer / General Pitch'}
 >> SECONDARY GAP (support angle — the user chose it): ${secondaryGap || 'None identified'}
+>> Combine the Primary and Secondary Gap into ONE natural angle — do not write a separate repetitive paragraph for each. If they're the same or the Secondary is None, make the point once.
 Vibe/Notes: ${cappedVibe || 'Not provided'}
 Instagram Feed Observations: ${cappedIgNotes || 'Not provided'}
 ${toneInstructions ? `Tone Adjustment: ${toneInstructions}` : ''}
