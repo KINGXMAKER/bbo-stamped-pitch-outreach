@@ -258,8 +258,9 @@
   }
   .err-notice {
     background:rgba(255,80,80,0.08); border:1px solid rgba(255,80,80,0.3);
-    color:#ff8888; font-family:'Space Mono',monospace; font-size:10px;
-    letter-spacing:1px; line-height:1.6; padding:10px 14px; border-radius:2px; margin-bottom:14px;
+    color:#ff9a9a; font-family:'DM Sans',sans-serif; font-size:14px;
+    letter-spacing:.2px; line-height:1.55; padding:16px 18px; border-radius:2px; margin-bottom:16px;
+    overflow-wrap:break-word; word-break:break-word;
   }
   .oneliner-text {
     font-size:17px; color:#fff; line-height:1.6; font-style:italic;
@@ -939,6 +940,9 @@
         <div class="loading-title">GENERATING PITCH...</div>
         <div class="loading-sub">Writing your custom pitch with AI.</div>
       </div>
+      <!-- Dedicated error slot — errors render HERE, never by overwriting #agent-output, so the
+           output-card scaffold below survives and a fast Try Again can still render into it. -->
+      <div id="gen-error" style="display:none;"></div>
       <div id="ig-notice-box" style="display:none;"></div>
 
       <div class="out-card" id="out-oneliner" style="display:none;">
@@ -1150,6 +1154,10 @@ let currentHistoryList = []; // Local cache of outreach history
 
 // On load, setup listeners & load voice profile data
 document.addEventListener('DOMContentLoaded', () => {
+  // Restore any saved pitch inputs so a reload/tab-kill (common on mobile during a call) doesn't
+  // lose what was typed — and so Try Again still works after the page comes back.
+  restorePitchInputs();
+
   // Load voice stats in background
   setTimeout(loadVoiceProfileAndHistory, 500);
 
@@ -1456,6 +1464,7 @@ function copySection(id, btnElement){
 function renderPitch(data){
   const hide=id=>{const e=document.getElementById(id);if(e)e.style.display='none';};
   const show=id=>{const e=document.getElementById(id);if(e)e.style.display='block';};
+  hideGenError();
   // One-liner
   if(data.custom_one_liner){document.getElementById('text-oneliner').textContent=data.custom_one_liner;show('out-oneliner');}else hide('out-oneliner');
   // 3-Sentence Pitch
@@ -1503,10 +1512,35 @@ function renderPitch(data){
   const sb = document.getElementById('send-btn');
   if(sb){ sb.disabled=false; sb.innerHTML='<span id="send-btn-text">✉ SEND EMAIL</span><span id="send-btn-loader" style="display:none;" class="mini-loader"></span>'; sb.style.background=''; sb.style.color=''; sb.style.border=''; }
   const sr = document.getElementById('send-result'); if(sr) sr.innerHTML='';
-  show('send-panel');
+  // The fast fallback draft has no email — only show the email sender when there's a body.
+  if(data.email_body){
+    show('send-panel');
+    // Scroll send panel into view smoothly
+    setTimeout(()=>{ const panel=document.getElementById('send-panel'); if(panel) panel.scrollIntoView({behavior:'smooth',block:'nearest'}); }, 200);
+  }else{
+    hide('send-panel');
+  }
+}
 
-  // Scroll send panel into view smoothly
-  setTimeout(()=>{ const panel=document.getElementById('send-panel'); if(panel) panel.scrollIntoView({behavior:'smooth',block:'nearest'}); }, 200);
+// Persist the last pitch inputs so they survive a timeout AND a full page reload / tab kill
+// (mobile Safari often discards the tab while you're on a call). The in-memory lastPitchPayload
+// alone was lost on reload; localStorage makes "your inputs are saved" actually true.
+const PITCH_INPUTS_KEY = 'bbo_last_pitch_inputs';
+function savePitchInputs(payload){
+  try{ localStorage.setItem(PITCH_INPUTS_KEY, JSON.stringify(payload)); }catch(e){}
+}
+function restorePitchInputs(){
+  try{
+    const raw=localStorage.getItem(PITCH_INPUTS_KEY);
+    if(!raw) return;
+    const p=JSON.parse(raw);
+    if(!p||!p.businessName) return;
+    const set=(id,v)=>{const e=document.getElementById(id);if(e&&v!=null)e.value=v;};
+    set('inp-name',p.businessName); set('inp-location',p.location); set('inp-ig',p.instagram);
+    set('inp-vibe',p.vibe); set('inp-ig-notes',p.igNotes);
+    set('inp-primary-gap',p.primaryGap); set('inp-secondary-gap',p.secondaryGap);
+    lastPitchPayload=p; // so Try Again works even after a reload
+  }catch(e){}
 }
 
 async function generatePitch(tone){
@@ -1532,55 +1566,66 @@ async function generatePitch(tone){
   // Call AI pitch generator — YOUR selected gaps drive the strategy
   const payload={businessName:name,location,instagram:ig,vibe,igNotes,tone:tone||null,primaryGap,secondaryGap};
   lastPitchPayload=payload;
+  savePitchInputs(payload); // persist BEFORE the API call so a timeout never loses inputs
   await runPitchRequest(payload);
 }
 
-// "Try Again" after a timeout/error reuses the exact inputs already saved in lastPitchPayload
-// (including any Instagram notes from a screenshot scan) and asks the server for the faster,
-// condensed fallback prompt instead of redoing everything from scratch.
+// "Try Again" after a timeout/error reuses the exact saved inputs (from memory, or restored from
+// localStorage after a reload) and calls the fast fallback mode — a much smaller/quicker draft.
 async function retryPitchFast(){
-  if(!lastPitchPayload){ resetAgent(); return; }
-  await runPitchRequest({...lastPitchPayload, fastMode:true});
+  const base = lastPitchPayload || (function(){try{return JSON.parse(localStorage.getItem(PITCH_INPUTS_KEY));}catch(e){return null;}})();
+  if(!base || !base.businessName){ resetAgent(); return; }
+  await runPitchRequest({...base, fastMode:true}, true);
 }
 
-async function runPitchRequest(payload){
+// Show an error in the DEDICATED slot (never by overwriting #agent-output) so the output-card
+// scaffold survives and a subsequent fast Try Again can render into it.
+function showGenError(msg){
+  const el=document.getElementById('gen-error');
+  el.innerHTML='<div class="err-notice">'+escapeHTML(msg)+'</div><button class="reset-btn" onclick="retryPitchFast()">↩ Try Again — Faster Version</button>';
+  el.style.display='block';
+}
+function hideGenError(){ const el=document.getElementById('gen-error'); if(el){ el.style.display='none'; el.innerHTML=''; } }
+
+async function runPitchRequest(payload, isFast){
   const btn=document.getElementById('generate-btn');
   const out=document.getElementById('agent-output');
   btn.disabled=true;btn.textContent='GENERATING...';
   out.style.display='block';
-  document.getElementById('loading-state').style.display='block';
+  hideGenError();
+  const ls=document.getElementById('loading-state');
+  ls.style.display='block';
+  const lt=ls.querySelector('.loading-title'), lsub=ls.querySelector('.loading-sub');
+  if(lt) lt.textContent = isFast ? 'GENERATING FASTER DRAFT...' : 'GENERATING PITCH...';
+  if(lsub) lsub.textContent = isFast ? 'Shorter, quicker version — hang tight.' : 'Writing your custom pitch with AI.';
   ['out-oneliner','out-threesentence','out-strategy','out-angles','out-dm','out-email','out-callpts','regen-bar'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
 
-  const TIMEOUT_MSG='Generation timed out. Your inputs are saved — tap Try Again to retry with the faster fallback.';
-  // Client-side guard slightly above the server's own internal budget, so a hung connection
-  // doesn't leave the user staring at a spinner forever even if the platform never returns.
+  const TIMEOUT_MSG='Generation took too long. Your inputs are saved. Tap Try Again to generate a faster version.';
+  // Client-side guard above the server's own internal budget, so a hung connection doesn't leave
+  // the user staring at a spinner forever. The fast draft returns in a few seconds; this is a net.
   const controller=new AbortController();
   const timeoutId=setTimeout(()=>controller.abort(), 28000);
   try{
     const r=await fetch(PITCH_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
     clearTimeout(timeoutId);
+    document.getElementById('loading-state').style.display='none';
     const ct=r.headers.get('content-type')||'';
     if(!ct.includes('application/json')){
-      // Netlify timeout returns HTML — give a clear retry message
-      document.getElementById('loading-state').style.display='none';
-      out.innerHTML='<div class="err-notice">'+TIMEOUT_MSG+'</div><button class="reset-btn" onclick="retryPitchFast()">↩ Try Again</button>';
-      btn.disabled=false;btn.textContent='GENERATE PITCH';
-      return;
-    }
-    const d=await r.json();
-    document.getElementById('loading-state').style.display='none';
-    if(d.error){
-      out.innerHTML='<div class="err-notice">'+escapeHTML(d.error)+'</div><button class="reset-btn" onclick="retryPitchFast()">↩ Try Again</button>';
+      // Netlify hard-timeout returns HTML instead of JSON — treat as a timeout.
+      showGenError(TIMEOUT_MSG);
     }else{
-      currentHistoryIds = d.history_ids || null;
-      renderPitch(d);
+      const d=await r.json();
+      if(d.error){ showGenError(d.error); }
+      else{ currentHistoryIds = d.history_ids || null; renderPitch(d); }
     }
   }catch(e){
     clearTimeout(timeoutId);
     document.getElementById('loading-state').style.display='none';
-    const msg = (e && e.name==='AbortError') ? TIMEOUT_MSG : 'Network error: '+escapeHTML(e.message);
-    out.innerHTML='<div class="err-notice">'+msg+'</div><button class="reset-btn" onclick="retryPitchFast()">↩ Try Again</button>';
+    showGenError((e && e.name==='AbortError') ? TIMEOUT_MSG : 'Network error: '+(e&&e.message?e.message:'please try again.'));
   }
+  // Restore default loading copy for the next run.
+  if(lt) lt.textContent='GENERATING PITCH...';
+  if(lsub) lsub.textContent='Writing your custom pitch with AI.';
   btn.disabled=false;btn.textContent='GENERATE PITCH';
 }
 
@@ -1802,6 +1847,8 @@ async function saveToSheets() {
 
 function resetAgent() {
   document.getElementById('agent-output').style.display='none';
+  hideGenError();
+  try{ localStorage.removeItem(PITCH_INPUTS_KEY); }catch(e){}
   ['inp-name','inp-location','inp-ig','inp-vibe','inp-ig-notes','inp-primary-gap','inp-secondary-gap'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   lastPitchPayload=null;
   lastPitchData=null;

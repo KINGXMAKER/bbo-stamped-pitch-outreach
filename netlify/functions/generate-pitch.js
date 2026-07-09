@@ -297,6 +297,30 @@ CRITICAL: These are the founder's own words. Study and copy the tone, pacing, se
       ? 'Make the DM significantly shorter — under 200 characters for Part 1. Keep the core angle.'
       : '';
 
+    // Compact prompt for the fast fallback (manual "Try Again" AND the automatic in-request
+    // retry). The KEY fix: it asks for a much SMALLER output — ~5 fields instead of ~13. Gemini's
+    // latency is dominated by OUTPUT token generation, so trimming the input system prompt alone
+    // (what fastMode used to do) barely helped — the model still generated the full giant JSON and
+    // still timed out. A small output returns in a few seconds and reliably beats the timeout.
+    const userPromptCompact = `Write a SHORT, ready-to-use BBO Stamped outreach draft for this business. Lead with the Primary Gap; fold the Secondary Gap into ONE natural angle (never repeat the same point twice). Focus on their Instagram/social feed. Plain-spoken, founder-led, never corporate. Do not invent facts.
+
+Business: ${businessName}
+Location: ${location || 'Unknown'}
+Instagram: ${instagram || 'Not provided'}
+Primary Gap: ${primaryGap || 'No Target Customer / General Pitch'}
+Secondary Gap: ${secondaryGap || 'None'}
+Vibe/Notes: ${cappedVibe || 'Not provided'}
+Instagram Feed Observations: ${cappedIgNotes || 'Not provided'}
+
+Return ONLY this JSON (no markdown, no backticks). Keep every field tight and usable:
+{
+  "custom_one_liner": "One punchy sentence hook for the owner — their situation nailed, no fluff",
+  "three_sentence_pitch": "Three short sentences: 1) something real about their page, 2) what it's missing, 3) how BBO Stamped closes it and why that helps them",
+  "dm_version": "Instagram DM, 60-100 words: a short warm opener (came across your page), then 'I run BBO Stamped, where I curate creators to raise social media presence and drive foot traffic to places like yours.', then the gap in first person, then one line on what BBO brings (photos, recaps, lifestyle content with real people). No link in this field.",
+  "dm_part2": "Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped",
+  "call_talking_points": ["3-4 quick phone talking points: the hook, what's missing, why BBO helps, the ask"]
+}`;
+
     const userPrompt = `Write a full BBO Stamped pitch for this business. Lead the entire pitch with the Primary Gap the user selected; use the Secondary Gap in support. Keep the focus on their Instagram/social feed and building social proof.
 
 Business: ${businessName}
@@ -372,19 +396,34 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
     const RESERVE_AFTER_GEN_MS = 3000;
 
     let text;
-    try {
-      // Give the primary attempt nearly the whole budget — this is a large, structured-JSON
-      // prompt and 9s (the old cap) was routinely too tight, causing the SDK's own request
-      // timeout to abort the call before Gemini could finish. See TOTAL_BUDGET_MS comment above.
-      const primaryDeadline = Math.max(8000, timeLeft() - RESERVE_AFTER_GEN_MS);
-      text = (await generateText(ai, userPrompt, systemPrompt, { ...pitchOpts, deadlineMs: primaryDeadline })).trim();
-    } catch (genErr) {
-      // fastMode is already the condensed attempt — nothing lighter left to fall back to.
-      // Hard errors (bad key, auth, invalid request) won't be fixed by a smaller prompt either.
-      if (fastMode || isHardError(genErr) || timeLeft() < RESERVE_AFTER_GEN_MS + 4000) throw genErr;
-      console.warn('[generate-pitch] primary attempt failed, retrying once with condensed fallback prompt:', genErr.message);
-      const fallbackDeadline = Math.max(4000, timeLeft() - RESERVE_AFTER_GEN_MS);
-      text = (await generateText(ai, userPrompt, systemPromptCondensed, { json: true, deadlineMs: fallbackDeadline })).trim();
+    // usedCompact tracks whether the response is the small fallback shape — if so we skip the
+    // length-guard (no email to compress, DM is already short) and force the fixed DM CTA.
+    let usedCompact = false;
+
+    if (fastMode) {
+      // Manual "Try Again" → go straight to the fast compact path. Plain flash (no pitchOpts
+      // pro-model override), condensed system prompt, small output → returns in a few seconds.
+      usedCompact = true;
+      const dl = Math.max(6000, timeLeft() - RESERVE_AFTER_GEN_MS);
+      console.log(`[generate-pitch] fastMode: compact fallback generation, deadline=${dl}ms`);
+      text = (await generateText(ai, userPromptCompact, systemPromptCondensed, { json: true, deadlineMs: dl })).trim();
+    } else {
+      try {
+        // Give the primary attempt nearly the whole budget — this is a large, structured-JSON
+        // prompt and 9s (the old cap) was routinely too tight, causing the SDK's own request
+        // timeout to abort the call before Gemini could finish. See TOTAL_BUDGET_MS comment above.
+        const primaryDeadline = Math.max(8000, timeLeft() - RESERVE_AFTER_GEN_MS);
+        text = (await generateText(ai, userPrompt, systemPrompt, { ...pitchOpts, deadlineMs: primaryDeadline })).trim();
+      } catch (genErr) {
+        // Hard errors (bad key, auth, invalid request) won't be fixed by a smaller prompt.
+        if (isHardError(genErr) || timeLeft() < RESERVE_AFTER_GEN_MS + 3500) throw genErr;
+        // Automatic in-request fallback: retry once with the COMPACT prompt (small, fast output)
+        // — same fast path the manual "Try Again" uses, so a slow first attempt self-recovers.
+        console.warn('[generate-pitch] full attempt failed — auto-retrying once with fast compact fallback:', genErr.message);
+        usedCompact = true;
+        const fallbackDeadline = Math.max(4000, timeLeft() - RESERVE_AFTER_GEN_MS);
+        text = (await generateText(ai, userPromptCompact, systemPromptCondensed, { json: true, deadlineMs: fallbackDeadline })).trim();
+      }
     }
 
     const cleaned = text.replace(/^```json\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
@@ -393,9 +432,15 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
     // Fixed subject line for all Stamped pitches — enforced here so the model can never drift.
     data.email_subject = 'Your Instagram may be costing you customers';
 
-    // Server-side length guard: compress over-cap email/DM bodies before returning. Budget-aware
-    // so it's skipped once there isn't enough time left to risk it (see enforceLength above).
-    await enforceLength(ai, data, timeLeft());
+    if (usedCompact) {
+      // Compact fallback: guarantee the DM CTA link survived, and skip the length guard entirely
+      // (no email_body to compress, DM is already short) so we make ZERO extra model calls.
+      if (!data.dm_part2 || !String(data.dm_part2).includes('bbouniverse.com')) data.dm_part2 = BBO_CTA;
+    } else {
+      // Server-side length guard: compress over-cap email/DM bodies before returning. Budget-aware
+      // so it's skipped once there isn't enough time left to risk it (see enforceLength above).
+      await enforceLength(ai, data, timeLeft());
+    }
 
     // 4. Log the generation to pitch_history in Supabase
     let dmHistoryId = null;
