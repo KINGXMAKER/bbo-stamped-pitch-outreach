@@ -98,6 +98,14 @@ function isHardError(err) {
     /API key|api_key|permission|invalid argument|invalid image|unsupported/i.test(m);
 }
 
+// Rate-limit / quota (429). On the FREE tier each model has its OWN per-minute quota bucket,
+// so the right move is to skip straight to the NEXT model (separate bucket) rather than retry
+// the same one — our sub-4s backoffs can't outwait a per-minute reset and just burn more quota.
+function isQuotaError(err) {
+  const m = (err && err.message) ? err.message : '';
+  return getStatusCode(err) === '429' || /quota|rate.?limit|too many requests|resource_exhausted/i.test(m);
+}
+
 // Cross-provider fallback: NVIDIA NIM (OpenAI-compatible, free tier).
 // Text-only — fires when every Gemini model in the chain has failed.
 async function generateWithNvidia(prompt, systemInstruction, timeoutMs) {
@@ -184,6 +192,13 @@ async function generateContentResilient(genAI, contentArg, modelConfigExtra, dea
         if (isHardError(err)) {
           console.error(`[gemini] ✗ hard error on ${modelName} after ${elapsed}ms — not retrying: ${err.message}`);
           throw err;
+        }
+
+        // Quota/429: don't retry THIS model (separate free-tier bucket per model) — jump to the
+        // next model immediately. This turns the fallback chain into free-tier quota spreading.
+        if (isQuotaError(err)) {
+          console.warn(`[gemini] ✗ ${modelName} quota/429 after ${elapsed}ms — skipping to next model (separate quota bucket).`);
+          break;
         }
 
         if (isTransientError(err) && attempt < attemptsAllowed - 1) {
@@ -353,6 +368,7 @@ module.exports = {
   isTransientError,
   isModelUnavailable,
   isHardError,
+  isQuotaError,
   extractVoiceProfile,
   getMatchingExamples,
   updatePitchHistoryAndExtractCorrections
