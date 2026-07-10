@@ -436,6 +436,11 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
       // Compact fallback: guarantee the DM CTA link survived, and skip the length guard entirely
       // (no email_body to compress, DM is already short) so we make ZERO extra model calls.
       if (!data.dm_part2 || !String(data.dm_part2).includes('bbouniverse.com')) data.dm_part2 = BBO_CTA;
+    } else if (process.env.GEMINI_FREE_TIER === 'true') {
+      // Free tier: skip the length-guard's extra model calls (each is another request against the
+      // ~20/min quota) — the prompt's hard word caps are enough. Keeps generation to ONE request.
+      // Belt-and-suspenders: still guarantee the DM CTA link is present.
+      if (!data.dm_part2 || !String(data.dm_part2).includes('bbouniverse.com')) data.dm_part2 = BBO_CTA;
     } else {
       // Server-side length guard: compress over-cap email/DM bodies before returning. Budget-aware
       // so it's skipped once there isn't enough time left to risk it (see enforceLength above).
