@@ -5,9 +5,10 @@
 [functions]
   node_bundler = "esbuild"
 
-# Best-effort only — Netlify caps sync function execution at 10s unless the plan supports a
-# higher ceiling, in which case this raises it to reduce timeouts on heavy prompts. The actual
-# fix is generate-pitch.js budgeting itself well under 10s; this is a safety margin, not the fix.
+# Netlify caps SYNCHRONOUS function execution at 10s on Free/Starter; this timeout is only
+# honored on plans that support a higher ceiling. The real fix lives in generate-pitch.js, which
+# budgets itself via LLM_TOTAL_BUDGET_MS (default 9000 — finishes under the 10s cap). If this site
+# is on a plan that honors 26s, set LLM_TOTAL_BUDGET_MS=24000 to allow a richer single pass.
 [functions."generate-pitch"]
   timeout = 26
 

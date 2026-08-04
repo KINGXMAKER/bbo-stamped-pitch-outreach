@@ -162,6 +162,23 @@ async function generateContentResilient(genAI, contentArg, modelConfigExtra, dea
   if (opts.json) {
     config.generationConfig = { ...(config.generationConfig || {}), responseMimeType: 'application/json' };
   }
+  // Cap output length so generation can't run unbounded (the dominant latency driver). Env-tunable.
+  const maxOutTokens = parseInt(process.env.LLM_MAX_OUTPUT_TOKENS || '3500', 10);
+  if (maxOutTokens > 0 && !opts.noTokenCap) {
+    config.generationConfig = { ...(config.generationConfig || {}), maxOutputTokens: maxOutTokens };
+  }
+
+  // gemini-2.5-* are reasoning models that "think" before answering — ON by default, and the
+  // single biggest cause of slow pitch generation. Disable it (thinkingBudget 0) for a copywriting
+  // task where speed matters far more than chain-of-thought. Env-tunable; only applied to 2.5
+  // models (older models reject the field). Built per-model inside the loop below.
+  const thinkingBudget = parseInt(process.env.GEMINI_THINKING_BUDGET || '0', 10);
+  const modelConfigFor = (modelName) => {
+    if (/2\.5/.test(modelName) && Number.isFinite(thinkingBudget)) {
+      return { ...config, generationConfig: { ...(config.generationConfig || {}), thinkingConfig: { thinkingBudget } } };
+    }
+    return config;
+  };
 
   // Below this, a request is essentially guaranteed to abort before Gemini can respond —
   // don't bother issuing it, just move on (next attempt/model/NVIDIA/give up).
@@ -181,7 +198,7 @@ async function generateContentResilient(genAI, contentArg, modelConfigExtra, dea
       const reqTimeout = (isPrimary && opts.primaryTimeoutMs) ? Math.min(remaining, opts.primaryTimeoutMs) : remaining;
       console.log(`[gemini] → ${modelName} attempt ${attempt + 1}/${attemptsAllowed}, timeout=${reqTimeout}ms, budget left=${remaining}ms`);
       try {
-        const model = genAI.getGenerativeModel({ model: modelName, ...config }, { timeout: reqTimeout });
+        const model = genAI.getGenerativeModel({ model: modelName, ...modelConfigFor(modelName) }, { timeout: reqTimeout });
         const result = await model.generateContent(contentArg);
         console.log(`[gemini] ✓ ${modelName} responded in ${Date.now() - attemptStart}ms (attempt ${attempt + 1})`);
         return { text: result.response.text(), modelUsed: modelName };
@@ -240,7 +257,9 @@ async function generateContentResilient(genAI, contentArg, modelConfigExtra, dea
 
 async function generateText(genAI, prompt, systemInstruction, opts) {
   const extra = systemInstruction ? { systemInstruction } : {};
-  const { text } = await generateContentResilient(genAI, prompt, extra, opts && opts.deadlineMs, opts);
+  const { text, modelUsed } = await generateContentResilient(genAI, prompt, extra, opts && opts.deadlineMs, opts);
+  // Let callers observe which model actually answered (for operational metadata/logs).
+  if (opts && typeof opts.onModel === 'function') { try { opts.onModel(modelUsed); } catch (e) {} }
   return text;
 }
 
