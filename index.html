@@ -1616,7 +1616,7 @@ async function runPitchRequest(payload, isFast){
     }else{
       const d=await r.json();
       if(d.error){ showGenError(d.error); }
-      else{ currentHistoryIds = d.history_ids || null; renderPitch(d); }
+      else{ if(d._meta) console.info('[pitch]', d._meta); currentHistoryIds = d.history_ids || null; renderPitch(d); }
     }
   }catch(e){
     clearTimeout(timeoutId);

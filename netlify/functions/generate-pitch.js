@@ -108,16 +108,22 @@ const BBO_CTA = 'Please checkout our website for a further breakdown on what we 
 // error is always console.error'd above this for admin debugging in the Netlify function logs.
 function friendlyErrorMessage(err) {
   const msg = (err && err.message) || '';
+  if (err && err.code === 'INVALID_JSON') {
+    return 'The pitch came back in an unreadable format. Your inputs are saved — tap Try Again for a faster, cleaner draft.';
+  }
   if (/API key|api_key|invalid argument.*key|permission/i.test(msg)) {
     return 'Pitch generation is misconfigured (invalid or missing Gemini API key). Contact the site admin.';
   }
-  if (/429|too many requests|quota/i.test(msg)) {
+  if (/429|too many requests|quota|resource_exhausted/i.test(msg)) {
     return 'Gemini API quota was hit. Wait a moment and tap Try Again — quotas usually reset within a minute.';
   }
-  if (/aborted|abort|deadline|timeout|timed out|overload|unavailable|high demand/i.test(msg)) {
-    return 'Generation timed out. Your inputs are saved — tap Try Again to retry with the faster fallback.';
+  if (/50[023]|overload|unavailable|high demand/i.test(msg)) {
+    return 'Gemini is temporarily busy. Your inputs are saved — tap Try Again for a faster draft.';
   }
-  return 'Pitch generation failed: ' + msg;
+  if (/aborted|abort|deadline|timeout|timed out/i.test(msg)) {
+    return 'Generation took too long. Your inputs are saved — tap Try Again for a faster draft.';
+  }
+  return 'Pitch generation could not complete. Your inputs are saved — tap Try Again.';
 }
 
 function countWords(s) {
@@ -190,19 +196,31 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
 
   const requestStart = Date.now();
-  // Total soft budget for this invocation, aligned with generate-pitch's configured 26s
-  // ceiling in netlify.toml (2s safety margin). This used to be capped much lower (9s) for
-  // the primary attempt alone, which was too tight for this prompt's size — Gemini's own SDK
-  // request timeout (an AbortController under the hood) fired first and produced "This
-  // operation was aborted" before the model could finish, well before Netlify's own limit.
-  const TOTAL_BUDGET_MS = 24000;
+  // Short correlation id so every phase log for one generation can be grepped together in the
+  // Netlify function logs. Not a secret; safe to return to the client for support.
+  const requestId = Math.random().toString(36).slice(2, 10);
+  const phase = (name) => console.log(`[gen ${requestId}] ${name} @ +${Date.now() - requestStart}ms`);
+
+  // Total soft budget for this invocation. Default 9s so the whole pipeline (primary + automatic
+  // fallback + serialize) finishes UNDER Netlify's default 10s synchronous-function ceiling on
+  // Free/Starter plans — the actual cause of the production timeouts. On a Pro plan where
+  // netlify.toml's timeout=26 is honored, set LLM_TOTAL_BUDGET_MS=24000 to allow a richer pass.
+  // This only works because thinking is now disabled + output is token-capped (see shared.js),
+  // which turns the primary call from ~10-20s into a few seconds.
+  const TOTAL_BUDGET_MS = parseInt(process.env.LLM_TOTAL_BUDGET_MS || '9000', 10);
+  const PRIMARY_TIMEOUT_MS = parseInt(process.env.LLM_PRIMARY_TIMEOUT_MS || '0', 10); // 0 = derive from budget
   const timeLeft = () => TOTAL_BUDGET_MS - (Date.now() - requestStart);
 
+  let modelUsed = null;      // set by generateText via the { onModel } hook below
+  let fallbackUsed = false;  // true once the compact fallback path runs
+
   try {
+    phase('request received');
     const body = JSON.parse(event.body || '{}');
     const { businessName, location, instagram, vibe, igNotes, tone, primaryGap, secondaryGap, fastMode } = body;
 
     if (!businessName) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business name is required' }) };
+    phase('input validated');
 
     // Long screenshot-scan notes / vibe text were the biggest single driver of slow generation
     // on mobile — cap them before they ever reach the prompt. Typical hand-typed notes are well
@@ -392,8 +410,12 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
       pitchOpts.primaryMaxAttempts = 1;
     }
 
-    // Reserve time after generation for the length guard + Supabase logging + response encoding.
-    const RESERVE_AFTER_GEN_MS = 3000;
+    // Budget-relative reserves so the math is correct whether TOTAL_BUDGET_MS is 9s (default,
+    // fits Netlify's 10s sync ceiling) or 24s (Pro plan). Reserve room AFTER the primary for the
+    // automatic compact fallback + serialize, so a slow primary can't consume the whole budget.
+    const RESERVE_AFTER_GEN_MS = Math.min(3000, Math.max(700, Math.floor(TOTAL_BUDGET_MS * 0.1)));
+    const FALLBACK_RESERVE_MS  = Math.min(4000, Math.max(3000, Math.floor(TOTAL_BUDGET_MS * 0.35)));
+    const onModel = (m) => { if (m) modelUsed = m; };
 
     let text;
     // usedCompact tracks whether the response is the small fallback shape — if so we skip the
@@ -404,30 +426,59 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
       // Manual "Try Again" → go straight to the fast compact path. Plain flash (no pitchOpts
       // pro-model override), condensed system prompt, small output → returns in a few seconds.
       usedCompact = true;
-      const dl = Math.max(6000, timeLeft() - RESERVE_AFTER_GEN_MS);
-      console.log(`[generate-pitch] fastMode: compact fallback generation, deadline=${dl}ms`);
-      text = (await generateText(ai, userPromptCompact, systemPromptCondensed, { json: true, deadlineMs: dl })).trim();
+      fallbackUsed = true;
+      const dl = Math.max(3500, timeLeft() - RESERVE_AFTER_GEN_MS);
+      phase(`fastMode compact generation start (deadline=${dl}ms)`);
+      text = (await generateText(ai, userPromptCompact, systemPromptCondensed, { json: true, deadlineMs: dl, onModel })).trim();
+      phase('fastMode compact generation done');
     } else {
+      // Bound the primary so the fallback still fits. On the 9s default this gives the primary
+      // ~5s (enough now that thinking is off + output is token-capped); on a 24s budget, ~17s.
+      let primaryDeadline = timeLeft() - FALLBACK_RESERVE_MS - RESERVE_AFTER_GEN_MS;
+      if (PRIMARY_TIMEOUT_MS > 0) primaryDeadline = Math.min(primaryDeadline, PRIMARY_TIMEOUT_MS);
+      primaryDeadline = Math.max(3500, primaryDeadline);
       try {
-        // Give the primary attempt nearly the whole budget — this is a large, structured-JSON
-        // prompt and 9s (the old cap) was routinely too tight, causing the SDK's own request
-        // timeout to abort the call before Gemini could finish. See TOTAL_BUDGET_MS comment above.
-        const primaryDeadline = Math.max(8000, timeLeft() - RESERVE_AFTER_GEN_MS);
-        text = (await generateText(ai, userPrompt, systemPrompt, { ...pitchOpts, deadlineMs: primaryDeadline })).trim();
+        phase(`primary (full) generation start (deadline=${primaryDeadline}ms)`);
+        text = (await generateText(ai, userPrompt, systemPrompt, { ...pitchOpts, deadlineMs: primaryDeadline, onModel })).trim();
+        phase('primary generation done');
       } catch (genErr) {
         // Hard errors (bad key, auth, invalid request) won't be fixed by a smaller prompt.
-        if (isHardError(genErr) || timeLeft() < RESERVE_AFTER_GEN_MS + 3500) throw genErr;
+        if (isHardError(genErr) || timeLeft() < RESERVE_AFTER_GEN_MS + 3000) throw genErr;
         // Automatic in-request fallback: retry once with the COMPACT prompt (small, fast output)
-        // — same fast path the manual "Try Again" uses, so a slow first attempt self-recovers.
-        console.warn('[generate-pitch] full attempt failed — auto-retrying once with fast compact fallback:', genErr.message);
+        // — same fast path the manual "Try Again" uses, so a slow first attempt self-recovers,
+        // WITHOUT the user having to tap Try Again.
+        console.warn(`[gen ${requestId}] primary failed — auto-falling back to compact:`, genErr.message);
         usedCompact = true;
-        const fallbackDeadline = Math.max(4000, timeLeft() - RESERVE_AFTER_GEN_MS);
-        text = (await generateText(ai, userPromptCompact, systemPromptCondensed, { json: true, deadlineMs: fallbackDeadline })).trim();
+        fallbackUsed = true;
+        const fallbackDeadline = Math.max(3000, timeLeft() - RESERVE_AFTER_GEN_MS);
+        phase(`auto-fallback compact generation start (deadline=${fallbackDeadline}ms)`);
+        text = (await generateText(ai, userPromptCompact, systemPromptCondensed, { json: true, deadlineMs: fallbackDeadline, onModel })).trim();
+        phase('auto-fallback compact generation done');
       }
     }
 
-    const cleaned = text.replace(/^```json\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
-    const data = JSON.parse(cleaned);
+    const tryParse = (t) => JSON.parse(t.replace(/^```json\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim());
+    let data;
+    try {
+      data = tryParse(text);
+      phase('json parsed');
+    } catch (parseErr) {
+      // Malformed JSON is NOT a timeout — don't let it get mislabeled downstream. If the full
+      // attempt produced junk and there's still time, retry once with the compact prompt (smaller,
+      // easier for the model to emit valid JSON). Otherwise surface a clear "invalid response".
+      console.warn(`[gen ${requestId}] primary output was not valid JSON: ${parseErr.message}`);
+      if (!usedCompact && timeLeft() > 3500) {
+        usedCompact = true;
+        fallbackUsed = true;
+        const dl = Math.max(3000, timeLeft() - RESERVE_AFTER_GEN_MS);
+        phase(`malformed-json fallback compact generation start (deadline=${dl}ms)`);
+        const t2 = (await generateText(ai, userPromptCompact, systemPromptCondensed, { json: true, deadlineMs: dl, onModel })).trim();
+        data = tryParse(t2); // if THIS throws, the outer catch returns a clean "invalid response"
+        phase('malformed-json fallback json parsed');
+      } else {
+        const e = new Error('invalid response'); e.code = 'INVALID_JSON'; throw e;
+      }
+    }
 
     // Fixed subject line for all Stamped pitches — enforced here so the model can never drift.
     data.email_subject = 'Your Instagram may be costing you customers';
@@ -492,14 +543,25 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
       email: emailHistoryId
     };
 
+    // Operational metadata — safe for the client (no secrets). The frontend keeps it in dev mode
+    // / logs; it doesn't need to be shown prominently in the UI.
+    data._meta = {
+      requestId,
+      modelUsed: modelUsed || null,
+      fallbackUsed,
+      compact: usedCompact,
+      totalDurationMs: Date.now() - requestStart
+    };
+    phase(`response returned (model=${modelUsed}, fallback=${fallbackUsed}, compact=${usedCompact})`);
+
     return { statusCode: 200, headers, body: JSON.stringify(data) };
 
   } catch (err) {
-    console.error('generate-pitch error:', err);
+    console.error(`[gen ${requestId}] error after +${Date.now() - requestStart}ms:`, err && err.message);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: friendlyErrorMessage(err) })
+      body: JSON.stringify({ error: friendlyErrorMessage(err), requestId })
     };
   }
 };
