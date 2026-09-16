@@ -151,15 +151,22 @@ measured AI accuracy once reviews exist.
 1. `instagram-content` — new and updated posts
 2. `instagram-metrics` — fresh metric snapshots
 3. `instagram-account` — account-level data
-4. `media-transcripts` — priority queue, media + frames + transcript
+4. `media-transcripts` — priority queue, media + frames + transcript (local, no AI spend)
 5. `score` — era-normalised scoring and labels
-6. `ai-enrich` — structured coding, priority queue
-7. `analyze` — deep analysis of the posts that warrant it
-8. `mine-lessons` — patterns with sample size, effect, p-value, FDR control
-9. `rule-proposals` → `rule-challenges` — proposals for **human** approval only
-10. `experiments` → `opportunities` → `graph` → `search`
+6. `provider-health` — one tiny JSON call per configured AI provider, plus the budget position
+7. `ai-enrich` — structured coding on the validated coding model, priority queue, stops at `AI_CODING_CORPUS_LIMIT`
+8. `analyze` — deep analysis of the posts that warrant it (analysis-class model)
+9. `mine-lessons` — patterns with sample size, effect, p-value, FDR control
+10. `rule-proposals` → `rule-challenges` — proposals for **human** approval only
+11. `experiments` → `opportunities` → `graph` → `search`
 
-`npm run job -- weekly-review` is run after it on the schedule below.
+**What happens when AI is unavailable.** Content, metrics, media, scoring,
+mining, graph and search never depend on a model. If every AI provider refuses,
+`ai-enrich` reports FAILED and its posts stay queued for tomorrow; if the budget
+is spent, it reports BUDGET PAUSED without making a single paid call. Either
+way the loop carries on (tests: `tests/daily-resilience.test.ts`). Only a failed
+Instagram content or metrics sync stops the loop, because everything after it
+would reason over stale data.
 
 ### Scheduling (nothing is installed until you install it)
 

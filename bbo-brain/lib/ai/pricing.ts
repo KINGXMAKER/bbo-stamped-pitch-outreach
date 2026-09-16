@@ -38,10 +38,15 @@ export function priceFor(provider: string, model: string): Price | null {
   return PRICES.get(model) ?? PRICES.get(`${provider}/${model}`) ?? null;
 }
 
-/** Estimated USD for one call. Unknown pricing returns 0 and is reported as unknown, not guessed. */
+/**
+ * Deliberately pessimistic rate for a paid model with no known price. Counting
+ * an unpriced model as free would let it spend past every budget ceiling.
+ */
+export const UNKNOWN_PRICE: Price = { inputPerMTok: 1, outputPerMTok: 5, source: 'list' };
+
+/** Estimated USD for one call. A paid model with unknown pricing is charged at UNKNOWN_PRICE, never at zero. */
 export function estimateCost(provider: string, model: string, usage: TokenUsage): number {
-  const price = priceFor(provider, model);
-  if (!price) return 0;
+  const price = priceFor(provider, model) ?? UNKNOWN_PRICE;
   const input = usage.inputTokens ?? 0;
   const output = usage.outputTokens ?? Math.max(0, (usage.totalTokens ?? 0) - input);
   return (input / 1_000_000) * price.inputPerMTok + (output / 1_000_000) * price.outputPerMTok;

@@ -41,7 +41,9 @@ AI_ANALYSIS_PROVIDER / AI_ANALYSIS_MODEL
 AI_GATEKEEPER_PROVIDER / AI_GATEKEEPER_MODEL
 AI_SYNTHESIS_PROVIDER / AI_SYNTHESIS_MODEL
 AI_ALLOW_FALLBACK=true
-OPENROUTER_MODELS=…   NVIDIA_MODELS=…   GEMINI_MODEL_PRIMARY / GEMINI_MODEL_FALLBACKS
+OPENROUTER_MODELS=…   OPENROUTER_<TASK>_MODELS=…   NVIDIA_MODELS=…
+GEMINI_MODEL_PRIMARY / GEMINI_MODEL_FALLBACKS
+AI_<TASK>_FALLBACK_PROVIDERS=openrouter,gemini   # keep unvalidated providers out of a chain
 ```
 
 ## 3. Failure handling
@@ -50,7 +52,7 @@ OPENROUTER_MODELS=…   NVIDIA_MODELS=…   GEMINI_MODEL_PRIMARY / GEMINI_MODEL_
 
 | Failure | Behaviour |
 |---|---|
-| 429 quota / rate limit | one retry, then the next candidate |
+| 429 quota / rate limit | one retry, then the **provider** cools down (`AI_QUOTA_COOLDOWN_MS`, 10 min) — quota is shared by all its models — and the next provider is tried |
 | 5xx | one retry, then the next candidate |
 | 404 model unavailable | dropped immediately, no retry (a retired model must never mask the real error) |
 | Invalid JSON / schema failure | exactly one repair attempt, then the next candidate |
@@ -76,6 +78,12 @@ failure rather than a place to look for one.
 | `AI_DAILY_BUDGET_USD` | 1.00 | Estimated spend allowed per UTC day |
 | `AI_MONTHLY_BUDGET_USD` | 15.00 | Per calendar month |
 | `AI_MAX_COST_PER_JOB_USD` | 0.75 | One job's ceiling |
+| `AI_CODING_CORPUS_LIMIT` | 150 | Total posts held with structured coding; the daily loop stops coding here until the corpus has been reviewed |
+
+A paid model with no known price is charged at a deliberately pessimistic
+$1 / $5 per million tokens rather than counted as free, so a renamed or new
+model can never spend past a ceiling unnoticed. OpenRouter prices are refreshed
+from its catalogue once per process.
 
 Before a batch starts, its cost is projected from the measured average of recent
 runs of the same workflow; a batch that cannot fit is paused before the first
@@ -134,3 +142,43 @@ human's label, whether they agree, and the provider and model that produced the
 AI label. `/coverage` shows agreement by model once reviews exist, and the
 intelligence report flags any finding whose posts were coded almost entirely by
 one model while the baseline was not — a possible coding-model artifact.
+
+## 9. Re-coding without mixing models
+
+When the corpus moves onto a different coding model, `snapshotCurrentCoding`
+first freezes the existing labels as a benchmark run, then
+`ai-enrich {"recodeIds":[…]}` re-codes the named posts. `clearAiCoding` removes a
+post's previous AI coding before the new one is applied, so a field the new
+model leaves null cannot keep the old model's value. Human and measured values
+are never cleared.
+
+A yes/no attribute is only coded if the prompt defines it. Prompt v2
+(`enrichment-v2`) added definitions for question opening, guest-answer opening,
+payoff-first, text hook and reaction shot, which every model had returned as
+null under v1.
+
+## 10. Current selection (benchmarked 2026-09-16)
+
+Same 25 stratified posts, same prompt, same source material for every candidate.
+
+| Model | Valid | Taxonomy violations | Missing fields | Agreement with existing coding | Self-consistency | Median latency | $ / 100 posts |
+|---|---|---|---|---|---|---|---|
+| NVIDIA nemotron-3.5-lightning-30b | 96% | 23 | 11 | 32% | — | 35.5 s | free tier |
+| NVIDIA mistral-nemotron | 84% | 5 | 13 | 48% | — | 21.3 s | free tier |
+| OpenRouter qwen3-235b-a22b-2507 (text) | 100% | 16 | 0 | 47% | — | 14.7 s | 0.039 |
+| OpenRouter qwen3-30b-a3b-instruct-2507 (text) | 80% | 11 | 11 | 45% | — | 9.6 s | 0.032 |
+| **OpenRouter qwen3-vl-32b-instruct (frames)** | **100%** | **1** | **0** | **54%** | **86%** | 10.5 s | 0.057 |
+| OpenRouter gemini-2.5-flash-lite (frames) | 84% | 0 | 16 | 60% | — | 3.7 s | 0.072 |
+| OpenRouter qwen3-vl-235b-a22b-instruct (frames) | see benchmark run 8 | | | | | | |
+
+Reading it: Gemini Flash-Lite — the same family that produced the existing
+labels — agrees with them only 60% on a fresh run, so these fields are genuinely
+ambiguous and "agreement with existing coding" is a consistency signal, not
+ground truth. Qwen3-VL-32B is the only candidate that is fully schema-valid,
+near-perfect on the controlled vocabulary, self-consistent on a rerun and able
+to see the hook frames; it codes the corpus. Human review (`/validation`) is
+what will say which reading is right.
+
+- **coding:** `openrouter / qwen/qwen3-vl-32b-instruct` → Gemini direct (2.5 Flash-Lite, 2.5 Flash). NVIDIA is kept out of the coding chain.
+- **analysis and escalation:** `openrouter / qwen/qwen3-vl-235b-a22b-instruct` → Gemini direct.
+- **gatekeeper, synthesis:** Gemini 2.5 Flash direct → OpenRouter.
