@@ -31,7 +31,9 @@ export class WhisperCppAdapter implements TranscriptSourceAdapter {
   constructor(
     private readonly cli: string,
     private readonly model: string,
-    private readonly ffmpeg = 'ffmpeg'
+    private readonly ffmpeg = 'ffmpeg',
+    /** Performance cores only by default: oversubscribing slows every parallel worker. */
+    private readonly threads = 4
   ) {}
 
   isAvailable(): boolean {
@@ -43,7 +45,7 @@ export class WhisperCppAdapter implements TranscriptSourceAdapter {
     const wav = `${base}.wav`;
     try {
       await exec(this.ffmpeg, ['-v', 'error', '-y', '-i', mediaPath, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', wav], { timeout: 180_000 });
-      await exec(this.cli, ['-m', this.model, '-f', wav, '-oj', '-of', base, '-np', '-l', 'en'], { timeout: 600_000, maxBuffer: 16 * 1024 * 1024 });
+      await exec(this.cli, ['-m', this.model, '-f', wav, '-oj', '-of', base, '-np', '-l', 'en', '-t', String(this.threads)], { timeout: 600_000, maxBuffer: 16 * 1024 * 1024 });
       const raw = JSON.parse(readFileSync(`${base}.json`, 'utf8')) as WhisperJson;
       return parseWhisperJson(raw, `whisper.cpp:${path.basename(this.model)}`);
     } finally {

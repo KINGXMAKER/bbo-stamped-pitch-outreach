@@ -43,6 +43,7 @@ function railCounts() {
     challenges: n(`SELECT COUNT(*) AS n FROM rule_challenges WHERE status = 'open'`),
     entities: n(`SELECT COUNT(*) AS n FROM entity_resolution_candidates WHERE status = 'pending'`),
     gatekeeper: n(`SELECT COUNT(*) AS n FROM edit_sessions WHERE status = 'needs_human'`),
+    unreviewed: n(`SELECT COUNT(*) AS n FROM content WHERE coded_at IS NOT NULL AND coding_validation_status = 'UNREVIEWED'`),
     lastSync: get<{ finished_at: string | null; kind: string }>(db, `SELECT finished_at, kind FROM sync_jobs WHERE status IN ('succeeded','partial') ORDER BY finished_at DESC LIMIT 1`) ?? null,
     content: n('SELECT COUNT(*) AS n FROM content WHERE is_demo = 0'),
   };

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
-import { all, get, json, parseJson, run, type Db } from '@/lib/db/client';
+import { all, get, json, nowIso, parseJson, run, type Db } from '@/lib/db/client';
 import { runAi } from '@/lib/ai/run';
 import { looseConfidence, looseList, looseText, looseTextNullable } from '@/lib/ai/schema';
 import { activeSkill } from '@/lib/ai/skills';
@@ -121,6 +121,12 @@ export const AnalysisSchema = z.object({
       editing_style: enumOf('editing_style'),
       guest_gender_mix: enumOf('guest_gender_mix'),
       subtitle_style: enumOf('subtitle_style'),
+      opening_type: enumOf('opening_type'),
+      clarity_rating: enumOf('clarity_rating'),
+      share_trigger_type: enumOf('share_trigger_type'),
+      comment_trigger_type: enumOf('comment_trigger_type'),
+      curiosity_trigger_type: enumOf('curiosity_trigger_type'),
+      guest_answer_opening: z.boolean().nullable().default(null),
       question_opening: z.boolean().nullable().default(null),
       payoff_first: z.boolean().nullable().default(null),
       has_text_hook: z.boolean().nullable().default(null),
@@ -129,6 +135,16 @@ export const AnalysisSchema = z.object({
     })
     .partial()
     .default({}),
+  timings: z
+    .object({
+      time_to_understandable_s: z.preprocess((v) => (v === null || v === undefined || v === '' ? null : Number(v)), z.number().nullable().catch(null)).default(null),
+      time_to_tension_s: z.preprocess((v) => (v === null || v === undefined || v === '' ? null : Number(v)), z.number().nullable().catch(null)).default(null),
+      time_to_payoff_s: z.preprocess((v) => (v === null || v === undefined || v === '' ? null : Number(v)), z.number().nullable().catch(null)).default(null),
+      dead_setup_s: z.preprocess((v) => (v === null || v === undefined || v === '' ? null : Number(v)), z.number().nullable().catch(null)).default(null),
+    })
+    .partial()
+    .default({}),
+  opening_line: looseText().default(''),
   topics: looseList().default([]),
   confidence: looseConfidence(),
 });
@@ -285,11 +301,46 @@ export async function analyzeContent(db: Db, contentId: number, options: { reaso
   );
 
   applyAiAttributes(db, contentId, a, conf, result.runId);
+  run(db, 'UPDATE content SET coded_at = ? WHERE id = ?', nowIso(), contentId);
   createAnalysisLesson(db, { text: a.reusable_lesson.text, category: a.reusable_lesson.category, contentId, experiment: a.recommended_experiment?.hypothesis ?? null });
   return { status: 'analysed', analysisId, runId: result.runId };
 }
 
-export function applyAiAttributes(db: Db, contentId: number, a: Pick<Analysis, 'attributes' | 'topics' | 'underlying_debate' | 'hook_mechanics'>, confidence: number, runId: number): void {
+/** Numeric timings become comparable buckets; mining works on the buckets. */
+function bucketFor(key: string, seconds: number | null | undefined): string | null {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return key === 'time_to_tension_bucket' || key === 'time_to_payoff_bucket' ? 'never' : null;
+  const s = Math.max(0, seconds);
+  if (key === 'time_to_understandable_bucket') return s <= 2 ? '0-2s' : s <= 5 ? '2-5s' : s <= 8 ? '5-8s' : '>8s';
+  if (key === 'time_to_tension_bucket') return s <= 2 ? '0-2s' : s <= 5 ? '2-5s' : s <= 10 ? '5-10s' : '>10s';
+  if (key === 'time_to_payoff_bucket') return s <= 5 ? '0-5s' : s <= 15 ? '5-15s' : s <= 30 ? '15-30s' : '>30s';
+  if (key === 'dead_setup_bucket') return s < 0.5 ? 'none' : s <= 2 ? '0-2s' : s <= 5 ? '2-5s' : '>5s';
+  return null;
+}
+
+type CodingPayload = Pick<Analysis, 'attributes' | 'topics' | 'underlying_debate' | 'hook_mechanics'> &
+  Partial<Pick<Analysis, 'timings' | 'opening_line' | 'strongest_moment' | 'strongest_opening'>>;
+
+export function applyAiAttributes(db: Db, contentId: number, a: CodingPayload, confidence: number, runId: number): void {
+  const t = a.timings ?? {};
+  const timingKeys: Array<[keyof typeof t, string]> = [
+    ['time_to_understandable_s', 'time_to_understandable_bucket'],
+    ['time_to_tension_s', 'time_to_tension_bucket'],
+    ['time_to_payoff_s', 'time_to_payoff_bucket'],
+    ['dead_setup_s', 'dead_setup_bucket'],
+  ];
+  for (const [numericKey, bucketKey] of timingKeys) {
+    const seconds = t[numericKey] ?? null;
+    if (seconds !== null) setAttribute(db, contentId, numericKey, seconds, 'ai', confidence, runId);
+    const bucket = bucketFor(bucketKey, seconds);
+    if (bucket) setAttribute(db, contentId, bucketKey, bucket, 'ai', confidence, runId);
+  }
+  if (a.opening_line) setAttribute(db, contentId, 'opening_line', a.opening_line.slice(0, 300), 'ai', confidence, runId);
+  if (a.strongest_moment?.quote) setAttribute(db, contentId, 'strongest_moment_quote', a.strongest_moment.quote.slice(0, 300), 'ai', confidence, runId);
+  if (a.strongest_opening?.quote) setAttribute(db, contentId, 'strongest_opening_quote', a.strongest_opening.quote.slice(0, 300), 'ai', confidence, runId);
+  if (a.strongest_opening && typeof a.strongest_opening.is_current_opening === 'boolean') {
+    setAttribute(db, contentId, 'opening_is_strongest', a.strongest_opening.is_current_opening, 'ai', confidence, runId);
+  }
+
   for (const [key, value] of Object.entries(a.attributes ?? {})) {
     if (value === null || value === undefined) continue;
     setAttribute(db, contentId, key, value as string | boolean, 'ai', confidence, runId);
@@ -317,7 +368,18 @@ export function applyAiAttributes(db: Db, contentId: number, a: Pick<Analysis, '
 }
 
 // ── Lightweight enrichment for the whole catalogue ─────────────────────────
-export const EnrichmentSchema = AnalysisSchema.pick({ attributes: true, topics: true, underlying_debate: true, hook_mechanics: true, confidence: true, evidence_notes: true }).extend({
+export const EnrichmentSchema = AnalysisSchema.pick({
+  attributes: true,
+  topics: true,
+  timings: true,
+  opening_line: true,
+  strongest_moment: true,
+  strongest_opening: true,
+  underlying_debate: true,
+  hook_mechanics: true,
+  confidence: true,
+  evidence_notes: true,
+}).extend({
   franchise: looseTextNullable().default(null),
   opening_hook: looseTextNullable().default(null),
 });
@@ -330,7 +392,15 @@ ALLOWED ATTRIBUTE VALUES
 franchise: one of {{franchises}} or null
 topics: 1–3 of these exact names: {{topics}}
 
-Return JSON: {evidence_notes, franchise, opening_hook, underlying_debate, hook_mechanics, attributes {…}, topics[], confidence (low|medium|high)}.`;
+TIMING DEFINITIONS (seconds from the first frame, decimals allowed, null when it never happens)
+- time_to_understandable_s: when a stranger could say who is talking and what the subject is
+- time_to_tension_s: when a disagreement, stake, confession or contradiction is first present
+- time_to_payoff_s: when the clip delivers the moment it was building to
+- dead_setup_s: how much of the opening is setup a viewer does not need (0 when none)
+
+Return JSON: {evidence_notes, franchise, opening_hook, opening_line (verbatim first spoken or on-screen line), underlying_debate, hook_mechanics,
+strongest_moment {timestamp, quote, why}, strongest_opening {timestamp, quote, why, is_current_opening},
+timings {time_to_understandable_s, time_to_tension_s, time_to_payoff_s, dead_setup_s}, attributes {…}, topics[], confidence (low|medium|high)}.`;
 
 export async function enrichContent(db: Db, contentId: number): Promise<{ status: 'enriched' | 'skipped'; reason?: string }> {
   const fact = loadFacts(db, { contentIds: [contentId] })[0];
@@ -367,5 +437,6 @@ export async function enrichContent(db: Db, contentId: number): Promise<{ status
   applyAiAttributes(db, contentId, d, conf, result.runId);
   if (d.opening_hook) setAttribute(db, contentId, 'opening_hook', d.opening_hook, 'ai', conf, result.runId);
   if (d.franchise && franchises.includes(d.franchise)) setAttribute(db, contentId, 'franchise', d.franchise, 'ai', conf, result.runId);
+  run(db, 'UPDATE content SET coded_at = ? WHERE id = ?', nowIso(), contentId);
   return { status: 'enriched' };
 }

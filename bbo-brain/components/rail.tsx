@@ -6,6 +6,7 @@ type Counts = {
   challenges: number;
   entities: number;
   gatekeeper: number;
+  unreviewed: number;
   content: number;
   lastSync: { finished_at: string | null; kind: string } | null;
 };
@@ -29,6 +30,7 @@ const GROUPS = (c: Counts) => [
       { href: '/people', label: 'People / Guests' },
       { href: '/topics', label: 'Topics' },
       { href: '/graph', label: 'Knowledge Graph' },
+      { href: '/coverage', label: 'Data Coverage' },
     ],
   },
   {
@@ -39,6 +41,7 @@ const GROUPS = (c: Counts) => [
       { href: '/proposals', label: 'Rule Proposals', count: c.proposals },
       { href: '/experiments', label: 'Experiments' },
       { href: '/edit-lab', label: 'Edit Lab', count: c.gatekeeper },
+      { href: '/validation', label: 'Coding Validation', count: c.unreviewed },
     ],
   },
   {

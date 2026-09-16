@@ -1,6 +1,6 @@
 # Data model
 
-Schema: `db/migrations/0001_init.ts` (SQLite via `node:sqlite`). Timestamps are ISO-8601 UTC strings. JSON columns hold provider payloads, AI metadata and flexible evidence only — anything filtered or sorted on is a column.
+Schema: `db/migrations/0001_init.ts`, then `0002_coding.ts` (SQLite via `node:sqlite`). Timestamps are ISO-8601 UTC strings. JSON columns hold provider payloads, AI metadata and flexible evidence only — anything filtered or sorted on is a column.
 
 ## Content
 
@@ -14,6 +14,13 @@ Schema: `db/migrations/0001_init.ts` (SQLite via `node:sqlite`). Timestamps are 
 | `transcripts` | Text + timestamped segments per content and source | `UNIQUE(content_id, source)`. |
 | `content_people`, `content_topics` | Guests/hosts/editors and topics per content, with source + confidence | |
 | `content_comments` | Comment text | `UNIQUE(post, external_id)`; archive comments use a content hash id. |
+
+Pipeline bookkeeping lives on `content` itself: `media_fetched_at` (media +
+transcript done), `coded_at` (structured coding done — cleared when a coding is
+rejected, which re-queues the post), `coding_validation_status`
+(`UNREVIEWED` · `APPROVED` · `EDITED` · `REJECTED`) and `coding_reviewed_at`.
+The daily throughput caps count rows by those two timestamps, so restarting a
+job cannot exceed the day's budget.
 
 ## Performance
 
@@ -62,6 +69,8 @@ Schema: `db/migrations/0001_init.ts` (SQLite via `node:sqlite`). Timestamps are 
 | `graph_edges` | Materialised relationships (`src → rel → dst`) with weight and evidence. |
 | `search_index` | FTS5 over content, transcripts, people, topics, lessons, rules, experiments, analyses. |
 | `settings`, `settings_history`, `users` | Triggers, Gatekeeper settings, lesson promotion thresholds — with history. |
+| `coding_reviews` | One immutable row per human validation decision: status, note, corrected keys, and the `ai_run_id` that produced the coding under review. |
+| `attribute_corrections` (view) | Each human attribute value paired with the AI value it replaced — the raw material for the per-attribute agreement rate on `/coverage`. |
 
 ## Migrations
 

@@ -7,7 +7,7 @@ import { InstagramMediaAdapter } from '@/lib/adapters/media';
 import { WhisperCppAdapter } from '@/lib/adapters/whisper';
 import { SourceError, type MediaSourceAdapter, type TranscriptSourceAdapter } from '@/lib/adapters/types';
 import { applyCaptionHeuristics, applyMedia, upsertPost, writeAccountMetrics, writeComments, writeMetrics, writeTranscript } from '@/lib/ingest/ingest';
-import { analysisQueue } from '@/lib/intel/analysis';
+import { buildQueue, processedToday, type QueueItem } from './media-queue';
 import { markIntegration, type JobContext, type JobOutcome } from './jobs';
 
 export function instagramAdapter(): InstagramComposioAdapter | null {
@@ -126,63 +126,75 @@ export async function syncMediaAndTranscripts(
   const cfg = brainConfig();
   const adapter = deps.adapter ?? requireAdapter(ctx);
   const media = deps.media ?? new InstagramMediaAdapter();
-  const transcriber = deps.transcriber ?? new WhisperCppAdapter(cfg.whisperCli, cfg.whisperModel);
+  const transcriber = deps.transcriber ?? new WhisperCppAdapter(cfg.whisperCli, cfg.whisperModel, 'ffmpeg', cfg.whisperThreads);
   const canTranscribe = transcriber.isAvailable();
-  const limit = Number(ctx.params.limit ?? 15);
   const keepMedia = ctx.params.keepMedia === true;
+  const concurrency = Math.max(1, Number(ctx.params.concurrency ?? cfg.mediaConcurrency));
+  const dailyCap = Math.max(1, Number(ctx.params.dailyLimit ?? cfg.mediaDailyLimit));
+  const alreadyToday = processedToday(ctx.db, 'media_fetched_at');
+  const limit = Math.min(Number(ctx.params.limit ?? cfg.mediaDailyLimit), Math.max(0, dailyCap - alreadyToday));
 
   markIntegration(ctx.db, 'whisper_local', canTranscribe ? { status: 'connected' } : { status: 'not_connected', error: `whisper-cli or model not found (${cfg.whisperCli})` });
 
   const onlyContentId = Number(ctx.params.contentId) || null;
-  // Winners and losers waiting for analysis get media first, then the newest posts.
-  const priority = onlyContentId ? [] : analysisQueue(ctx.db).waitingForMedia.slice(0, Math.ceil(limit / 2)).map((h) => h.fact.contentId);
-  const pick = (ids: number[] | null, n: number) =>
-    all<{ content_id: number; external_id: string; format: string | null; thumb_path: string | null }>(
+  let queue: QueueItem[];
+  if (onlyContentId) {
+    const row = get<{ content_id: number; external_id: string; title: string; published_at: string }>(
       ctx.db,
-      `SELECT c.id AS content_id, pp.external_id, c.format, c.thumb_path FROM content c
-       JOIN platform_posts pp ON pp.id = c.primary_post_id
-       WHERE pp.platform_id = 'instagram' AND c.status = 'published'
-         AND ${ids ? `c.id IN (${ids.map(Number).join(',') || 0})` : `(c.thumb_path IS NULL OR (c.format IN ('reel','video') AND NOT EXISTS (SELECT 1 FROM transcripts t WHERE t.content_id = c.id)))`}
-       ORDER BY pp.published_at DESC LIMIT ?`,
-      n
+      `SELECT c.id AS content_id, pp.external_id, c.title, pp.published_at FROM content c JOIN platform_posts pp ON pp.id = c.primary_post_id WHERE c.id = ?`,
+      onlyContentId
     );
-  const first = onlyContentId ? pick([onlyContentId], 1) : pick(priority, priority.length || 1).filter(() => priority.length > 0);
-  const queue = [...first, ...pick(null, limit).filter((r) => !first.some((f) => f.content_id === r.content_id))].slice(0, limit);
+    queue = row
+      ? [{ contentId: row.content_id, externalId: row.external_id, title: row.title, tier: 1, reason: 'requested directly', corpusClass: 'other', label: null, score: null, publishedAt: row.published_at, franchise: null, needsMedia: true, needsCoding: true }]
+      : [];
+  } else {
+    queue = limit > 0 ? buildQueue(ctx.db, { limit, stage: 'media', ignoreTargets: ctx.params.ignoreTargets === true }) : [];
+  }
+
+  if (!queue.length) {
+    const reason = limit <= 0 ? `daily media limit reached (${alreadyToday}/${dailyCap})` : 'nothing needs media';
+    return { recordsSeen: 0, recordsWritten: 0, summary: reason };
+  }
+
+  const tally = (key: 'tier' | 'corpusClass') =>
+    queue.reduce<Record<string, number>>((acc, q) => ({ ...acc, [String(q[key])]: (acc[String(q[key])] ?? 0) + 1 }), {});
+  ctx.log('priority queue built', { size: queue.length, concurrency, byTier: tally('tier'), byClass: tally('corpusClass'), dailyCap, alreadyToday });
 
   mkdirSync(cfg.mediaDir, { recursive: true });
   let transcribed = 0;
   let measured = 0;
   let failures = 0;
 
-  for (const item of queue) {
+  await pool(queue, concurrency, async (item) => {
     try {
-      const fresh = await adapter.proxyMedia(item.external_id);
-      const result = await media.fetchMedia({ externalId: item.external_id, mediaUrl: fresh.mediaUrl, mediaType: fresh.mediaType }, cfg.mediaDir);
+      const fresh = await adapter.proxyMedia(item.externalId);
+      const result = await media.fetchMedia({ externalId: item.externalId, mediaUrl: fresh.mediaUrl, mediaType: fresh.mediaType }, cfg.mediaDir);
       if (!result) {
-        ctx.log('no downloadable media', { externalId: item.external_id, mediaType: fresh.mediaType });
-        continue;
+        ctx.log('no downloadable media', { externalId: item.externalId, mediaType: fresh.mediaType });
+        return;
       }
-      applyMedia(ctx.db, item.content_id, result, keepMedia);
+      applyMedia(ctx.db, item.contentId, result, keepMedia);
+      run(ctx.db, 'UPDATE content SET media_fetched_at = ? WHERE id = ?', nowIso(), item.contentId);
       measured++;
       if (result.isVideo && canTranscribe && result.mediaPath) {
         const t = await transcriber.transcribe(result.mediaPath);
-        writeTranscript(ctx.db, item.content_id, 'whisper_cpp', t);
+        writeTranscript(ctx.db, item.contentId, 'whisper_cpp', t);
         transcribed++;
       }
       if (!keepMedia && result.mediaPath && existsSync(result.mediaPath)) rmSync(result.mediaPath, { force: true });
     } catch (err) {
       if (err instanceof SourceError && err.kind === 'transient') throw err;
       failures++;
-      ctx.log('media/transcript failed', { externalId: item.external_id, message: err instanceof Error ? err.message : String(err) });
+      ctx.log('media/transcript failed', { externalId: item.externalId, tier: item.tier, message: err instanceof Error ? err.message : String(err) });
     }
-  }
+  });
 
   if (transcribed) markIntegration(ctx.db, 'whisper_local', { status: 'connected', success: true, records: transcribed });
   return {
     recordsSeen: queue.length,
     recordsWritten: measured + transcribed,
     partial: failures > 0 && failures < queue.length,
-    summary: `${measured} measured, ${transcribed} transcribed, ${failures} failed${canTranscribe ? '' : ' (transcription unavailable)'}`,
+    summary: `${measured} measured, ${transcribed} transcribed, ${failures} failed (concurrency ${concurrency}, ${alreadyToday + measured}/${dailyCap} today)${canTranscribe ? '' : ' — transcription unavailable'}`,
   };
 }
 

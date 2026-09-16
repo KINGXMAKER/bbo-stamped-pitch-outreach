@@ -54,7 +54,9 @@ npm run job -- weekly-review
 npm run job -- list                 # every job and what it does
 ```
 
-`scripts/launchd/com.bbo.brain.daily.plist` is a **template** for running the loop at 07:30 daily. It is not installed — install it only when you decide to (instructions inside the file). Jobs can also be started from Settings or the Command Center.
+`scripts/launchd/com.bbo.brain.daily.plist` is a **template** for running the loop at 07:30 daily. It is not installed — install it only when you decide to (exactly what it would install is spelled out in [DATA_DEPTH.md](DATA_DEPTH.md#scheduling-nothing-is-installed-until-you-install-it)). Jobs can also be started from Settings or the Command Center.
+
+Throughput is capped by `MEDIA_ANALYSIS_DAILY_LIMIT`, `MEDIA_ANALYSIS_CONCURRENCY`, `AI_ANALYSIS_DAILY_LIMIT`, `AI_ANALYSIS_CONCURRENCY` and `WHISPER_THREADS` (see [DATA_DEPTH.md](DATA_DEPTH.md#2-throughput)). The server binds to `127.0.0.1`; set `BRAIN_ACCESS_PASSWORD` before exposing it anywhere else.
 
 ## Sections
 
@@ -67,6 +69,8 @@ npm run job -- list                 # every job and what it does
 | Content Library | `/content` | Every post, filterable and sortable |
 | Content Detail | `/content/[id]` | Media, transcript, performance context, AI analysis, lessons, rules, experiments, similar winners/losers, attribute overrides |
 | Content Intelligence | `/intelligence` | Analysis queue, analyses, attribute coverage |
+| Data Coverage | `/coverage` | How much of the catalogue BBO BRAIN actually understands |
+| Coding Validation | `/validation` | Human review of AI coding, and the AI's measured accuracy |
 | Performance | `/performance` | Normalized scoring, trends, franchises, score versions |
 | People / Guests | `/people` | How content featuring each person performs |
 | Topics | `/topics` | Share drivers, comments-but-weak-retention, saturation, dormant winners |
@@ -99,13 +103,14 @@ Known limitations are listed plainly on the Integrations page and in `COMPOSIO_I
 - [PERFORMANCE_SCORING.md](PERFORMANCE_SCORING.md) — the normalized score and why comparisons are era-normalized
 - [EXPERIMENTS.md](EXPERIMENTS.md) — the experiment engine
 - [RULE_ENGINE.md](RULE_ENGINE.md) — lessons, proposals, approvals, challenges, statistical guardrails
+- [DATA_DEPTH.md](DATA_DEPTH.md) — the media/coding priority queue, throughput limits, the coding vocabulary, human validation and the daily sequence
 - [skills/bbo-viral-content/SKILL.md](skills/bbo-viral-content/SKILL.md) · [skills/bbo-gatekeeper/SKILL.md](skills/bbo-gatekeeper/SKILL.md)
 - [knowledge/CONSTRAINTS.md](knowledge/CONSTRAINTS.md) — active rules, regenerated from the database
 
 ## Development
 
 ```bash
-npm test            # vitest — 104 tests
+npm test            # vitest — 122 tests
 npm run typecheck
 npm run lint
 ```
