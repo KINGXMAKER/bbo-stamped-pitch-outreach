@@ -15,7 +15,8 @@ export type CompatOptions = {
   /** Preferred model per task class; index 0 is tried first. */
   modelsByTask: Record<TaskClass, string[]>;
   headers?: Record<string, string>;
-  supportsImages?: boolean;
+  /** Which of this host's models accept image input. */
+  visionModel?: (model: string) => boolean;
   /** Some hosts need a body flag to stop a reasoning model emitting prose. */
   extraBody?: (model: string, req: GenerateRequest) => Record<string, unknown>;
   fetchImpl?: typeof fetch;
@@ -30,7 +31,6 @@ type ChatResponse = {
 
 export class OpenAICompatProvider implements AIProvider {
   readonly providerName: ProviderName;
-  readonly supportsImages: boolean;
   private readonly opts: CompatOptions;
   private readonly fetchImpl: typeof fetch;
   /** Models that rejected JSON mode outright, learned from the host's own 400. */
@@ -39,8 +39,11 @@ export class OpenAICompatProvider implements AIProvider {
   constructor(opts: CompatOptions) {
     this.opts = opts;
     this.providerName = opts.providerName;
-    this.supportsImages = opts.supportsImages ?? false;
     this.fetchImpl = opts.fetchImpl ?? fetch;
+  }
+
+  acceptsImages(model: string): boolean {
+    return this.opts.visionModel?.(model) ?? false;
   }
 
   models(task: TaskClass): string[] {
@@ -83,7 +86,7 @@ export class OpenAICompatProvider implements AIProvider {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), req.timeoutMs ?? 120_000);
     const content: Array<Record<string, unknown>> = [{ type: 'text', text: req.prompt }];
-    for (const img of this.supportsImages ? (req.images ?? []) : []) {
+    for (const img of this.acceptsImages(model) ? (req.images ?? []) : []) {
       content.push({ type: 'image_url', image_url: { url: `data:${img.mimeType};base64,${img.base64}` } });
     }
     const jsonMode = opts.jsonMode && !this.noJsonMode.has(model);

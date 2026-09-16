@@ -4,7 +4,8 @@ import { setAttribute, writeMetrics } from '@/lib/ingest/ingest';
 import { activeScoreVersion, computeAllScores } from '@/lib/scoring/engine';
 import { buildQueue, corpusStatus, processedToday, tierFor } from '@/lib/sync/media-queue';
 import { loadFacts } from '@/lib/intel/dataset';
-import { codingAccuracy, coverageStats, recordReview, validationSample } from '@/lib/intel/validation';
+import { accuracyByModel, codingAccuracy, coverageStats, recordReview, validationSample } from '@/lib/intel/validation';
+import { benchmarkReport, pairAgreement } from '@/lib/intel/benchmark';
 import { ATTRIBUTE_DEFINITIONS } from '@/lib/seed/reference';
 import { makePost, testDb } from './helpers';
 
@@ -269,6 +270,30 @@ describe('human validation of AI coding', () => {
     expect(opening.agreement).toBe(1); // never corrected
   });
 
+  it('records which provider and model produced each reviewed label', () => {
+    const db = seedCatalogue(testDb());
+    const ids = seedCoded(db);
+    const cheap = run(db, `INSERT INTO ai_runs (workflow, status, provider, model, input_json) VALUES ('enrichment', 'ok', 'openrouter', 'qwen/qwen3-235b-a22b-2507', '{}')`).lastId;
+    const strong = run(db, `INSERT INTO ai_runs (workflow, status, provider, model, input_json) VALUES ('enrichment', 'ok', 'gemini', 'gemini-2.5-flash', '{}')`).lastId;
+    run(db, `UPDATE content_attributes SET ai_run_id = ? WHERE content_id IN (?, ?) AND source = 'ai'`, cheap, ids[0], ids[1]);
+    run(db, `UPDATE content_attributes SET ai_run_id = ? WHERE content_id = ? AND source = 'ai'`, strong, ids[2]);
+
+    recordReview(db, { contentId: ids[0], status: 'EDITED', values: { hook_type: 'question' } });
+    recordReview(db, { contentId: ids[1], status: 'APPROVED' });
+    recordReview(db, { contentId: ids[2], status: 'APPROVED' });
+
+    const byModel = accuracyByModel(db).filter((r) => r.key === 'hook_type');
+    expect(byModel).toEqual([
+      { model: 'gemini/gemini-2.5-flash', key: 'hook_type', reviewed: 1, agreed: 1, agreement: 1 },
+      { model: 'openrouter/qwen/qwen3-235b-a22b-2507', key: 'hook_type', reviewed: 2, agreed: 1, agreement: 0.5 },
+    ]);
+    expect(get<{ ai: string; human: string; model: string }>(db, 'SELECT ai_value ai, human_value human, ai_model model FROM attribute_corrections WHERE content_id = ?', ids[0])).toEqual({
+      ai: 'confession',
+      human: 'question',
+      model: 'qwen/qwen3-235b-a22b-2507',
+    });
+  });
+
   it('puts a rejected coding back in the queue', () => {
     const db = seedCatalogue(testDb());
     const [id] = seedCoded(db);
@@ -291,5 +316,62 @@ describe('human validation of AI coding', () => {
     expect(stats.humanValidated).toBe(1);
     expect(stats.unreviewed).toBe(ids.length - 1);
     expect(stats.fields.find((f) => f.key === 'hook_type')?.coded).toBe(ids.length);
+  });
+});
+
+describe('coding benchmark accounting', () => {
+  function addBenchmark(db: Db, model: string, outputs: Array<[number, Record<string, unknown> | null, string[]]>) {
+    const runId = run(db, `INSERT INTO benchmark_runs (name, task_class, provider, model) VALUES (?, 'coding', 'openrouter', ?)`, model, model).lastId;
+    for (const [contentId, attributes, violations] of outputs) {
+      run(
+        db,
+        `INSERT INTO benchmark_codings (benchmark_run_id, content_id, status, output_json, taxonomy_violations_json, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, 2000, 500)`,
+        runId,
+        contentId,
+        attributes ? 'ok' : 'schema_failed',
+        attributes ? JSON.stringify({ attributes, topics: [] }) : null,
+        JSON.stringify(violations)
+      );
+    }
+    return runId;
+  }
+
+  it('measures agreement against existing coding without touching it', () => {
+    const db = seedCatalogue(testDb());
+    const ids = loadFacts(db).slice(0, 4).map((f) => f.contentId);
+    for (const id of ids) codeIt(db, id, { hook_type: 'confession', opening_type: 'guest_answer' });
+    const before = all(db, `SELECT content_id, key, value_text, source FROM content_attributes ORDER BY content_id, key, source`);
+
+    const runId = addBenchmark(db, 'qwen/qwen3-235b-a22b-2507', [
+      [ids[0], { hook_type: 'confession', opening_type: 'guest_answer' }, []],
+      [ids[1], { hook_type: 'question', opening_type: 'guest_answer' }, []],
+      [ids[2], { hook_type: 'confession', opening_type: 'reaction_shot' }, ['opening_type=reaction_shot']],
+      [ids[3], null, []],
+    ]);
+    const [report] = benchmarkReport(db, [runId]);
+
+    expect(report.posts).toBe(4);
+    expect(report.validRate).toBe(0.75);
+    expect(report.schemaFailed).toBe(1);
+    expect(report.taxonomyViolations).toBe(1);
+    expect(report.agreement.hook_type).toEqual({ compared: 3, agreed: 2, rate: 2 / 3 });
+    expect(report.costUsd).toBeCloseTo(4 * (2000 * 0.087 + 500 * 0.35) / 1_000_000, 8); // priced from recorded tokens
+    expect(all(db, `SELECT content_id, key, value_text, source FROM content_attributes ORDER BY content_id, key, source`)).toEqual(before);
+  });
+
+  it('measures a model against its own rerun', () => {
+    const db = seedCatalogue(testDb());
+    const ids = loadFacts(db).slice(0, 3).map((f) => f.contentId);
+    const first = addBenchmark(db, 'm', ids.map((id) => [id, { hook_type: 'confession', opening_type: 'guest_answer' }, []]));
+    const second = addBenchmark(db, 'm', [
+      [ids[0], { hook_type: 'confession', opening_type: 'guest_answer' }, []],
+      [ids[1], { hook_type: 'question', opening_type: 'guest_answer' }, []],
+      [ids[2], { hook_type: 'confession', opening_type: 'guest_answer' }, []],
+    ]);
+
+    const pair = pairAgreement(db, first, second);
+    expect(pair.compared).toBe(6);
+    expect(pair.agreed).toBe(5);
+    expect(pair.byField.hook_type).toBeCloseTo(2 / 3, 6);
   });
 });

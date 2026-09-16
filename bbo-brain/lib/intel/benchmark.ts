@@ -20,6 +20,13 @@ import { loadFacts } from './dataset';
  */
 
 /** The fields a coding model must get right for BBO's comparisons to mean anything. */
+/**
+ * Fields a text-only model cannot fairly be judged on: on-screen text and
+ * reaction shots need the frames, and host-vs-guest needs speaker identity,
+ * which whisper transcripts do not carry.
+ */
+export const NEEDS_FRAMES_OR_SPEAKERS = new Set(['opening_type', 'guest_answer_opening', 'reaction_shot_present']);
+
 export const AGREEMENT_FIELDS = [
   'primary_topic',
   'hook_type',
@@ -118,7 +125,7 @@ export async function runCodingBenchmark(
         schemaVersion: 'enrichment-v1',
         system: request.system,
         prompt: request.prompt,
-        images: provider.supportsImages ? request.images : undefined,
+        images: provider.acceptsImages(target.model) ? request.images : undefined,
         schema: EnrichmentSchema,
         input: { ...request.input, benchmarkRunId },
         temperature: 0.1,
@@ -215,6 +222,8 @@ export type BenchmarkReportRow = {
   costPer100Usd: number;
   agreement: Record<string, { compared: number; agreed: number; rate: number | null }>;
   overallAgreement: number | null;
+  /** Agreement on fields answerable from transcript + caption alone. */
+  textAgreement: number | null;
 };
 
 /** Agreement is measured against the coding already in the database (Gemini's, human-corrected where reviewed). */
@@ -234,6 +243,8 @@ export function benchmarkReport(db: Db, benchmarkRunIds?: number[]): BenchmarkRe
     const agreement: BenchmarkReportRow['agreement'] = {};
     let agreedTotal = 0;
     let comparedTotal = 0;
+    let agreedText = 0;
+    let comparedText = 0;
 
     for (const field of AGREEMENT_FIELDS) {
       let compared = 0;
@@ -249,6 +260,10 @@ export function benchmarkReport(db: Db, benchmarkRunIds?: number[]): BenchmarkRe
       agreement[field] = { compared, agreed, rate: compared ? agreed / compared : null };
       agreedTotal += agreed;
       comparedTotal += compared;
+      if (!NEEDS_FRAMES_OR_SPEAKERS.has(field)) {
+        agreedText += agreed;
+        comparedText += compared;
+      }
     }
 
     const okRows = rows.filter((x) => x.status === 'ok').length;
@@ -271,6 +286,7 @@ export function benchmarkReport(db: Db, benchmarkRunIds?: number[]): BenchmarkRe
       costPer100Usd: rows.length ? (cost / rows.length) * 100 : 0,
       agreement,
       overallAgreement: comparedTotal ? agreedTotal / comparedTotal : null,
+      textAgreement: comparedText ? agreedText / comparedText : null,
     };
   });
 }
@@ -298,4 +314,43 @@ function referenceValue(db: Db, contentId: number, field: string): string | null
   }
   const row = get<{ value_text: string }>(db, 'SELECT value_text FROM content_attribute_current WHERE content_id = ? AND key = ?', contentId, field);
   return row?.value_text?.toLowerCase() ?? null;
+}
+
+/**
+ * Consistency: the same (or another) candidate compared with itself on the same
+ * posts. Agreement with the existing coding only says two models read a post
+ * the same way; a model that disagrees with itself on a rerun is noise, while
+ * one that is self-consistent but differs from the reference has a different
+ * reading — which only human review can settle.
+ */
+export function pairAgreement(db: Db, runA: number, runB: number): { compared: number; agreed: number; rate: number | null; byField: Record<string, number | null> } {
+  const load = (id: number) =>
+    new Map(
+      all<{ content_id: number; output_json: string }>(db, `SELECT content_id, output_json FROM benchmark_codings WHERE benchmark_run_id = ? AND status = 'ok'`, id).map((r) => [
+        r.content_id,
+        parseJson<Record<string, unknown>>(r.output_json, {}),
+      ])
+    );
+  const a = load(runA);
+  const b = load(runB);
+  let compared = 0;
+  let agreed = 0;
+  const byField: Record<string, number | null> = {};
+  for (const field of AGREEMENT_FIELDS) {
+    let fc = 0;
+    let fa = 0;
+    for (const [contentId, outA] of a) {
+      const outB = b.get(contentId);
+      if (!outB) continue;
+      const va = candidateValue(outA, field);
+      const vb = candidateValue(outB, field);
+      if (va === null || vb === null) continue;
+      fc++;
+      if (va === vb) fa++;
+    }
+    byField[field] = fc ? fa / fc : null;
+    compared += fc;
+    agreed += fa;
+  }
+  return { compared, agreed, rate: compared ? agreed / compared : null, byField };
 }

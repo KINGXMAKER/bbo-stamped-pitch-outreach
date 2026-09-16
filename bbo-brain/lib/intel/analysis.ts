@@ -541,7 +541,7 @@ async function escalateCoding(
       schemaVersion: 'enrichment-v1',
       system: args.request.system,
       prompt: args.request.prompt,
-      images: stronger.provider.supportsImages ? args.request.images : undefined,
+      images: stronger.provider.acceptsImages(stronger.model) ? args.request.images : undefined,
       schema: EnrichmentSchema,
       input: { ...args.request.input, escalatedFrom: args.base.runId, reason: args.reason },
       temperature: 0.1,

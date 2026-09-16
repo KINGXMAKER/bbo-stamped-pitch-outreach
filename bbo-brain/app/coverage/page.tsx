@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { JobButton } from '@/components/client';
 import { Empty, PageHead, Section, Stat } from '@/components/ui';
 import { getDb } from '@/lib/db/client';
-import { codingAccuracy, coverageStats } from '@/lib/intel/validation';
+import { accuracyByModel, codingAccuracy, coverageStats } from '@/lib/intel/validation';
 import { corpusStatus } from '@/lib/sync/media-queue';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +30,14 @@ export default function Coverage() {
   const c = coverageStats(db);
   const corpus = corpusStatus(db);
   const accuracy = codingAccuracy(db);
+  const modelRows = accuracyByModel(db);
+  const byModel = Object.values(
+    modelRows.reduce<Record<string, { model: string; reviewed: number; agreed: number }>>((acc, r) => {
+      const cur = acc[r.model] ?? { model: r.model, reviewed: 0, agreed: 0 };
+      acc[r.model] = { model: r.model, reviewed: cur.reviewed + r.reviewed, agreed: cur.agreed + r.agreed };
+      return acc;
+    }, {})
+  );
   const classes = [
     ['winner', 'Breakouts & winners'],
     ['loser', 'Losers & below average'],
@@ -153,6 +161,22 @@ export default function Coverage() {
               </Empty>
             )}
           </Section>
+          {byModel.length ? (
+            <Section title="Agreement by coding model" note="human-reviewed labels only">
+              <div className="card stack-xs">
+                {byModel.map((m) => (
+                  <div key={m.model} className="spread xs">
+                    <span className="mono clamp-2" style={{ maxWidth: '13rem' }}>
+                      {m.model}
+                    </span>
+                    <span className="mono">
+                      {Math.round((m.agreed / Math.max(1, m.reviewed)) * 100)}% <span className="muted">of {m.reviewed} labels</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          ) : null}
           <div className="callout xs">
             <strong className="white">Why this page exists.</strong> Pattern mining runs on these attributes and can end in a rule proposal. If an attribute is coded on 30 posts, any lesson about it rests on 30 posts — the coverage number is the honest ceiling on what BBO BRAIN can claim.
           </div>
