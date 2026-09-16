@@ -69,7 +69,27 @@ export const ATTRIBUTE_DEFINITIONS: AttrDef[] = [
   // Hook & opening
   { key: 'opening_hook', label: 'Opening hook', type: 'text', group: 'hook', comparable: false },
   { key: 'opening_transcript', label: 'Exact opening transcript', type: 'text', group: 'hook', comparable: false },
-  { key: 'hook_type', label: 'Hook type', type: 'enum', group: 'hook', values: ['confession', 'accusation', 'contrarian_claim', 'question', 'shock_quote', 'topic_card', 'story_setup', 'reaction', 'verdict', 'list', 'other'] },
+  // Controlled vocabulary: the AI must choose from these, so 40 near-synonyms
+  // for the same hook never fragment the evidence.
+  { key: 'hook_type', label: 'Hook type', type: 'enum', group: 'hook', values: ['confession', 'controversial_statement', 'direct_opinion', 'question', 'accusation', 'disagreement', 'surprising_fact', 'story_opening', 'challenge', 'emotional_statement', 'sexual_relationship_tension', 'status_clout_statement', 'humor', 'curiosity_gap', 'payoff_first', 'other'] },
+  { key: 'opening_type', label: 'Opening type', type: 'enum', group: 'hook', values: ['interviewer_question', 'guest_answer', 'host_statement', 'reaction', 'argument_in_progress', 'text_first', 'visual_first', 'other'] },
+  { key: 'guest_answer_opening', label: 'Opens on a guest answer', type: 'boolean', group: 'hook' },
+  { key: 'opening_line', label: 'Exact opening line', type: 'text', group: 'hook', comparable: false },
+  { key: 'time_to_understandable_s', label: 'Seconds until understandable', type: 'number', group: 'hook', comparable: false },
+  { key: 'time_to_understandable_bucket', label: 'Time to understandable', type: 'enum', group: 'hook', values: ['0-2s', '2-5s', '5-8s', '>8s'] },
+  { key: 'time_to_tension_s', label: 'Seconds until tension', type: 'number', group: 'hook', comparable: false },
+  { key: 'time_to_tension_bucket', label: 'Time to tension', type: 'enum', group: 'hook', values: ['0-2s', '2-5s', '5-10s', '>10s', 'never'] },
+  { key: 'time_to_payoff_s', label: 'Seconds until payoff', type: 'number', group: 'edit', comparable: false },
+  { key: 'time_to_payoff_bucket', label: 'Time to payoff', type: 'enum', group: 'edit', values: ['0-5s', '5-15s', '15-30s', '>30s', 'never'] },
+  { key: 'dead_setup_s', label: 'Dead setup seconds', type: 'number', group: 'edit', comparable: false },
+  { key: 'dead_setup_bucket', label: 'Dead setup', type: 'enum', group: 'edit', values: ['none', '0-2s', '2-5s', '>5s'] },
+  { key: 'clarity_rating', label: 'Clarity', type: 'enum', group: 'substance', values: ['immediate', 'quick', 'slow', 'unclear'] },
+  { key: 'share_trigger_type', label: 'Share trigger', type: 'enum', group: 'substance', values: ['relatable', 'funny', 'shocking', 'informative', 'argument_ammo', 'aspirational', 'tag_a_friend', 'none', 'other'] },
+  { key: 'comment_trigger_type', label: 'Comment trigger', type: 'enum', group: 'substance', values: ['take_a_side', 'personal_experience', 'disagreement', 'question_asked', 'tag_someone', 'defend_someone', 'none', 'other'] },
+  { key: 'curiosity_trigger_type', label: 'Curiosity trigger', type: 'enum', group: 'substance', values: ['open_loop', 'withheld_payoff', 'surprising_claim', 'visual_question', 'none', 'other'] },
+  { key: 'strongest_moment_quote', label: 'Strongest moment', type: 'text', group: 'substance', comparable: false },
+  { key: 'strongest_opening_quote', label: 'Strongest possible opening', type: 'text', group: 'hook', comparable: false },
+  { key: 'opening_is_strongest', label: 'Current opening is the strongest available', type: 'boolean', group: 'hook' },
   { key: 'opening_speaker_role', label: 'Speaker opening the clip', type: 'enum', group: 'hook', values: ['guest', 'host', 'interviewer', 'voiceover', 'none'] },
   { key: 'question_opening', label: 'Opens on a question', type: 'boolean', group: 'hook' },
   { key: 'payoff_first', label: 'Payoff-first opening', type: 'boolean', group: 'hook' },
@@ -79,7 +99,7 @@ export const ATTRIBUTE_DEFINITIONS: AttrDef[] = [
   // Substance
   { key: 'underlying_debate', label: 'Underlying debate', type: 'text', group: 'substance', comparable: false },
   { key: 'emotional_trigger', label: 'Emotional trigger', type: 'enum', group: 'substance', values: ['outrage', 'recognition', 'humor', 'curiosity', 'desire', 'shock', 'validation', 'envy', 'other'] },
-  { key: 'tension_type', label: 'Tension type', type: 'enum', group: 'substance', values: ['gender_conflict', 'moral_dilemma', 'disagreement', 'confession_stakes', 'status', 'exposure', 'none'] },
+  { key: 'tension_type', label: 'Tension type', type: 'enum', group: 'substance', values: ['gender_conflict', 'moral_dilemma', 'disagreement', 'confession_stakes', 'status', 'exposure', 'none', 'other'] },
   { key: 'controversy_type', label: 'Controversy type', type: 'enum', group: 'substance', values: ['sexual', 'relationship_norms', 'gender_roles', 'money', 'music_industry', 'celebrity', 'none', 'other'] },
   { key: 'guest_gender_mix', label: 'Guest gender mix', type: 'enum', group: 'substance', values: ['female', 'male', 'mixed', 'none', 'unknown'] },
   // Edit

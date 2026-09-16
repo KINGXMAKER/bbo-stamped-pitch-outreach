@@ -24,27 +24,34 @@ import {
   syncMediaAndTranscripts,
 } from './instagram';
 import { markIntegration, runJob, type JobContext, type JobOutcome, type JobRecord } from './jobs';
+import { buildQueue, corpusStatus, processedToday } from './media-queue';
 
 export type JobDef = { label: string; description: string; phase: string; run: (ctx: JobContext) => Promise<JobOutcome> };
 
-async function aiBatch(ctx: JobContext, ids: number[], fn: (id: number) => Promise<{ status: string; reason?: string }>): Promise<JobOutcome> {
+async function aiBatch(ctx: JobContext, ids: number[], fn: (id: number) => Promise<{ status: string; reason?: string }>, concurrency = 1): Promise<JobOutcome> {
   if (!aiConfigured()) {
     markIntegration(ctx.db, 'gemini', { status: 'not_connected', error: 'GEMINI_API_KEY is not set.' });
     return { recordsSeen: ids.length, recordsWritten: 0, summary: 'AI not configured — skipped.' };
   }
   let done = 0;
   let failed = 0;
-  for (const id of ids) {
-    try {
-      const r = await fn(id);
-      if (r.status === 'analysed' || r.status === 'enriched') done++;
-      else ctx.log('skipped', { contentId: id, reason: r.reason });
-    } catch (err) {
-      failed++;
-      ctx.log('ai call failed', { contentId: id, message: err instanceof Error ? err.message : String(err) });
-      if (err instanceof AiError && (err.kind === 'hard' || err.kind === 'not-configured')) break; // a bad key won't fix itself
+  let stop = false;
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < ids.length && !stop) {
+      const id = ids[cursor++];
+      try {
+        const r = await fn(id);
+        if (r.status === 'analysed' || r.status === 'enriched') done++;
+        else ctx.log('skipped', { contentId: id, reason: r.reason });
+      } catch (err) {
+        failed++;
+        ctx.log('ai call failed', { contentId: id, message: err instanceof Error ? err.message : String(err) });
+        if (err instanceof AiError && (err.kind === 'hard' || err.kind === 'not-configured')) stop = true; // a bad key won't fix itself
+      }
     }
-  }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, ids.length)) }, worker));
   markIntegration(ctx.db, 'gemini', failed && !done ? { status: 'needs_attention', error: 'AI calls failed — see AI Agent Runs.' } : { status: 'connected', success: done > 0, records: done });
   return { recordsSeen: ids.length, recordsWritten: done, partial: failed > 0 && done > 0, summary: `${done} completed, ${failed} failed, ${ids.length - done - failed} skipped` };
 }
@@ -101,20 +108,26 @@ export const JOBS: Record<string, JobDef> = {
     },
   },
   'ai-enrich': {
-    label: 'AI attribute coding',
-    description: 'Code hook, opening, tension, topics from transcript + frames for posts without AI attributes.',
+    label: 'Structured content coding',
+    description: 'Code hook, opening type, tension, timings, triggers and topics from transcript + frames — intelligence priority order.',
     phase: 'analysis',
     run: async (ctx) => {
-      const limit = Number(ctx.params.limit ?? 10);
-      const ids = all<{ id: number }>(
-        ctx.db,
-        `SELECT c.id FROM content c JOIN platform_posts pp ON pp.id = c.primary_post_id
-         WHERE c.status = 'published' AND (EXISTS (SELECT 1 FROM transcripts t WHERE t.content_id = c.id) OR (c.frames_json IS NOT NULL AND c.frames_json != '[]'))
-           AND NOT EXISTS (SELECT 1 FROM content_attributes a WHERE a.content_id = c.id AND a.source = 'ai')
-         ORDER BY pp.published_at DESC LIMIT ?`,
-        limit
-      ).map((r) => r.id);
-      return aiBatch(ctx, ids, (id) => enrichContent(ctx.db, id));
+      const cfg = brainConfig();
+      const concurrency = Math.max(1, Number(ctx.params.concurrency ?? cfg.aiConcurrency));
+      const dailyCap = Math.max(1, Number(ctx.params.dailyLimit ?? cfg.aiDailyLimit));
+      const alreadyToday = processedToday(ctx.db, 'coded_at');
+      const limit = Math.min(Number(ctx.params.limit ?? cfg.aiDailyLimit), Math.max(0, dailyCap - alreadyToday));
+      if (limit <= 0) return { recordsSeen: 0, recordsWritten: 0, summary: `daily coding limit reached (${alreadyToday}/${dailyCap})` };
+      const queue = buildQueue(ctx.db, { limit, stage: 'coding', ignoreTargets: ctx.params.ignoreTargets === true });
+      ctx.log('coding queue built', {
+        size: queue.length,
+        concurrency,
+        byTier: queue.reduce<Record<string, number>>((acc, q) => ({ ...acc, [q.tier]: (acc[q.tier] ?? 0) + 1 }), {}),
+        byClass: queue.reduce<Record<string, number>>((acc, q) => ({ ...acc, [q.corpusClass]: (acc[q.corpusClass] ?? 0) + 1 }), {}),
+      });
+      const out = await aiBatch(ctx, queue.map((q) => q.contentId), (id) => enrichContent(ctx.db, id), concurrency);
+      const status = corpusStatus(ctx.db);
+      return { ...out, summary: `${out.summary}; corpus ${status.coded}/${status.target} coded (winners ${status.classes.winner.coded}/${status.classes.winner.target}, losers ${status.classes.loser.coded}/${status.classes.loser.target}, average ${status.classes.average.coded}/${status.classes.average.target}, unusual ${status.classes.unusual.coded}/${status.classes.unusual.target})` };
     },
   },
   analyze: {
@@ -126,10 +139,15 @@ export const JOBS: Record<string, JobDef> = {
       const queue = analysisQueue(ctx.db);
       if (queue.waitingForMedia.length) ctx.log('waiting for media', { contentIds: queue.waitingForMedia.map((h) => h.fact.contentId) });
       const batch = queue.ready.slice(0, Number(ctx.params.limit ?? t.maxPerRun));
-      const out = await aiBatch(ctx, batch.map((h) => h.fact.contentId), (id) => {
-        const hit = batch.find((h) => h.fact.contentId === id)!;
-        return analyzeContent(ctx.db, id, { reasons: hit.reasons, outcome: hit.outcome });
-      });
+      const out = await aiBatch(
+        ctx,
+        batch.map((h) => h.fact.contentId),
+        (id) => {
+          const hit = batch.find((h) => h.fact.contentId === id)!;
+          return analyzeContent(ctx.db, id, { reasons: hit.reasons, outcome: hit.outcome });
+        },
+        Math.max(1, Number(ctx.params.concurrency ?? brainConfig().aiConcurrency))
+      );
       return { ...out, summary: `${out.summary}; ${queue.waitingForMedia.length} waiting for media` };
     },
   },

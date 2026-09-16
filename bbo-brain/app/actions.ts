@@ -12,6 +12,7 @@ import { abandonExperiment, assignContent, completeExperiment, createExperiment,
 import { decideEditSession, linkPublishedContent, runEditSession } from '@/lib/intel/gatekeeper';
 import { setLessonStatus, type LessonStatus } from '@/lib/intel/lessons';
 import { generateOpportunities, setOpportunityStatus } from '@/lib/intel/opportunities';
+import { recordReview } from '@/lib/intel/validation';
 import { buildMonthlyReview, buildWeeklyReview } from '@/lib/intel/reviews';
 import type { MetricKey } from '@/lib/intel/dataset';
 import { decideChallenge, decideProposal, type ChallengeDecision, type ProposalDecision } from '@/lib/rules/engine';
@@ -244,4 +245,30 @@ export async function askAction(_prev: AskState, fd: FormData): Promise<AskState
   } catch (err) {
     return { result: null, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/**
+ * Human validation of one post's AI coding. Three decisions, one form: approve
+ * as-is, save corrections (stored as human attributes, which outrank AI), or
+ * reject — which clears coded_at so the post is coded again from scratch.
+ */
+export async function reviewCodingAction(fd: FormData) {
+  const contentId = num(fd, 'contentId');
+  const status = str(fd, 'status');
+  const values: Record<string, string> = {};
+  for (const [key, value] of fd.entries()) if (key.startsWith('v_') && typeof value === 'string') values[key.slice(2)] = value;
+  let message = '';
+  const error = await attempt(() => {
+    if (status !== 'APPROVED' && status !== 'EDITED' && status !== 'REJECTED') throw new Error(`Unknown review decision "${status}".`);
+    const { changed } = recordReview(getDb(), { contentId, status, note: str(fd, 'note') || undefined, values });
+    message =
+      status === 'REJECTED'
+        ? 'Rejected. The post is back in the coding queue and will be re-analysed.'
+        : status === 'EDITED'
+          ? changed.length
+            ? `${changed.length} correction${changed.length === 1 ? '' : 's'} saved as human values, and counted against the AI's accuracy.`
+            : 'Recorded as reviewed — nothing differed from the AI coding.'
+          : 'Approved. AI coding kept as-is.';
+  });
+  finish('/validation', error, message);
 }

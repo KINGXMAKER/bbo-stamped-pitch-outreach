@@ -1096,3 +1096,27 @@ details.disclose[open] > summary::before {
     transition-duration: 1ms !important;
   }
 }
+
+/* ── Hook frame strip (coding validation) ──────────────────────────────── */
+.frame-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(6.5rem, 1fr);
+  gap: .5rem;
+  overflow-x: auto;
+  padding-bottom: .4rem;
+}
+.frame {
+  margin: 0;
+  display: grid;
+  gap: .3rem;
+}
+.frame img {
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+.frame figcaption { text-align: center; }

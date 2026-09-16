@@ -246,7 +246,13 @@ export function mineLessons(db: Db, options: { asOf?: string } = {}): MiningResu
   const evaluated = patterns.map((p) => ({ ...p, e: evaluatePattern(facts, p.pattern, options) }));
   result.testsRun = evaluated.length;
   const labels = loadLabels(db);
-  const dataVersion = get<{ v: string | null }>(db, 'SELECT MAX(observed_at) AS v FROM content_metrics')?.v ?? '';
+  // "New evidence" = a newer metric observation OR newly coded posts entering
+  // the comparison. Re-running mining on unchanged data changes neither.
+  const version = get<{ observed: string | null; coded: number }>(
+    db,
+    'SELECT (SELECT MAX(observed_at) FROM content_metrics) AS observed, (SELECT COUNT(*) FROM content WHERE coded_at IS NOT NULL) AS coded'
+  );
+  const dataVersion = `${version?.observed ?? ''}|coded:${version?.coded ?? 0}`;
   // False-discovery control across the whole pass: hundreds of comparisons will
   // produce "significant" noise unless the bar rises with the number of tests.
   const pValues = evaluated.map((x) => x.e.comparison.pValue).filter((p): p is number => typeof p === 'number');

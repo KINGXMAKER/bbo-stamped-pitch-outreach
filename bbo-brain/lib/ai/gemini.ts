@@ -60,6 +60,11 @@ export function geminiGenerator(opts: { apiKey: string; models: string[]; fetchI
 
   return async (req) => {
     let last: AiError | null = null;
+    // A retired model at the end of the chain must not mask the real reason the
+    // run failed (usually a 429 quota wall on the models we actually wanted).
+    const remember = (err: AiError) => {
+      last = last && last.kind !== 'model-unavailable' && err.kind === 'model-unavailable' ? last : err;
+    };
     for (const model of opts.models) {
       for (let attempt = 1; attempt <= 2; attempt++) {
         if (attempt > 1) await sleep(1500);
@@ -84,9 +89,10 @@ export function geminiGenerator(opts: { apiKey: string; models: string[]; fetchI
           });
           if (!res.ok) {
             const kind = classifyStatus(res.status);
-            last = new AiError({ kind, status: res.status, model, message: `Gemini ${model} returned HTTP ${res.status}` });
+            const failure = new AiError({ kind, status: res.status, model, message: `Gemini ${model} returned HTTP ${res.status}` });
+            remember(failure);
             if (kind === 'transient' && attempt < 2) continue;
-            if (kind === 'hard') throw last;
+            if (kind === 'hard') throw failure;
             break; // model-unavailable or exhausted transient retries → next model
           }
           const data = (await res.json()) as GeminiResponse;
@@ -96,7 +102,7 @@ export function geminiGenerator(opts: { apiKey: string; models: string[]; fetchI
             .join('')
             .trim();
           if (!text) {
-            last = new AiError({ kind: 'transient', model, message: `Gemini ${model} returned an empty response (${data.candidates?.[0]?.finishReason ?? 'no candidate'})` });
+            remember(new AiError({ kind: 'transient', model, message: `Gemini ${model} returned an empty response (${data.candidates?.[0]?.finishReason ?? 'no candidate'})` }));
             continue;
           }
           return {
@@ -112,7 +118,7 @@ export function geminiGenerator(opts: { apiKey: string; models: string[]; fetchI
         } catch (err) {
           if (err instanceof AiError) throw err;
           const aborted = err instanceof Error && err.name === 'AbortError';
-          last = new AiError({ kind: 'transient', model, message: aborted ? `Gemini ${model} timed out` : `Gemini ${model} request failed` });
+          remember(new AiError({ kind: 'transient', model, message: aborted ? `Gemini ${model} timed out` : `Gemini ${model} request failed` }));
           if (aborted) break; // too slow today — give the next model its turn
         } finally {
           clearTimeout(timer);
