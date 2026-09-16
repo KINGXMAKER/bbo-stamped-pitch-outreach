@@ -157,8 +157,22 @@ export const JOBS: Record<string, JobDef> = {
       const cfg = brainConfig();
       const concurrency = Math.max(1, Number(ctx.params.concurrency ?? cfg.aiConcurrency));
       const dailyCap = Math.max(1, Number(ctx.params.dailyLimit ?? cfg.aiDailyLimit));
+      // An explicit re-code (e.g. moving the corpus onto one validated model)
+      // names its posts; it does not grow the corpus, so the ceiling does not apply.
+      if (Array.isArray(ctx.params.recodeIds)) {
+        const ids = (ctx.params.recodeIds as unknown[]).map(Number).filter(Number.isInteger);
+        ctx.log('re-coding named posts', { size: ids.length });
+        const out = await aiBatch(ctx, ids, (id, budget) => enrichContent(ctx.db, id, { budget, recode: true }), concurrency, 'enrichment');
+        return { ...out, summary: `re-code: ${out.summary}` };
+      }
       const alreadyToday = processedToday(ctx.db, 'coded_at');
-      const limit = Math.min(Number(ctx.params.limit ?? cfg.aiDailyLimit), Math.max(0, dailyCap - alreadyToday));
+      const corpusLimit = Math.max(0, Number(ctx.params.corpusLimit ?? cfg.codingCorpusLimit));
+      const codedTotal = corpusStatus(ctx.db).coded;
+      const corpusRoom = Math.max(0, corpusLimit - codedTotal);
+      if (corpusRoom <= 0) {
+        return { recordsSeen: 0, recordsWritten: 0, summary: `corpus limit reached (${codedTotal}/${corpusLimit} coded) — raise AI_CODING_CORPUS_LIMIT once the corpus has been reviewed` };
+      }
+      const limit = Math.min(Number(ctx.params.limit ?? cfg.aiDailyLimit), Math.max(0, dailyCap - alreadyToday), corpusRoom);
       if (limit <= 0) return { recordsSeen: 0, recordsWritten: 0, summary: `daily coding limit reached (${alreadyToday}/${dailyCap})` };
       const queue = buildQueue(ctx.db, { limit, stage: 'coding', ignoreTargets: ctx.params.ignoreTargets === true });
       ctx.log('coding queue built', {

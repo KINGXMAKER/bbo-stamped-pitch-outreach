@@ -20,6 +20,10 @@ const PRICES = new Map<string, Price>([
   ['qwen/qwen3-235b-a22b-2507', { inputPerMTok: 0.087, outputPerMTok: 0.35, source: 'list' }],
   ['qwen/qwen3-30b-a3b-instruct-2507', { inputPerMTok: 0.048, outputPerMTok: 0.193, source: 'list' }],
   ['qwen/qwen3-32b', { inputPerMTok: 0.08, outputPerMTok: 0.28, source: 'list' }],
+  ['qwen/qwen3-vl-32b-instruct', { inputPerMTok: 0.104, outputPerMTok: 0.416, source: 'list' }],
+  ['qwen/qwen3-vl-235b-a22b-instruct', { inputPerMTok: 0.21, outputPerMTok: 1.9, source: 'list' }],
+  ['google/gemini-2.5-flash-lite', { inputPerMTok: 0.1, outputPerMTok: 0.4, source: 'list' }],
+  ['google/gemini-2.5-flash', { inputPerMTok: 0.3, outputPerMTok: 2.5, source: 'list' }],
 ]);
 
 /** NVIDIA's hosted NIM endpoints are free on a personal API key (rate-limited, not billed). */

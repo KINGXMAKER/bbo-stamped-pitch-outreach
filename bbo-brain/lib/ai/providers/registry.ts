@@ -45,14 +45,15 @@ function build(name: ProviderName, cfg: ReturnType<typeof brainConfig>): AIProvi
     if (!cfg.openRouterApiKey) return null;
     refreshOpenRouterPrices(cfg.openRouterApiKey);
     const models = cfg.openRouterModels;
+    const forTask = (task: TaskClass) => (cfg.openRouterTaskModels[task].length ? cfg.openRouterTaskModels[task] : models);
     return new OpenAICompatProvider({
       providerName: 'openrouter',
       baseUrl: 'https://openrouter.ai/api/v1',
       apiKey: cfg.openRouterApiKey,
       // Attribution headers OpenRouter asks integrations to send.
       headers: { 'HTTP-Referer': 'https://github.com/bbo/bbo-brain', 'X-Title': 'BBO BRAIN' },
-      modelsByTask: { coding: models, analysis: models, gatekeeper: models, synthesis: models },
-      visionModel: (model) => /-vl-|vision/.test(model),
+      modelsByTask: { coding: forTask('coding'), analysis: forTask('analysis'), gatekeeper: forTask('gatekeeper'), synthesis: forTask('synthesis') },
+      visionModel: (model) => /-vl-|vision|^google\/gemini|^openai\/gpt-4o|^openai\/gpt-5/.test(model),
       fetchImpl: fetchOverride ?? undefined,
     });
   }
