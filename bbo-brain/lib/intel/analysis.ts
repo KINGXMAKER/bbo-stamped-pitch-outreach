@@ -2,8 +2,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { all, get, json, nowIso, parseJson, run, type Db } from '@/lib/db/client';
 import { runAi } from '@/lib/ai/run';
+import { BudgetPausedError, type BudgetGuard } from '@/lib/ai/budget';
+import { candidatesFor, type Candidate } from '@/lib/ai/providers/registry';
 import { looseConfidence, looseList, looseText, looseTextNullable } from '@/lib/ai/schema';
 import { activeSkill } from '@/lib/ai/skills';
+import { brainConfig } from '@/lib/config';
 import { getSetting } from '@/lib/seed';
 import { ATTRIBUTE_DEFINITIONS } from '@/lib/seed/reference';
 import { resolveEntity } from '@/lib/entities/resolve';
@@ -193,7 +196,11 @@ function loadFrames(framesJson: string | null): Array<{ atS: number; mimeType: s
 
 export type AnalysisOutcome = { status: 'analysed'; analysisId: number; runId: number } | { status: 'skipped'; reason: string };
 
-export async function analyzeContent(db: Db, contentId: number, options: { reasons?: string[]; outcome?: 'winner' | 'loser' | 'notable' } = {}): Promise<AnalysisOutcome> {
+export async function analyzeContent(
+  db: Db,
+  contentId: number,
+  options: { reasons?: string[]; outcome?: 'winner' | 'loser' | 'notable'; budget?: BudgetGuard } = {}
+): Promise<AnalysisOutcome> {
   const facts = comparable(loadFacts(db));
   const fact = loadFacts(db, { contentIds: [contentId] })[0];
   if (!fact) return { status: 'skipped', reason: 'content not found' };
@@ -244,6 +251,8 @@ export async function analyzeContent(db: Db, contentId: number, options: { reaso
   const result = await runAi({
     db,
     workflow: 'content_analysis',
+    task: 'analysis',
+    budget: options.budget,
     promptSlug: 'content-analysis',
     template: ANALYSIS_TEMPLATE,
     schemaVersion: 'analysis-v1',
@@ -402,7 +411,39 @@ Return JSON: {evidence_notes, franchise, opening_hook, opening_line (verbatim fi
 strongest_moment {timestamp, quote, why}, strongest_opening {timestamp, quote, why, is_current_opening},
 timings {time_to_understandable_s, time_to_tension_s, time_to_payoff_s, dead_setup_s}, attributes {…}, topics[], confidence (low|medium|high)}.`;
 
-export async function enrichContent(db: Db, contentId: number): Promise<{ status: 'enriched' | 'skipped'; reason?: string }> {
+/**
+ * The exact coding request production uses. Shared so a provider benchmark
+ * measures the real prompt against the real material, not an approximation.
+ */
+export function codingRequest(
+  db: Db,
+  contentId: number
+): { system: string; prompt: string; images: Array<{ mimeType: string; base64: string }>; input: Record<string, unknown>; franchises: string[] } | null {
+  const fact = loadFacts(db, { contentIds: [contentId] })[0];
+  if (!fact) return null;
+  const content = get<{ frames_json: string | null }>(db, 'SELECT frames_json FROM content WHERE id = ?', contentId);
+  const transcript = get<{ segments_json: string | null; text: string }>(db, 'SELECT segments_json, text FROM transcripts WHERE content_id = ? ORDER BY id DESC LIMIT 1', contentId);
+  const frames = loadFrames(content?.frames_json ?? null);
+  if (!transcript && !frames.length) return null;
+  const franchises = all<{ slug: string }>(db, 'SELECT slug FROM franchises').map((f) => f.slug);
+  return {
+    franchises,
+    system: ENRICH_TEMPLATE.replace('{{attribute_values}}', ATTRIBUTE_VALUES_BLOCK).replace('{{franchises}}', franchises.join(' | ')).replace('{{topics}}', topicNames(db)),
+    prompt: [
+      `CAPTION:\n${fact.caption || '(none)'}`,
+      transcript ? `TRANSCRIPT:\n${formatTranscript(transcript.segments_json) || transcript.text}` : 'TRANSCRIPT: not available.',
+      frames.length ? `HOOK FRAMES attached at: ${frames.map((f) => `${f.atS}s`).join(', ')}` : 'HOOK FRAMES: not available.',
+    ].join('\n\n'),
+    images: frames.map((f) => ({ mimeType: f.mimeType, base64: f.base64 })),
+    input: { contentId, hasTranscript: Boolean(transcript), frames: frames.length },
+  };
+}
+
+export async function enrichContent(
+  db: Db,
+  contentId: number,
+  options: { budget?: BudgetGuard; pin?: Candidate; noEscalate?: boolean } = {}
+): Promise<{ status: 'enriched' | 'skipped'; reason?: string; escalated?: string | null }> {
   const fact = loadFacts(db, { contentIds: [contentId] })[0];
   if (!fact) return { status: 'skipped', reason: 'not found' };
   const content = get<{ frames_json: string | null }>(db, 'SELECT frames_json FROM content WHERE id = ?', contentId);
@@ -410,33 +451,141 @@ export async function enrichContent(db: Db, contentId: number): Promise<{ status
   const frames = loadFrames(content?.frames_json ?? null);
   if (!transcript && !frames.length) return { status: 'skipped', reason: 'no transcript or frames' };
 
-  const franchises = all<{ slug: string }>(db, 'SELECT slug FROM franchises').map((f) => f.slug);
-  const system = ENRICH_TEMPLATE.replace('{{attribute_values}}', ATTRIBUTE_VALUES_BLOCK).replace('{{franchises}}', franchises.join(' | ')).replace('{{topics}}', topicNames(db));
+  const request = codingRequest(db, contentId);
+  if (!request) return { status: 'skipped', reason: 'no transcript or frames' };
+  const { system, franchises } = request;
   const result = await runAi({
     db,
     workflow: 'enrichment',
+    task: 'coding',
+    budget: options.budget,
+    pin: options.pin,
     promptSlug: 'content-enrichment',
     template: ENRICH_TEMPLATE,
     schemaVersion: 'enrichment-v1',
     system,
-    prompt: [
-      `CAPTION:\n${fact.caption || '(none)'}`,
-      transcript ? `TRANSCRIPT:\n${formatTranscript(transcript.segments_json) || transcript.text}` : 'TRANSCRIPT: not available.',
-      frames.length ? `HOOK FRAMES attached at: ${frames.map((f) => `${f.atS}s`).join(', ')}` : 'HOOK FRAMES: not available.',
-    ].join('\n\n'),
-    images: frames.map((f) => ({ mimeType: f.mimeType, base64: f.base64 })),
+    prompt: request.prompt,
+    images: request.images,
     schema: EnrichmentSchema,
-    input: { contentId, hasTranscript: Boolean(transcript), frames: frames.length },
+    input: request.input,
     temperature: 0.1,
     maxOutputTokens: 2000,
     thinkingBudget: 0,
     confidence: (d) => d.confidence,
   });
-  const d = result.data;
-  const conf = d.confidence === 'high' ? 0.75 : d.confidence === 'medium' ? 0.55 : 0.35;
-  applyAiAttributes(db, contentId, d, conf, result.runId);
-  if (d.opening_hook) setAttribute(db, contentId, 'opening_hook', d.opening_hook, 'ai', conf, result.runId);
-  if (d.franchise && franchises.includes(d.franchise)) setAttribute(db, contentId, 'franchise', d.franchise, 'ai', conf, result.runId);
+  let d = result.data;
+  let conf = d.confidence === 'high' ? 0.75 : d.confidence === 'medium' ? 0.55 : 0.35;
+  let escalation: EscalationOutcome | null = null;
+
+  // Escalation is the exception, not the rule: two models never run on every
+  // post, only where a cheap answer is unsafe to trust (see shouldEscalate).
+  const reason = options.pin || options.noEscalate ? null : shouldEscalate(db, contentId, d, conf);
+  if (reason) {
+    escalation = await escalateCoding(db, contentId, { base: result, baseData: d, reason, budget: options.budget, request });
+    if (escalation?.data) {
+      d = escalation.data;
+      conf = d.confidence === 'high' ? 0.75 : d.confidence === 'medium' ? 0.55 : 0.35;
+    }
+  }
+
+  applyAiAttributes(db, contentId, d, conf, escalation?.runId ?? result.runId);
+  if (d.opening_hook) setAttribute(db, contentId, 'opening_hook', d.opening_hook, 'ai', conf, escalation?.runId ?? result.runId);
+  if (d.franchise && franchises.includes(d.franchise)) setAttribute(db, contentId, 'franchise', d.franchise, 'ai', conf, escalation?.runId ?? result.runId);
   run(db, 'UPDATE content SET coded_at = ? WHERE id = ?', nowIso(), contentId);
-  return { status: 'enriched' };
+  return { status: 'enriched', escalated: escalation?.outcome ?? null };
+}
+
+/** Fields a disagreement is judged on — the ones BBO's comparisons actually use. */
+const ESCALATION_FIELDS = ['hook_type', 'opening_type', 'tension_type', 'emotional_trigger', 'share_trigger_type', 'comment_trigger_type', 'reaction_shot_present', 'payoff_first', 'question_opening', 'guest_answer_opening'];
+
+/** Core fields that must come back filled for a coding to be usable at all. */
+const REQUIRED_CODING_FIELDS = ['hook_type', 'opening_type'];
+
+export type EnrichmentPayload = z.infer<typeof EnrichmentSchema>;
+
+type EscalationOutcome = { outcome: 'agreed' | 'kept_stronger' | 'human_review'; data: EnrichmentPayload | null; runId: number | null };
+
+function shouldEscalate(db: Db, contentId: number, d: EnrichmentPayload, conf: number): string | null {
+  const cfg = brainConfig();
+  const attrs = (d.attributes ?? {}) as Record<string, unknown>;
+  const missing = REQUIRED_CODING_FIELDS.filter((k) => attrs[k] === null || attrs[k] === undefined || attrs[k] === '');
+  if (missing.length) return `validation failed: ${missing.join(', ')} not coded`;
+  if (conf < cfg.escalateBelowConfidence) return `low confidence (${d.confidence})`;
+  const label =
+    get<{ label: string | null }>(
+      db,
+      `SELECT ps.label FROM performance_scores ps JOIN platform_posts pp ON pp.id = ps.platform_post_id
+       WHERE pp.content_id = ? ORDER BY ps.computed_at DESC LIMIT 1`,
+      contentId
+    )?.label ?? null;
+  if (label && cfg.escalateLabels.includes(label) && conf < 0.6) return `${label.toLowerCase()} coded with only ${d.confidence} confidence`;
+  return null;
+}
+
+async function escalateCoding(
+  db: Db,
+  contentId: number,
+  args: { base: { runId: number; provider: string; model: string }; baseData: EnrichmentPayload; reason: string; budget?: BudgetGuard; request: NonNullable<ReturnType<typeof codingRequest>> }
+): Promise<EscalationOutcome | null> {
+  const stronger = candidatesFor('analysis')[0];
+  if (!stronger) return null;
+  try {
+    const result = await runAi({
+      db,
+      workflow: 'enrichment_escalated',
+      task: 'analysis',
+      pin: stronger,
+      budget: args.budget,
+      promptSlug: 'content-enrichment',
+      template: ENRICH_TEMPLATE,
+      schemaVersion: 'enrichment-v1',
+      system: args.request.system,
+      prompt: args.request.prompt,
+      images: stronger.provider.supportsImages ? args.request.images : undefined,
+      schema: EnrichmentSchema,
+      input: { ...args.request.input, escalatedFrom: args.base.runId, reason: args.reason },
+      temperature: 0.1,
+      maxOutputTokens: 2000,
+      thinkingBudget: 0,
+      parentRunId: args.base.runId,
+      confidence: (d) => d.confidence,
+    });
+    const baseAttrs = (args.baseData.attributes ?? {}) as Record<string, unknown>;
+    const newAttrs = (result.data.attributes ?? {}) as Record<string, unknown>;
+    const disagreements: string[] = [];
+    let compared = 0;
+    for (const field of ESCALATION_FIELDS) {
+      const a = baseAttrs[field];
+      const b = newAttrs[field];
+      if (a === null || a === undefined || a === '' || b === null || b === undefined || b === '') continue;
+      compared++;
+      if (String(a) !== String(b)) disagreements.push(`${field}: ${String(a)} → ${String(b)}`);
+    }
+    const agreed = compared - disagreements.length;
+    // Substantial disagreement between two models is exactly the case a human
+    // should look at — the stronger answer is stored, but it is not trusted quietly.
+    const outcome = compared > 0 && agreed / compared < 0.6 ? 'human_review' : disagreements.length ? 'kept_stronger' : 'agreed';
+    run(
+      db,
+      `INSERT INTO coding_escalations (content_id, reason, base_run_id, escalated_run_id, base_provider, base_model, escalated_provider, escalated_model, compared, agreed, disagreements_json, outcome)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      contentId,
+      args.reason,
+      args.base.runId,
+      result.runId,
+      args.base.provider,
+      args.base.model,
+      result.provider,
+      result.model,
+      compared,
+      agreed,
+      json(disagreements),
+      outcome
+    );
+    return { outcome, data: result.data, runId: result.runId };
+  } catch (err) {
+    if (err instanceof BudgetPausedError) throw err;
+    // The cheap coding still stands; the escalation simply did not happen.
+    return null;
+  }
 }

@@ -5,6 +5,9 @@ import { Notice } from '@/components/notice';
 import { fmtDate, PageHead, Section, StatusChip } from '@/components/ui';
 import { all, get, getDb, parseJson } from '@/lib/db/client';
 import { brainConfig } from '@/lib/config';
+import { budgetStatus } from '@/lib/ai/budget';
+import { candidatesFor, providerSummary } from '@/lib/ai/providers/registry';
+import { TASK_CLASSES } from '@/lib/ai/providers/types';
 import { getSetting } from '@/lib/seed';
 import { DAILY_PIPELINE, JOBS } from '@/lib/sync/registry';
 
@@ -26,8 +29,18 @@ export default async function Settings({ searchParams }: { searchParams: Promise
   const env = [
     ['COMPOSIO_API_KEY', Boolean(cfg.composioApiKey)],
     ['GEMINI_API_KEY', Boolean(cfg.geminiApiKey)],
+    ['OPENROUTER_API_KEY', Boolean(cfg.openRouterApiKey)],
+    ['NVIDIA_API_KEY', Boolean(cfg.nvidiaApiKey)],
     ['BRAIN_ACCESS_PASSWORD', Boolean(cfg.accessPassword)],
   ] as const;
+  const budget = budgetStatus(db);
+  const providers = providerSummary();
+  const routing = TASK_CLASSES.map((task) => ({ task, candidates: candidatesFor(task).slice(0, 3).map((c) => `${c.provider.providerName}/${c.model}`) }));
+  const spendByModel = all<{ provider: string | null; model: string | null; runs: number; cost: number }>(
+    db,
+    `SELECT provider, model, COUNT(*) AS runs, SUM(estimated_cost_usd) AS cost FROM ai_runs
+     WHERE created_at >= date('now','start of month') GROUP BY provider, model ORDER BY cost DESC, runs DESC LIMIT 8`
+  );
 
   return (
     <>
@@ -150,6 +163,56 @@ export default async function Settings({ searchParams }: { searchParams: Promise
               <Link href="/settings/skills">Skills (versioned)</Link>
               <Link href="/performance">Performance score versions</Link>
               <Link href="/runs">AI agent runs</Link>
+            </div>
+          </Section>
+          <Section title="AI providers" note={budget.paused ? 'BUDGET PAUSED' : `$${budget.dayUsd.toFixed(4)} today`}>
+            <div className="card stack-xs xs">
+              {providers.map((p) => (
+                <div key={p.provider} className="spread">
+                  <span className="mono">{p.provider}</span>
+                  <span className={p.configured ? 'up' : 'muted'}>{p.configured ? p.models[0] ?? 'configured' : 'no key'}</span>
+                </div>
+              ))}
+              <div className="divider" />
+              {routing.map((r) => (
+                <div key={r.task} className="stack-xs">
+                  <span className="muted">{r.task}</span>
+                  <span className="mono clamp-2">{r.candidates.join(' → ') || 'nothing configured'}</span>
+                </div>
+              ))}
+            </div>
+            <div className="card stack-xs xs" style={{ marginTop: '.6rem' }}>
+              <div className="spread">
+                <span className="muted">Today</span>
+                <span className="mono">${budget.dayUsd.toFixed(4)} / ${budget.dayLimitUsd.toFixed(2)}</span>
+              </div>
+              <div className="spread">
+                <span className="muted">This month</span>
+                <span className="mono">${budget.monthUsd.toFixed(4)} / ${budget.monthLimitUsd.toFixed(2)}</span>
+              </div>
+              <div className="spread">
+                <span className="muted">Per job ceiling</span>
+                <span className="mono">${budget.jobLimitUsd.toFixed(2)}</span>
+              </div>
+              {budget.paused ? <span className="down">BUDGET PAUSED — {budget.reason}. Non-AI jobs keep running.</span> : null}
+              {spendByModel.length ? (
+                <>
+                  <div className="divider" />
+                  {spendByModel.map((m) => (
+                    <div key={`${m.provider}:${m.model}`} className="spread">
+                      <span className="mono clamp-2" style={{ maxWidth: '11rem' }}>
+                        {m.provider ?? '—'}/{m.model ?? '—'}
+                      </span>
+                      <span className="muted">
+                        {m.runs} runs · ${(m.cost ?? 0).toFixed(4)}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              ) : null}
+            </div>
+            <div className="row-tight" style={{ marginTop: '.6rem' }}>
+              <JobButton kind="provider-health" label="Check providers" className="btn btn-sm" />
             </div>
           </Section>
           <Section title="Environment">

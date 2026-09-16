@@ -132,6 +132,7 @@ async function classifyWithAi(db: Db, question: string): Promise<Intent | null> 
     const r = await runAi({
       db,
       workflow: 'ask_classify',
+      task: 'coding',
       promptSlug: 'ask-classify',
       template: CLASSIFY_TEMPLATE,
       schemaVersion: 'ask-intent-v1',
@@ -465,6 +466,7 @@ export async function askBbo(db: Db, question: string): Promise<AskResult> {
     const r = await runAi({
       db,
       workflow: 'ask',
+      task: 'synthesis',
       promptSlug: 'ask-explain',
       template: EXPLAIN_TEMPLATE,
       schemaVersion: 'ask-explain-v1',

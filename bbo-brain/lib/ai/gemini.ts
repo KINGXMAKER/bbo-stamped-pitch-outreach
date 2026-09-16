@@ -54,9 +54,11 @@ type GeminiResponse = {
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-export function geminiGenerator(opts: { apiKey: string; models: string[]; fetchImpl?: typeof fetch; sleep?: (ms: number) => Promise<void> }): Generator {
+export function geminiGenerator(opts: { apiKey: string; models: string[]; fetchImpl?: typeof fetch; sleep?: (ms: number) => Promise<void>; attempts?: number }): Generator {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const sleep = opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  // One attempt when a caller (the provider registry) owns the retry policy itself.
+  const maxAttempts = Math.max(1, opts.attempts ?? 2);
 
   return async (req) => {
     let last: AiError | null = null;
@@ -66,7 +68,7 @@ export function geminiGenerator(opts: { apiKey: string; models: string[]; fetchI
       last = last && last.kind !== 'model-unavailable' && err.kind === 'model-unavailable' ? last : err;
     };
     for (const model of opts.models) {
-      for (let attempt = 1; attempt <= 2; attempt++) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         if (attempt > 1) await sleep(1500);
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), req.timeoutMs ?? 90_000);
@@ -91,7 +93,7 @@ export function geminiGenerator(opts: { apiKey: string; models: string[]; fetchI
             const kind = classifyStatus(res.status);
             const failure = new AiError({ kind, status: res.status, model, message: `Gemini ${model} returned HTTP ${res.status}` });
             remember(failure);
-            if (kind === 'transient' && attempt < 2) continue;
+            if (kind === 'transient' && attempt < maxAttempts) continue;
             if (kind === 'hard') throw failure;
             break; // model-unavailable or exhausted transient retries → next model
           }

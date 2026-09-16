@@ -103,6 +103,7 @@ Known limitations are listed plainly on the Integrations page and in `COMPOSIO_I
 - [PERFORMANCE_SCORING.md](PERFORMANCE_SCORING.md) — the normalized score and why comparisons are era-normalized
 - [EXPERIMENTS.md](EXPERIMENTS.md) — the experiment engine
 - [RULE_ENGINE.md](RULE_ENGINE.md) — lessons, proposals, approvals, challenges, statistical guardrails
+- [AI_PROVIDERS.md](AI_PROVIDERS.md) — the multi-provider model layer, task classes, fallback rules, spend controls and the coding benchmark
 - [DATA_DEPTH.md](DATA_DEPTH.md) — the media/coding priority queue, throughput limits, the coding vocabulary, human validation and the daily sequence
 - [skills/bbo-viral-content/SKILL.md](skills/bbo-viral-content/SKILL.md) · [skills/bbo-gatekeeper/SKILL.md](skills/bbo-gatekeeper/SKILL.md)
 - [knowledge/CONSTRAINTS.md](knowledge/CONSTRAINTS.md) — active rules, regenerated from the database
@@ -110,7 +111,7 @@ Known limitations are listed plainly on the Integrations page and in `COMPOSIO_I
 ## Development
 
 ```bash
-npm test            # vitest — 122 tests
+npm test            # vitest — 141 tests
 npm run typecheck
 npm run lint
 ```

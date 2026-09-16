@@ -3,6 +3,22 @@ import path from 'node:path';
 
 const env = (key: string) => process.env[key]?.trim() || undefined;
 
+function num(key: string, fallback: number): number {
+  const raw = Number(env(key));
+  return Number.isFinite(raw) && raw >= 0 ? raw : fallback;
+}
+
+function bool(key: string, fallback: boolean): boolean {
+  const raw = env(key)?.toLowerCase();
+  return raw === undefined ? fallback : raw === 'true' || raw === '1' || raw === 'yes';
+}
+
+function list(key: string, fallback: string[]): string[] {
+  const raw = env(key);
+  if (!raw) return fallback;
+  return raw.split(',').map((v) => v.trim()).filter(Boolean);
+}
+
 function int(key: string, fallback: number): number {
   const raw = Number(env(key));
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : fallback;
@@ -41,6 +57,32 @@ export function brainConfig() {
     whisperThreads: int('WHISPER_THREADS', 4),
     aiDailyLimit: int('AI_ANALYSIS_DAILY_LIMIT', 150),
     aiConcurrency: int('AI_ANALYSIS_CONCURRENCY', 2),
+
+    // Providers. Keys decide what exists; the per-task settings decide what is
+    // preferred. A task never silently upgrades to a pricier model: fallback
+    // order is explicit and every hop is recorded on the run.
+    openRouterApiKey: env('OPENROUTER_API_KEY'),
+    nvidiaApiKey: env('NVIDIA_API_KEY'),
+    openRouterModels: list('OPENROUTER_MODELS', ['qwen/qwen3-235b-a22b-2507']),
+    nvidiaModels: list('NVIDIA_MODELS', ['nvidia/nemotron-3.5-lightning-30b-a3b', 'mistralai/mistral-nemotron']),
+    allowFallback: bool('AI_ALLOW_FALLBACK', true),
+    tasks: {
+      coding: { provider: env('AI_CODING_PROVIDER'), model: env('AI_CODING_MODEL') },
+      analysis: { provider: env('AI_ANALYSIS_PROVIDER'), model: env('AI_ANALYSIS_MODEL') },
+      gatekeeper: { provider: env('AI_GATEKEEPER_PROVIDER'), model: env('AI_GATEKEEPER_MODEL') },
+      synthesis: { provider: env('AI_SYNTHESIS_PROVIDER'), model: env('AI_SYNTHESIS_MODEL') },
+    },
+
+    // Budget. 0 means "no ceiling configured"; anything above it pauses AI work
+    // (never metric ingestion) rather than failing the job.
+    dailyBudgetUsd: num('AI_DAILY_BUDGET_USD', 1),
+    monthlyBudgetUsd: num('AI_MONTHLY_BUDGET_USD', 15),
+    maxCostPerJobUsd: num('AI_MAX_COST_PER_JOB_USD', 0.75),
+
+    // Escalation: a cheap model's low-confidence or invalid answer is re-asked
+    // of the analysis-class model instead of being trusted.
+    escalateBelowConfidence: num('AI_ESCALATE_BELOW_CONFIDENCE', 0.45),
+    escalateLabels: list('AI_ESCALATE_LABELS', ['BREAKOUT', 'WINNER', 'LOSER']),
   };
 }
 
