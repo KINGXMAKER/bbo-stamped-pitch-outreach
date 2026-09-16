@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { all, type Db } from '@/lib/db/client';
 import { brainConfig } from '@/lib/config';
 import { aiConfigured } from '@/lib/ai/run';
@@ -8,6 +9,8 @@ import { defaultLearningMemoryPath, importLearningMemory } from '@/lib/ingest/le
 import { computeAllScores } from '@/lib/scoring/engine';
 import { analysisQueue, analyzeContent, enrichContent } from '@/lib/intel/analysis';
 import { mineLessons } from '@/lib/intel/lessons';
+import { benchmarkReport, benchmarkSample, runCodingBenchmark } from '@/lib/intel/benchmark';
+import { buildIntelligenceReport, renderIntelligenceReport } from '@/lib/intel/report';
 import { autoAssign, evaluateExperiment, suggestExperimentsFromLessons } from '@/lib/intel/experiments';
 import { generateOpportunities } from '@/lib/intel/opportunities';
 import { buildMonthlyReview, buildWeeklyReview } from '@/lib/intel/reviews';
@@ -16,6 +19,8 @@ import { rebuildSearchIndex } from '@/lib/intel/search';
 import { detectRuleChallenges, generateRuleProposals } from '@/lib/rules/engine';
 import { getSetting, seedReference } from '@/lib/seed';
 import { AiError } from '@/lib/ai/gemini';
+import { BudgetGuard, budgetStatus, isBudgetPaused, projectBatch } from '@/lib/ai/budget';
+import { healthChecks } from '@/lib/ai/providers/registry';
 import {
   checkInstagramConnection,
   syncInstagramAccount,
@@ -28,23 +33,43 @@ import { buildQueue, corpusStatus, processedToday } from './media-queue';
 
 export type JobDef = { label: string; description: string; phase: string; run: (ctx: JobContext) => Promise<JobOutcome> };
 
-async function aiBatch(ctx: JobContext, ids: number[], fn: (id: number) => Promise<{ status: string; reason?: string }>, concurrency = 1): Promise<JobOutcome> {
+async function aiBatch(
+  ctx: JobContext,
+  ids: number[],
+  fn: (id: number, budget: BudgetGuard) => Promise<{ status: string; reason?: string }>,
+  concurrency = 1,
+  workflow = 'enrichment'
+): Promise<JobOutcome> {
   if (!aiConfigured()) {
-    markIntegration(ctx.db, 'gemini', { status: 'not_connected', error: 'GEMINI_API_KEY is not set.' });
+    markIntegration(ctx.db, 'gemini', { status: 'not_connected', error: 'No AI provider key is set (GEMINI_API_KEY, OPENROUTER_API_KEY or NVIDIA_API_KEY).' });
     return { recordsSeen: ids.length, recordsWritten: 0, summary: 'AI not configured — skipped.' };
   }
+  // Estimate before spending: a batch that cannot fit its ceiling is paused, not started.
+  const projection = projectBatch(ctx.db, workflow, ids.length);
+  if (!projection.fits) {
+    ctx.log('budget paused', { estimatedUsd: Number(projection.totalUsd.toFixed(4)), reason: projection.reason });
+    return { recordsSeen: ids.length, recordsWritten: 0, summary: `BUDGET PAUSED — ${projection.reason}` };
+  }
+  const budget = new BudgetGuard(ctx.db);
   let done = 0;
   let failed = 0;
   let stop = false;
+  let paused: string | null = null;
   let cursor = 0;
   const worker = async () => {
     while (cursor < ids.length && !stop) {
       const id = ids[cursor++];
       try {
-        const r = await fn(id);
+        const r = await fn(id, budget);
         if (r.status === 'analysed' || r.status === 'enriched') done++;
         else ctx.log('skipped', { contentId: id, reason: r.reason });
       } catch (err) {
+        if (isBudgetPaused(err)) {
+          // Out of budget is a planned stop, not a failure: leave the rest queued.
+          paused = err.message;
+          stop = true;
+          continue;
+        }
         failed++;
         ctx.log('ai call failed', { contentId: id, message: err instanceof Error ? err.message : String(err) });
         if (err instanceof AiError && (err.kind === 'hard' || err.kind === 'not-configured')) stop = true; // a bad key won't fix itself
@@ -53,7 +78,16 @@ async function aiBatch(ctx: JobContext, ids: number[], fn: (id: number) => Promi
   };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, ids.length)) }, worker));
   markIntegration(ctx.db, 'gemini', failed && !done ? { status: 'needs_attention', error: 'AI calls failed — see AI Agent Runs.' } : { status: 'connected', success: done > 0, records: done });
-  return { recordsSeen: ids.length, recordsWritten: done, partial: failed > 0 && done > 0, summary: `${done} completed, ${failed} failed, ${ids.length - done - failed} skipped` };
+  const spent = `$${budget.spent.toFixed(4)}`;
+  if (paused) {
+    return { recordsSeen: ids.length, recordsWritten: done, partial: done > 0, summary: `BUDGET PAUSED after ${done} completed (${spent}) — ${paused}` };
+  }
+  return {
+    recordsSeen: ids.length,
+    recordsWritten: done,
+    partial: failed > 0 && done > 0,
+    summary: `${done} completed, ${failed} failed, ${ids.length - done - failed} skipped · ${spent}`,
+  };
 }
 
 export const JOBS: Record<string, JobDef> = {
@@ -69,7 +103,8 @@ export const JOBS: Record<string, JobDef> = {
       markIntegration(ctx.db, 'audit_archive', defaultArchivePaths().length ? { status: 'connected' } : { status: 'not_connected', error: 'No audit JSON files found.' });
       for (const id of ['tiktok', 'youtube', 'google_drive']) markIntegration(ctx.db, id, { status: 'not_connected', error: 'No connected account in Composio (verified 2026-09-15).' });
       const ig = await checkInstagramConnection(ctx);
-      return { recordsSeen: 1, recordsWritten: 0, summary: `instagram: ${ig.summary}; whisper: ${whisper ? 'available' : 'missing'}; gemini key: ${cfg.geminiApiKey ? 'set' : 'missing'}` };
+      const keys = [cfg.geminiApiKey && 'gemini', cfg.openRouterApiKey && 'openrouter', cfg.nvidiaApiKey && 'nvidia'].filter(Boolean).join(', ') || 'none';
+      return { recordsSeen: 1, recordsWritten: 0, summary: `instagram: ${ig.summary}; whisper: ${whisper ? 'available' : 'missing'}; AI provider keys: ${keys}` };
     },
   },
   'import-archive': {
@@ -125,7 +160,7 @@ export const JOBS: Record<string, JobDef> = {
         byTier: queue.reduce<Record<string, number>>((acc, q) => ({ ...acc, [q.tier]: (acc[q.tier] ?? 0) + 1 }), {}),
         byClass: queue.reduce<Record<string, number>>((acc, q) => ({ ...acc, [q.corpusClass]: (acc[q.corpusClass] ?? 0) + 1 }), {}),
       });
-      const out = await aiBatch(ctx, queue.map((q) => q.contentId), (id) => enrichContent(ctx.db, id), concurrency);
+      const out = await aiBatch(ctx, queue.map((q) => q.contentId), (id, budget) => enrichContent(ctx.db, id, { budget }), concurrency, 'enrichment');
       const status = corpusStatus(ctx.db);
       return { ...out, summary: `${out.summary}; corpus ${status.coded}/${status.target} coded (winners ${status.classes.winner.coded}/${status.classes.winner.target}, losers ${status.classes.loser.coded}/${status.classes.loser.target}, average ${status.classes.average.coded}/${status.classes.average.target}, unusual ${status.classes.unusual.coded}/${status.classes.unusual.target})` };
     },
@@ -142,13 +177,74 @@ export const JOBS: Record<string, JobDef> = {
       const out = await aiBatch(
         ctx,
         batch.map((h) => h.fact.contentId),
-        (id) => {
+        (id, budget) => {
           const hit = batch.find((h) => h.fact.contentId === id)!;
-          return analyzeContent(ctx.db, id, { reasons: hit.reasons, outcome: hit.outcome });
+          return analyzeContent(ctx.db, id, { reasons: hit.reasons, outcome: hit.outcome, budget });
         },
-        Math.max(1, Number(ctx.params.concurrency ?? brainConfig().aiConcurrency))
+        Math.max(1, Number(ctx.params.concurrency ?? brainConfig().aiConcurrency)),
+        'content_analysis'
       );
       return { ...out, summary: `${out.summary}; ${queue.waitingForMedia.length} waiting for media` };
+    },
+  },
+  'provider-health': {
+    label: 'AI provider health',
+    description: 'Ask every configured provider for one tiny JSON reply, and report the day/month budget position.',
+    phase: 'analysis',
+    run: async (ctx) => {
+      const health = await healthChecks();
+      for (const h of health) {
+        markIntegration(ctx.db, h.providerName, h.ok ? { status: 'connected', success: true } : { status: 'needs_attention', error: h.detail.slice(0, 200) });
+        ctx.log('provider health', { provider: h.providerName, model: h.modelName, ok: h.ok, latencyMs: h.latencyMs, detail: h.detail.slice(0, 200) });
+      }
+      const budget = budgetStatus(ctx.db);
+      const line = health.map((h) => `${h.providerName}/${h.modelName}: ${h.ok ? `ok ${h.latencyMs}ms` : `FAILED — ${h.detail.slice(0, 80)}`}`).join(' · ');
+      return {
+        recordsSeen: health.length,
+        recordsWritten: health.filter((h) => h.ok).length,
+        partial: health.some((h) => !h.ok) && health.some((h) => h.ok),
+        summary: `${line || 'no providers configured'} · spent today $${budget.dayUsd.toFixed(4)}/$${budget.dayLimitUsd.toFixed(2)}, month $${budget.monthUsd.toFixed(4)}/$${budget.monthLimitUsd.toFixed(2)}${budget.paused ? ' · BUDGET PAUSED' : ''}`,
+      };
+    },
+  },
+  'benchmark-coding': {
+    label: 'Benchmark a coding model',
+    description: 'Re-code an already-coded, stratified sample with a candidate provider/model. Writes only to benchmark tables.',
+    phase: 'analysis',
+    run: async (ctx) => {
+      const provider = String(ctx.params.provider ?? '');
+      const model = String(ctx.params.model ?? '');
+      if (!provider || !model) return { recordsSeen: 0, recordsWritten: 0, summary: 'Pass {"provider":"openrouter|nvidia|gemini","model":"<slug>"}' };
+      const ids = Array.isArray(ctx.params.contentIds) ? (ctx.params.contentIds as number[]) : benchmarkSample(ctx.db, Number(ctx.params.size ?? 25));
+      ctx.log('benchmark sample', { size: ids.length, provider, model });
+      const r = await runCodingBenchmark(ctx.db, { provider: provider as 'gemini' | 'openrouter' | 'nvidia', model, label: String(ctx.params.label ?? `${provider}:${model}`) }, ids, {
+        budgetUsd: Number(ctx.params.budgetUsd ?? 0.5),
+        log: ctx.log,
+      });
+      const [report] = benchmarkReport(ctx.db, [r.benchmarkRunId]);
+      return {
+        recordsSeen: ids.length,
+        recordsWritten: r.ok,
+        partial: r.schemaFailed + r.errored > 0 && r.ok > 0,
+        summary: `${r.ok} ok · ${r.schemaFailed} schema-failed · ${r.errored} errored · agreement ${report.overallAgreement === null ? 'n/a' : `${Math.round(report.overallAgreement * 100)}%`} · ${report.taxonomyViolations} taxonomy violations · median ${report.medianLatencyMs}ms · $${report.costUsd.toFixed(4)}`,
+      };
+    },
+  },
+  'intelligence-report': {
+    label: 'Intelligence review',
+    description: 'Answer the fourteen standing questions from calculated evidence, with sample sizes, effects and confidence. Writes data/reports/.',
+    phase: 'learning',
+    run: async (ctx) => {
+      const report = buildIntelligenceReport(ctx.db);
+      const markdown = renderIntelligenceReport(report);
+      const dir = path.join(process.cwd(), 'data', 'reports');
+      mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, `intelligence-${report.generatedAt.slice(0, 10)}.md`);
+      writeFileSync(file, markdown, 'utf8');
+      const answered = report.answers.filter((a) => a.findings.length || a.note).length;
+      const thin = report.answers.filter((a) => a.insufficient && !a.findings.length).length;
+      ctx.log('report written', { file, answered, insufficient: thin, coded: report.corpus.coded });
+      return { recordsSeen: report.answers.length, recordsWritten: answered, summary: `${answered}/14 questions answered from ${report.corpus.coded} coded posts · ${thin} lack evidence · ${file.replace(process.cwd() + '/', '')}` };
     },
   },
   'mine-lessons': {
@@ -220,7 +316,7 @@ export const JOBS: Record<string, JobDef> = {
 };
 
 /** The daily loop, in dependency order. Each step is its own recorded job. */
-export const DAILY_PIPELINE = ['instagram-content', 'instagram-metrics', 'instagram-account', 'media-transcripts', 'score', 'ai-enrich', 'analyze', 'mine-lessons', 'rule-proposals', 'rule-challenges', 'experiments', 'opportunities', 'graph', 'search'];
+export const DAILY_PIPELINE = ['instagram-content', 'instagram-metrics', 'instagram-account', 'media-transcripts', 'score', 'provider-health', 'ai-enrich', 'analyze', 'mine-lessons', 'rule-proposals', 'rule-challenges', 'experiments', 'opportunities', 'graph', 'search'];
 
 export async function runNamedJob(db: Db, kind: string, params: Record<string, unknown> = {}): Promise<JobRecord> {
   seedReference(db);

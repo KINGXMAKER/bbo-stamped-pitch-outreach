@@ -125,6 +125,7 @@ export async function runEditSession(db: Db, input: EditSessionInput): Promise<{
       const editor: AiRunResult<EditPlan> = await runAi<EditPlan>({
         db,
         workflow: 'viral_editor',
+        task: 'analysis',
         promptSlug: 'viral-editor',
         template: EDITOR_TEMPLATE,
         schemaVersion: 'edit-plan-v1',
@@ -150,6 +151,7 @@ export async function runEditSession(db: Db, input: EditSessionInput): Promise<{
       const gate = await runAi({
         db,
         workflow: 'gatekeeper',
+        task: 'gatekeeper',
         promptSlug: 'gatekeeper',
         template: GATEKEEPER_TEMPLATE,
         schemaVersion: 'gatekeeper-v1',

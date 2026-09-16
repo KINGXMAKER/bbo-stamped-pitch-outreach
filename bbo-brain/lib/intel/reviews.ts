@@ -214,6 +214,7 @@ async function narrate(db: Db, kind: 'weekly' | 'monthly', keys: readonly string
     const result = await runAi({
       db,
       workflow: `${kind}_review`,
+      task: 'synthesis',
       promptSlug: `${kind}-review`,
       template: REVIEW_TEMPLATE,
       schemaVersion: `${kind}-review-v1`,
