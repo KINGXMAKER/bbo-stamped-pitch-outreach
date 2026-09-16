@@ -113,7 +113,10 @@ export function candidatesFor(task: TaskClass): Candidate[] {
   }
   if (!cfg.allowFallback && out.length) return out;
 
-  for (const name of DEFAULT_ORDER[task]) {
+  // Only providers that passed a benchmark belong in a fallback chain; the
+  // order is overridable per task (e.g. AI_CODING_FALLBACK_PROVIDERS=openrouter,gemini).
+  const override = process.env[`AI_${task.toUpperCase()}_FALLBACK_PROVIDERS`]?.split(',').map((v) => v.trim()).filter(Boolean) as ProviderName[] | undefined;
+  for (const name of override?.length ? override : DEFAULT_ORDER[task]) {
     const provider = build(name, cfg);
     if (!provider) continue;
     for (const model of provider.models(task)) push(provider, model);

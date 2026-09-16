@@ -134,7 +134,7 @@ describe('disagreement escalation', () => {
     expect(JSON.parse(esc.disagreements_json).length).toBeGreaterThanOrEqual(5);
   });
 
-  it('keeps the cheap coding when the stronger model is unavailable', async () => {
+  it('keeps the cheap coding but flags it for a human when no stronger model can answer', async () => {
     const db = testDb();
     const id = seedPost(db, 'plain');
     setProviderFetch(
@@ -148,7 +148,22 @@ describe('disagreement escalation', () => {
 
     expect(out.status).toBe('enriched');
     expect(get<{ v: string }>(db, `SELECT value_text v FROM content_attribute_current WHERE content_id = ? AND key = 'hook_type'`, id)?.v).toBe('confession');
-    expect(all(db, 'SELECT 1 FROM coding_escalations')).toHaveLength(0);
+    const esc = get<{ outcome: string; reason: string; escalated_run_id: number | null }>(db, 'SELECT outcome, reason, escalated_run_id FROM coding_escalations')!;
+    expect(esc.outcome).toBe('human_review');
+    expect(esc.reason).toContain('no stronger model was available');
+    expect(esc.escalated_run_id).toBeNull();
+  });
+
+  it('never escalates to the same model that was unsure', async () => {
+    process.env.GEMINI_MODEL_FALLBACKS = 'gemini-2.5-flash'; // collapses to the primary alone
+    const db = testDb();
+    const id = seedPost(db, 'plain');
+    setProviderFetch(mockGemini(() => coding({}, 'low')));
+
+    await enrichContent(db, id);
+
+    // Only gemini-2.5-flash is configured: it coded the post, so there is nothing stronger to ask.
+    expect(models).toEqual(['gemini-2.5-flash']);
   });
 
   it('never escalates a benchmark run pinned to one model', async () => {
