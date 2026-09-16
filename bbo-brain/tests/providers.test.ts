@@ -277,6 +277,11 @@ describe('cost controls', () => {
     expect(estimateCost('nvidia', 'nvidia/nemotron-3.5-lightning-30b-a3b', { inputTokens: 5_000_000, outputTokens: 1_000_000 })).toBe(0); // free tier
   });
 
+  it('never treats an unpriced paid model as free', () => {
+    // e.g. a model name changed in .env before anyone looked up its price
+    expect(estimateCost('gemini', 'gemini-9-ultra', { inputTokens: 1_000_000, outputTokens: 1_000_000 })).toBe(6);
+  });
+
   it('keeps a budget pause out of the failure count', async () => {
     const db = testDb();
     spend(db, 20);
