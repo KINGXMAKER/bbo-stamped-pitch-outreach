@@ -426,6 +426,26 @@ strongest_moment {timestamp, quote, why}, strongest_opening {timestamp, quote, w
 timings {time_to_understandable_s, time_to_tension_s, time_to_payoff_s, dead_setup_s}, attributes {…}, topics[], confidence (low|medium|high)}.`;
 
 /**
+ * Removes a post's previous AI structured coding before a re-code is applied.
+ * Without this, a field the new model leaves null keeps the old model's value,
+ * silently mixing two models inside one post. Human and measured values are
+ * never touched, and the old labels remain in ai_runs and any benchmark snapshot.
+ */
+export function clearAiCoding(db: Db, contentId: number): void {
+  // attributes is z.object(...).partial().default({}); the defaulted wrapper holds the object shape.
+  const attributeKeys = Object.keys((EnrichmentSchema.shape.attributes as unknown as { _def: { innerType: { shape: Record<string, unknown> } } })._def.innerType.shape);
+  const derived = [
+    'time_to_understandable_s', 'time_to_understandable_bucket', 'time_to_tension_s', 'time_to_tension_bucket',
+    'time_to_payoff_s', 'time_to_payoff_bucket', 'dead_setup_s', 'dead_setup_bucket',
+    'opening_line', 'strongest_moment_quote', 'strongest_opening_quote', 'opening_is_strongest',
+    'underlying_debate', 'opening_hook', 'franchise',
+  ];
+  const keys = [...new Set([...attributeKeys, ...derived])];
+  run(db, `DELETE FROM content_attributes WHERE content_id = ? AND source = 'ai' AND key IN (${keys.map(() => '?').join(',')})`, contentId, ...keys);
+  run(db, `DELETE FROM content_topics WHERE content_id = ? AND source = 'ai'`, contentId);
+}
+
+/**
  * The exact coding request production uses. Shared so a provider benchmark
  * measures the real prompt against the real material, not an approximation.
  */
@@ -456,7 +476,7 @@ export function codingRequest(
 export async function enrichContent(
   db: Db,
   contentId: number,
-  options: { budget?: BudgetGuard; pin?: Candidate; noEscalate?: boolean } = {}
+  options: { budget?: BudgetGuard; pin?: Candidate; noEscalate?: boolean; recode?: boolean } = {}
 ): Promise<{ status: 'enriched' | 'skipped'; reason?: string; escalated?: string | null }> {
   const fact = loadFacts(db, { contentIds: [contentId] })[0];
   if (!fact) return { status: 'skipped', reason: 'not found' };
@@ -502,6 +522,8 @@ export async function enrichContent(
     }
   }
 
+  const previouslyCoded = get<{ coded_at: string | null }>(db, 'SELECT coded_at FROM content WHERE id = ?', contentId)?.coded_at;
+  if (previouslyCoded || options.recode) clearAiCoding(db, contentId);
   applyAiAttributes(db, contentId, d, conf, escalation?.runId ?? result.runId);
   if (d.opening_hook) setAttribute(db, contentId, 'opening_hook', d.opening_hook, 'ai', conf, escalation?.runId ?? result.runId);
   if (d.franchise && franchises.includes(d.franchise)) setAttribute(db, contentId, 'franchise', d.franchise, 'ai', conf, escalation?.runId ?? result.runId);

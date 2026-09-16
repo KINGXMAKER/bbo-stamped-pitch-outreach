@@ -57,6 +57,9 @@ export function brainConfig() {
     whisperThreads: int('WHISPER_THREADS', 4),
     aiDailyLimit: int('AI_ANALYSIS_DAILY_LIMIT', 150),
     aiConcurrency: int('AI_ANALYSIS_CONCURRENCY', 2),
+    // Total posts to hold structured coding for. Coding stops here until the
+    // corpus has been inspected and this is deliberately raised.
+    codingCorpusLimit: int('AI_CODING_CORPUS_LIMIT', 150),
 
     // Providers. Keys decide what exists; the per-task settings decide what is
     // preferred. A task never silently upgrades to a pricier model: fallback
@@ -64,6 +67,14 @@ export function brainConfig() {
     openRouterApiKey: env('OPENROUTER_API_KEY'),
     nvidiaApiKey: env('NVIDIA_API_KEY'),
     openRouterModels: list('OPENROUTER_MODELS', ['qwen/qwen3-235b-a22b-2507']),
+    // Per task class, because the cheap classifier and the escalation model are
+    // deliberately different models. Each falls back to OPENROUTER_MODELS.
+    openRouterTaskModels: {
+      coding: list('OPENROUTER_CODING_MODELS', []),
+      analysis: list('OPENROUTER_ANALYSIS_MODELS', []),
+      gatekeeper: list('OPENROUTER_GATEKEEPER_MODELS', []),
+      synthesis: list('OPENROUTER_SYNTHESIS_MODELS', []),
+    },
     nvidiaModels: list('NVIDIA_MODELS', ['nvidia/nemotron-3.5-lightning-30b-a3b', 'mistralai/mistral-nemotron']),
     allowFallback: bool('AI_ALLOW_FALLBACK', true),
     tasks: {

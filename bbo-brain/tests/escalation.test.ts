@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { all, get, run, type Db } from '@/lib/db/client';
 import { setProviderFetch } from '@/lib/ai/providers/registry';
 import { setGenerator } from '@/lib/ai/run';
-import { enrichContent } from '@/lib/intel/analysis';
+import { clearAiCoding, enrichContent } from '@/lib/intel/analysis';
 import { writeMetrics } from '@/lib/ingest/ingest';
 import { activeScoreVersion, computeAllScores } from '@/lib/scoring/engine';
 import { makePost, testDb } from './helpers';
@@ -174,5 +174,31 @@ describe('disagreement escalation', () => {
     await enrichContent(db, id, { noEscalate: true });
 
     expect(models).toHaveLength(1);
+  });
+
+  it('replaces a previous model\'s coding instead of mixing it field by field', async () => {
+    const db = testDb();
+    const id = seedPost(db, 'plain');
+    // Previous model filled tension_type; the new one leaves it null.
+    setProviderFetch(mockGemini(() => coding({ tension_type: 'status' }, 'high')));
+    await enrichContent(db, id);
+    run(db, `INSERT INTO content_attributes (content_id, key, value_text, source) VALUES (?, 'hook_type', 'question', 'human')`, id);
+
+    setProviderFetch(mockGemini(() => coding({ tension_type: null, hook_type: 'accusation' }, 'high')));
+    await enrichContent(db, id);
+
+    const ai = (key: string) => get<{ v: string }>(db, `SELECT value_text v FROM content_attributes WHERE content_id = ? AND key = ? AND source = 'ai'`, id, key)?.v ?? null;
+    expect(ai('tension_type')).toBeNull(); // not the stale 'status'
+    expect(ai('hook_type')).toBe('accusation');
+    // A human decision is never cleared by a re-code.
+    expect(get<{ v: string }>(db, `SELECT value_text v FROM content_attribute_current WHERE content_id = ? AND key = 'hook_type'`, id)?.v).toBe('question');
+  });
+
+  it('only clears AI coding fields', () => {
+    const db = testDb();
+    const id = seedPost(db, 'plain');
+    run(db, `INSERT INTO content_attributes (content_id, key, value_text, source) VALUES (?, 'hook_type', 'confession', 'ai'), (?, 'duration_bucket', '15_30s', 'measured')`, id, id);
+    clearAiCoding(db, id);
+    expect(all(db, 'SELECT key, source FROM content_attributes WHERE content_id = ?', id)).toEqual([{ key: 'duration_bucket', source: 'measured' }]);
   });
 });

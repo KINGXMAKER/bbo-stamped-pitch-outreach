@@ -93,6 +93,25 @@ export type AiRunResult<T> = { data: T; runId: number; model: string; provider: 
 
 const STRUCTURED_TASKS: TaskClass[] = ['coding', 'gatekeeper'];
 
+/**
+ * A quota wall (429 that survives a retry) belongs to the whole provider, not
+ * one model — Google's free tier, for example, is shared by every Gemini model
+ * on the key. The provider is skipped for a cool-down instead of being asked
+ * again by each of its models on every post.
+ */
+const cooling = new Map<string, number>();
+const cooldownMs = () => {
+  const raw = Number(process.env.AI_QUOTA_COOLDOWN_MS);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 10 * 60_000;
+};
+export function providerCoolingUntil(provider: string): number | null {
+  const until = cooling.get(provider);
+  return until && until > Date.now() ? until : null;
+}
+export function resetProviderCooldowns(): void {
+  cooling.clear();
+}
+
 /** Pause between retries of the same model. Tests set it to 0. */
 const retryBackoffMs = () => {
   const raw = Number(process.env.AI_RETRY_BACKOFF_MS);
@@ -216,6 +235,10 @@ export async function runAi<T>(args: AiRunArgs<T>): Promise<AiRunResult<T>> {
 
   for (const candidate of candidates) {
     if (deadProviders.has(candidate.provider.providerName)) continue;
+    if (!args.pin && providerCoolingUntil(candidate.provider.providerName)) {
+      lastError ??= new AiError({ kind: 'transient', status: 429, model: candidate.model, message: `${candidate.provider.providerName} is cooling down after a quota limit` });
+      continue;
+    }
     attempted.push(`${candidate.provider.providerName}:${candidate.model}`);
     if (attempted.length > 1) fallbackReason = lastError?.message.slice(0, 300) ?? 'previous candidate unavailable';
 
@@ -279,6 +302,7 @@ export async function runAi<T>(args: AiRunArgs<T>): Promise<AiRunResult<T>> {
           await new Promise((r) => setTimeout(r, retryBackoffMs()));
           continue;
         }
+        if (failure.status === 429) cooling.set(candidate.provider.providerName, Date.now() + cooldownMs());
         break;
       }
     }

@@ -9,7 +9,7 @@ import { makePost, testDb } from './helpers';
 // Synthetic fixture; every provider is faked. Proves the daily loop's non-AI
 // work survives an AI outage and a budget pause.
 const STEPS = ['score', 'ai-enrich', 'mine-lessons', 'graph', 'search'];
-const ENV_KEYS = ['GEMINI_API_KEY', 'OPENROUTER_API_KEY', 'NVIDIA_API_KEY', 'AI_RETRY_BACKOFF_MS', 'AI_DAILY_BUDGET_USD', 'AI_MAX_COST_PER_JOB_USD'];
+const ENV_KEYS = ['AI_CODING_CORPUS_LIMIT', 'GEMINI_API_KEY', 'OPENROUTER_API_KEY', 'NVIDIA_API_KEY', 'AI_RETRY_BACKOFF_MS', 'AI_DAILY_BUDGET_USD', 'AI_MAX_COST_PER_JOB_USD'];
 const saved: Record<string, string | undefined> = {};
 
 function seed(db: Db) {
@@ -80,5 +80,23 @@ describe('daily loop resilience', () => {
     expect(called).toBe(0); // not one paid call was attempted
     expect(byKind['mine-lessons'].status).toBe('succeeded');
     expect(byKind.search.status).toBe('succeeded');
+  });
+
+  it('stops coding at the corpus ceiling instead of working through the whole catalogue', async () => {
+    process.env.AI_CODING_CORPUS_LIMIT = '2';
+    const db = testDb();
+    seed(db);
+    run(db, `UPDATE content SET coded_at = '2026-08-01T00:00:00.000Z' WHERE id IN (SELECT id FROM content LIMIT 2)`);
+    let called = 0;
+    setProviderFetch((async () => {
+      called++;
+      return { ok: true, status: 200, json: async () => ({}), text: async () => '' } as Response;
+    }) as typeof fetch);
+
+    const [result] = await runPipeline(db, ['ai-enrich']);
+
+    expect(result.status).toBe('succeeded');
+    expect(result.summary).toContain('corpus limit reached (2/2');
+    expect(called).toBe(0);
   });
 });

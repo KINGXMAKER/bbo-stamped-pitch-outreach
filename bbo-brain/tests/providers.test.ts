@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { all, get, run, type Db } from '@/lib/db/client';
-import { runAi, setGenerator } from '@/lib/ai/run';
+import { providerCoolingUntil, resetProviderCooldowns, runAi, setGenerator } from '@/lib/ai/run';
 import { BudgetGuard, BudgetPausedError, budgetStatus, projectBatch } from '@/lib/ai/budget';
 import { estimateCost } from '@/lib/ai/pricing';
 import { candidatesFor, setProviderFetch } from '@/lib/ai/providers/registry';
@@ -39,13 +39,14 @@ const geminiOk = (content: string, tokens = { promptTokenCount: 1000, candidates
   json: { candidates: [{ content: { parts: [{ text: content }] }, finishReason: 'STOP' }], usageMetadata: tokens },
 });
 
-const ENV_KEYS = ['AI_CODING_FALLBACK_PROVIDERS', 'AI_RETRY_BACKOFF_MS', 'GEMINI_API_KEY', 'OPENROUTER_API_KEY', 'NVIDIA_API_KEY', 'GEMINI_MODEL_PRIMARY', 'GEMINI_MODEL_FALLBACKS', 'OPENROUTER_MODELS', 'NVIDIA_MODELS', 'AI_CODING_PROVIDER', 'AI_CODING_MODEL', 'AI_DAILY_BUDGET_USD', 'AI_MONTHLY_BUDGET_USD', 'AI_MAX_COST_PER_JOB_USD', 'AI_ALLOW_FALLBACK'];
+const ENV_KEYS = ['AI_QUOTA_COOLDOWN_MS', 'AI_CODING_FALLBACK_PROVIDERS', 'AI_RETRY_BACKOFF_MS', 'GEMINI_API_KEY', 'OPENROUTER_API_KEY', 'NVIDIA_API_KEY', 'GEMINI_MODEL_PRIMARY', 'GEMINI_MODEL_FALLBACKS', 'OPENROUTER_MODELS', 'NVIDIA_MODELS', 'AI_CODING_PROVIDER', 'AI_CODING_MODEL', 'AI_DAILY_BUDGET_USD', 'AI_MONTHLY_BUDGET_USD', 'AI_MAX_COST_PER_JOB_USD', 'AI_ALLOW_FALLBACK'];
 const saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
   for (const key of ENV_KEYS) saved[key] = process.env[key];
   calls = [];
   setGenerator(null);
+  resetProviderCooldowns();
   process.env.GEMINI_API_KEY = 'test-gemini';
   process.env.OPENROUTER_API_KEY = 'test-openrouter';
   process.env.NVIDIA_API_KEY = 'test-nvidia';
@@ -128,7 +129,26 @@ describe('provider routing and fallback', () => {
     expect(row.provider).toBe('openrouter');
     expect(row.fallback_reason).toContain('429');
     expect(row.retry_count).toBeGreaterThanOrEqual(1);
-    expect(geminiCalls.length).toBe(4); // two models × (attempt + one retry)
+    // The quota wall is the provider's: its second model is not asked at all.
+    expect(geminiCalls.length).toBe(2);
+    expect(providerCoolingUntil('gemini')).not.toBeNull();
+  });
+
+  it('skips a cooling provider on the next call instead of hitting the same quota wall', async () => {
+    const db = testDb();
+    setProviderFetch(
+      mockFetch((url) => {
+        if (url.includes('generativelanguage')) return { status: 429, text: 'quota exceeded' };
+        return openAiOk('{"verdict":"ok"}');
+      })
+    );
+    await ask(db);
+    const before = calls.filter((c) => c.url.includes('generativelanguage')).length;
+    await ask(db);
+    await ask(db);
+
+    expect(calls.filter((c) => c.url.includes('generativelanguage')).length).toBe(before);
+    expect(lastRun(db).provider).toBe('openrouter');
   });
 
   it('drops a retired model immediately instead of retrying it', async () => {
