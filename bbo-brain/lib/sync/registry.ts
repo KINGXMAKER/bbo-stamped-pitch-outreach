@@ -1,0 +1,223 @@
+import { existsSync } from 'node:fs';
+import { all, type Db } from '@/lib/db/client';
+import { brainConfig } from '@/lib/config';
+import { aiConfigured } from '@/lib/ai/run';
+import { WhisperCppAdapter } from '@/lib/adapters/whisper';
+import { defaultArchivePaths, importArchiveFiles } from '@/lib/ingest/archive';
+import { defaultLearningMemoryPath, importLearningMemory } from '@/lib/ingest/learning-memory';
+import { computeAllScores } from '@/lib/scoring/engine';
+import { analysisQueue, analyzeContent, enrichContent } from '@/lib/intel/analysis';
+import { mineLessons } from '@/lib/intel/lessons';
+import { autoAssign, evaluateExperiment, suggestExperimentsFromLessons } from '@/lib/intel/experiments';
+import { generateOpportunities } from '@/lib/intel/opportunities';
+import { buildMonthlyReview, buildWeeklyReview } from '@/lib/intel/reviews';
+import { rebuildGraph } from '@/lib/intel/graph';
+import { rebuildSearchIndex } from '@/lib/intel/search';
+import { detectRuleChallenges, generateRuleProposals } from '@/lib/rules/engine';
+import { getSetting, seedReference } from '@/lib/seed';
+import { AiError } from '@/lib/ai/gemini';
+import {
+  checkInstagramConnection,
+  syncInstagramAccount,
+  syncInstagramContent,
+  syncInstagramMetrics,
+  syncMediaAndTranscripts,
+} from './instagram';
+import { markIntegration, runJob, type JobContext, type JobOutcome, type JobRecord } from './jobs';
+
+export type JobDef = { label: string; description: string; phase: string; run: (ctx: JobContext) => Promise<JobOutcome> };
+
+async function aiBatch(ctx: JobContext, ids: number[], fn: (id: number) => Promise<{ status: string; reason?: string }>): Promise<JobOutcome> {
+  if (!aiConfigured()) {
+    markIntegration(ctx.db, 'gemini', { status: 'not_connected', error: 'GEMINI_API_KEY is not set.' });
+    return { recordsSeen: ids.length, recordsWritten: 0, summary: 'AI not configured — skipped.' };
+  }
+  let done = 0;
+  let failed = 0;
+  for (const id of ids) {
+    try {
+      const r = await fn(id);
+      if (r.status === 'analysed' || r.status === 'enriched') done++;
+      else ctx.log('skipped', { contentId: id, reason: r.reason });
+    } catch (err) {
+      failed++;
+      ctx.log('ai call failed', { contentId: id, message: err instanceof Error ? err.message : String(err) });
+      if (err instanceof AiError && (err.kind === 'hard' || err.kind === 'not-configured')) break; // a bad key won't fix itself
+    }
+  }
+  markIntegration(ctx.db, 'gemini', failed && !done ? { status: 'needs_attention', error: 'AI calls failed — see AI Agent Runs.' } : { status: 'connected', success: done > 0, records: done });
+  return { recordsSeen: ids.length, recordsWritten: done, partial: failed > 0 && done > 0, summary: `${done} completed, ${failed} failed, ${ids.length - done - failed} skipped` };
+}
+
+export const JOBS: Record<string, JobDef> = {
+  'integration-check': {
+    label: 'Check integrations',
+    description: 'Live Instagram call via Composio, local tool availability, AI key presence.',
+    phase: 'setup',
+    run: async (ctx) => {
+      const cfg = brainConfig();
+      const whisper = new WhisperCppAdapter(cfg.whisperCli, cfg.whisperModel).isAvailable();
+      markIntegration(ctx.db, 'whisper_local', whisper ? { status: 'connected', success: true } : { status: 'not_connected', error: `Not found: ${cfg.whisperCli}` });
+      markIntegration(ctx.db, 'gemini', cfg.geminiApiKey ? { status: 'connected' } : { status: 'not_connected', error: 'GEMINI_API_KEY is not set.' });
+      markIntegration(ctx.db, 'audit_archive', defaultArchivePaths().length ? { status: 'connected' } : { status: 'not_connected', error: 'No audit JSON files found.' });
+      for (const id of ['tiktok', 'youtube', 'google_drive']) markIntegration(ctx.db, id, { status: 'not_connected', error: 'No connected account in Composio (verified 2026-09-15).' });
+      const ig = await checkInstagramConnection(ctx);
+      return { recordsSeen: 1, recordsWritten: 0, summary: `instagram: ${ig.summary}; whisper: ${whisper ? 'available' : 'missing'}; gemini key: ${cfg.geminiApiKey ? 'set' : 'missing'}` };
+    },
+  },
+  'import-archive': {
+    label: 'Import audit archive',
+    description: 'Historical metric snapshots from the weekly audit runs (real past Instagram pulls).',
+    phase: 'ingest',
+    run: async (ctx) => {
+      const files = defaultArchivePaths();
+      const r = importArchiveFiles(ctx.db, files);
+      markIntegration(ctx.db, 'audit_archive', { status: files.length ? 'connected' : 'not_connected', success: true, records: r.snapshots });
+      return { recordsSeen: r.posts, recordsWritten: r.snapshots + r.newContent, summary: `${r.files} files · ${r.newContent} new content · ${r.snapshots} snapshots · ${r.comments} comments` };
+    },
+  },
+  'import-learning-memory': {
+    label: 'Import audit learnings',
+    description: 'Lessons, belief history and proposed tests from bbo_content_learning_memory.json.',
+    phase: 'ingest',
+    run: async (ctx) => {
+      const file = defaultLearningMemoryPath();
+      if (!file || !existsSync(file)) return { recordsSeen: 0, recordsWritten: 0, summary: 'No learning memory file found.' };
+      const r = importLearningMemory(ctx.db, file);
+      return { recordsSeen: r.lessons, recordsWritten: r.lessons + r.experiments, summary: `${r.lessons} lessons · ${r.experiments} experiments · ${r.events} belief events` };
+    },
+  },
+  'instagram-content': { label: 'Sync Instagram content', description: 'List posts via Composio and upsert content (dedupe on platform + post id).', phase: 'ingest', run: (ctx) => syncInstagramContent(ctx) },
+  'instagram-metrics': { label: 'Refresh Instagram metrics', description: 'Append a metric snapshot for recent posts (or all with {"all":true}).', phase: 'ingest', run: (ctx) => syncInstagramMetrics(ctx) },
+  'instagram-account': { label: 'Sync account insights', description: 'Follower change, account reach, demographics.', phase: 'ingest', run: (ctx) => syncInstagramAccount(ctx) },
+  'media-transcripts': { label: 'Media + transcripts', description: 'Download, measure duration/loudness, hook frames, local whisper transcripts.', phase: 'ingest', run: (ctx) => syncMediaAndTranscripts(ctx) },
+  score: {
+    label: 'Score performance',
+    description: 'Recompute normalized performance scores with the active formula version.',
+    phase: 'performance',
+    run: async (ctx) => {
+      const r = computeAllScores(ctx.db);
+      return { recordsSeen: r.total, recordsWritten: r.scored, summary: `${r.scored} scored · ${r.immature} immature · ${r.unscored} unscored · ${r.noBaseline} without baseline` };
+    },
+  },
+  'ai-enrich': {
+    label: 'AI attribute coding',
+    description: 'Code hook, opening, tension, topics from transcript + frames for posts without AI attributes.',
+    phase: 'analysis',
+    run: async (ctx) => {
+      const limit = Number(ctx.params.limit ?? 10);
+      const ids = all<{ id: number }>(
+        ctx.db,
+        `SELECT c.id FROM content c JOIN platform_posts pp ON pp.id = c.primary_post_id
+         WHERE c.status = 'published' AND (EXISTS (SELECT 1 FROM transcripts t WHERE t.content_id = c.id) OR (c.frames_json IS NOT NULL AND c.frames_json != '[]'))
+           AND NOT EXISTS (SELECT 1 FROM content_attributes a WHERE a.content_id = c.id AND a.source = 'ai')
+         ORDER BY pp.published_at DESC LIMIT ?`,
+        limit
+      ).map((r) => r.id);
+      return aiBatch(ctx, ids, (id) => enrichContent(ctx.db, id));
+    },
+  },
+  analyze: {
+    label: 'Winner / loser analysis',
+    description: 'Deep AI analysis for posts that crossed the configured triggers.',
+    phase: 'analysis',
+    run: async (ctx) => {
+      const t = getSetting<{ maxPerRun: number }>(ctx.db, 'analysis_triggers');
+      const queue = analysisQueue(ctx.db);
+      if (queue.waitingForMedia.length) ctx.log('waiting for media', { contentIds: queue.waitingForMedia.map((h) => h.fact.contentId) });
+      const batch = queue.ready.slice(0, Number(ctx.params.limit ?? t.maxPerRun));
+      const out = await aiBatch(ctx, batch.map((h) => h.fact.contentId), (id) => {
+        const hit = batch.find((h) => h.fact.contentId === id)!;
+        return analyzeContent(ctx.db, id, { reasons: hit.reasons, outcome: hit.outcome });
+      });
+      return { ...out, summary: `${out.summary}; ${queue.waitingForMedia.length} waiting for media` };
+    },
+  },
+  'mine-lessons': {
+    label: 'Mine lessons',
+    description: 'Find associations across attributes, topics and guests; update lesson statuses; suggest experiments for early signals.',
+    phase: 'learning',
+    run: async (ctx) => {
+      const r = mineLessons(ctx.db);
+      const suggested = suggestExperimentsFromLessons(ctx.db);
+      return { recordsSeen: r.testsRun, recordsWritten: r.created + r.updated, summary: `${r.testsRun} comparisons · ${r.created} new lessons · ${r.updated} updated · ${r.imported} audit claims re-checked · ${suggested} experiments suggested` };
+    },
+  },
+  'rule-proposals': {
+    label: 'Rule proposals',
+    description: 'Propose rules from repeatedly supported lessons. Never activates anything.',
+    phase: 'learning',
+    run: async (ctx) => {
+      const r = generateRuleProposals(ctx.db);
+      return { recordsSeen: r.considered, recordsWritten: r.proposed, summary: `${r.considered} supported lessons considered · ${r.proposed} proposals · ${r.attachedToExistingRule} attached to existing rules` };
+    },
+  },
+  'rule-challenges': {
+    label: 'Rule challenges',
+    description: 'Check active testable rules against recent evidence.',
+    phase: 'learning',
+    run: async (ctx) => {
+      const r = detectRuleChallenges(ctx.db);
+      return { recordsSeen: r.rulesChecked, recordsWritten: r.opened, summary: `${r.rulesChecked} testable rules checked · ${r.opened} challenges opened` };
+    },
+  },
+  experiments: {
+    label: 'Evaluate experiments',
+    description: 'Auto-assign new content to running experiments and re-evaluate results.',
+    phase: 'learning',
+    run: async (ctx) => {
+      const running = all<{ id: number }>(ctx.db, `SELECT id FROM experiments WHERE status = 'running'`);
+      let assigned = 0;
+      for (const e of running) {
+        const a = autoAssign(ctx.db, e.id);
+        assigned += a.control + a.variant;
+        evaluateExperiment(ctx.db, e.id);
+      }
+      return { recordsSeen: running.length, recordsWritten: assigned, summary: `${running.length} running · ${assigned} new assignments` };
+    },
+  },
+  opportunities: {
+    label: 'Content opportunities',
+    description: 'Rank what BBO should make next from topic, guest, format and pattern evidence.',
+    phase: 'future',
+    run: async (ctx) => {
+      const r = generateOpportunities(ctx.db);
+      return { recordsSeen: r.count, recordsWritten: r.count, summary: `${r.count} opportunities` };
+    },
+  },
+  'weekly-review': {
+    label: 'Weekly review',
+    description: 'Last 7 days vs the previous 7.',
+    phase: 'review',
+    run: async (ctx) => ({ recordsSeen: 1, recordsWritten: 1, summary: `review #${await buildWeeklyReview(ctx.db)}` }),
+  },
+  'monthly-review': {
+    label: 'Monthly review',
+    description: 'Last 30 days vs the previous 30.',
+    phase: 'review',
+    run: async (ctx) => ({ recordsSeen: 1, recordsWritten: 1, summary: `review #${await buildMonthlyReview(ctx.db)}` }),
+  },
+  graph: { label: 'Rebuild knowledge graph', description: 'Materialise relationships into graph_edges.', phase: 'graph', run: async (ctx) => { const n = rebuildGraph(ctx.db); return { recordsSeen: n, recordsWritten: n, summary: `${n} edges` }; } },
+  search: { label: 'Rebuild search index', description: 'FTS5 over content, transcripts, people, topics, lessons, rules, experiments, analyses.', phase: 'graph', run: async (ctx) => { const n = rebuildSearchIndex(ctx.db); return { recordsSeen: n, recordsWritten: n, summary: `${n} documents indexed` }; } },
+};
+
+/** The daily loop, in dependency order. Each step is its own recorded job. */
+export const DAILY_PIPELINE = ['instagram-content', 'instagram-metrics', 'instagram-account', 'media-transcripts', 'score', 'ai-enrich', 'analyze', 'mine-lessons', 'rule-proposals', 'rule-challenges', 'experiments', 'opportunities', 'graph', 'search'];
+
+export async function runNamedJob(db: Db, kind: string, params: Record<string, unknown> = {}): Promise<JobRecord> {
+  seedReference(db);
+  const def = JOBS[kind];
+  if (!def) throw new Error(`Unknown job "${kind}". Known: ${Object.keys(JOBS).join(', ')}`);
+  return runJob(db, kind, params, def.run);
+}
+
+export async function runPipeline(db: Db, steps = DAILY_PIPELINE, params: Record<string, Record<string, unknown>> = {}): Promise<JobRecord[]> {
+  const results: JobRecord[] = [];
+  for (const step of steps) {
+    const r = await runNamedJob(db, step, params[step] ?? {});
+    results.push(r);
+    // Content and metrics are the foundation; without them later steps would reason over stale data.
+    if ((step === 'instagram-content' || step === 'instagram-metrics') && r.status === 'failed') break;
+  }
+  return results;
+}
