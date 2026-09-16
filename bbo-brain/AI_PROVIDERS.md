@@ -16,7 +16,7 @@ Related: [AI_SYSTEM.md](AI_SYSTEM.md) · [DATA_DEPTH.md](DATA_DEPTH.md) · [ARCH
 | Provider | Transport | Images | Notes |
 |---|---|---|---|
 | `gemini` | Google Generative Language REST | yes | Hook frames are only sent to a provider that can see them |
-| `openrouter` | OpenAI-compatible | text only today | Model slugs and prices are read from OpenRouter's live catalogue, never hardcoded |
+| `openrouter` | OpenAI-compatible | per model (`-vl-` models see frames) | Model slugs and prices are read from OpenRouter's live catalogue, never hardcoded |
 | `nvidia` | OpenAI-compatible (`integrate.api.nvidia.com`) | text only | Free tier on a personal key: rate-limited, priced at $0 |
 
 Each provider exposes `generateStructured`, `generateAnalysis`, `healthCheck`,
@@ -113,3 +113,24 @@ agreement with the coding already in the database.
 
 Selection order, deliberately not cheapest-first: schema validity → taxonomy
 adherence → agreement on the fields that matter → consistency → latency → cost.
+
+### Reading a benchmark honestly
+
+Agreement is reported twice: across all fields, and across fields answerable
+from the transcript and caption alone. Opening type, guest-answer opening and
+reaction shots need the hook frames or speaker identity (whisper transcripts do
+not label speakers), so a text-only model is not penalised as if it could see.
+
+Agreement with the existing coding measures whether two models read a post the
+same way — not which one is right. `pairAgreement` measures a model against its
+own rerun: a model that disagrees with itself is noise; one that is consistent
+but differs from the reference has a different reading that only human review
+can settle.
+
+## 8. Human review is the model-quality dataset
+
+`coding_agreement` (view) lists every AI label on a human-reviewed post with the
+human's label, whether they agree, and the provider and model that produced the
+AI label. `/coverage` shows agreement by model once reviews exist, and the
+intelligence report flags any finding whose posts were coded almost entirely by
+one model while the baseline was not — a possible coding-model artifact.

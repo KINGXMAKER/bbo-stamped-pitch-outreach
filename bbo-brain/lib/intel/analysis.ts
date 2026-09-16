@@ -171,9 +171,23 @@ ALLOWED TOPICS (topics[] must use 1–3 of these exact names)
 
 Return one JSON object matching the schema keys exactly: evidence_notes, actual_topic, underlying_debate, emotional_trigger, hook_mechanics, strongest_moment {timestamp, quote, why}, strongest_opening {timestamp, quote, why, is_current_opening}, strongest_standalone {timestamp, quote, why}, clarity, tension, payoff, dead_setup, unnecessary_context, reaction_timing, speaker_dynamics, comment_trigger, share_trigger, curiosity_trigger, outcome_explanation, retention_strengths[], retention_weaknesses[], editing_opportunities[], reusable_lesson {text, category}, recommended_experiment {hypothesis, variable, control, variant} | null, attributes {…}, topics[], confidence (low|medium|high).`;
 
-export const ATTRIBUTE_VALUES_BLOCK = ATTRIBUTE_DEFINITIONS.filter((a) => a.type === 'enum' && ['hook', 'substance', 'edit'].includes(a.group))
-  .map((a) => `${a.key}: ${a.values?.join(' | ')}`)
-  .join('\n');
+/**
+ * Yes/no attributes are part of the coding contract too. Before prompt v2 they
+ * were never described, so every model — Gemini included — returned null for
+ * all of them on every post (verified 2026-09-16: 0 coded across the corpus).
+ */
+const BOOLEAN_DEFINITIONS: Record<string, string> = {
+  question_opening: 'the first spoken or on-screen line is a question',
+  guest_answer_opening: 'the clip opens mid-way through a guest answering, with the question cut',
+  payoff_first: 'the most interesting moment is shown first, before any setup',
+  has_text_hook: 'readable hook text is on screen in the first frame',
+  reaction_shot_present: 'the edit cuts to someone visibly reacting',
+};
+
+export const ATTRIBUTE_VALUES_BLOCK = [
+  ...ATTRIBUTE_DEFINITIONS.filter((a) => a.type === 'enum' && ['hook', 'substance', 'edit'].includes(a.group)).map((a) => `${a.key}: ${a.values?.join(' | ')}`),
+  ...Object.entries(BOOLEAN_DEFINITIONS).map(([key, meaning]) => `${key}: true | false — true when ${meaning}; null only when it cannot be observed`),
+].join('\n');
 
 function topicNames(db: Db): string {
   return all<{ name: string }>(db, 'SELECT name FROM topics ORDER BY name')
@@ -255,7 +269,7 @@ export async function analyzeContent(
     budget: options.budget,
     promptSlug: 'content-analysis',
     template: ANALYSIS_TEMPLATE,
-    schemaVersion: 'analysis-v1',
+    schemaVersion: 'analysis-v2',
     system: `${ANALYSIS_TEMPLATE.replace('{{attribute_values}}', ATTRIBUTE_VALUES_BLOCK).replace('{{topics}}', topicNames(db))}\n\nBBO VIRAL CONTENT SKILL (v${skill?.version ?? '?'}):\n${skill?.body ?? ''}`,
     prompt: evidence,
     images: frames.map((f) => ({ mimeType: f.mimeType, base64: f.base64 })),
@@ -462,7 +476,7 @@ export async function enrichContent(
     pin: options.pin,
     promptSlug: 'content-enrichment',
     template: ENRICH_TEMPLATE,
-    schemaVersion: 'enrichment-v1',
+    schemaVersion: 'enrichment-v2',
     system,
     prompt: request.prompt,
     images: request.images,
@@ -527,65 +541,77 @@ async function escalateCoding(
   contentId: number,
   args: { base: { runId: number; provider: string; model: string }; baseData: EnrichmentPayload; reason: string; budget?: BudgetGuard; request: NonNullable<ReturnType<typeof codingRequest>> }
 ): Promise<EscalationOutcome | null> {
-  const stronger = candidatesFor('analysis')[0];
-  if (!stronger) return null;
-  try {
-    const result = await runAi({
-      db,
-      workflow: 'enrichment_escalated',
-      task: 'analysis',
-      pin: stronger,
-      budget: args.budget,
-      promptSlug: 'content-enrichment',
-      template: ENRICH_TEMPLATE,
-      schemaVersion: 'enrichment-v1',
-      system: args.request.system,
-      prompt: args.request.prompt,
-      images: stronger.provider.acceptsImages(stronger.model) ? args.request.images : undefined,
-      schema: EnrichmentSchema,
-      input: { ...args.request.input, escalatedFrom: args.base.runId, reason: args.reason },
-      temperature: 0.1,
-      maxOutputTokens: 2000,
-      thinkingBudget: 0,
-      parentRunId: args.base.runId,
-      confidence: (d) => d.confidence,
-    });
-    const baseAttrs = (args.baseData.attributes ?? {}) as Record<string, unknown>;
-    const newAttrs = (result.data.attributes ?? {}) as Record<string, unknown>;
-    const disagreements: string[] = [];
-    let compared = 0;
-    for (const field of ESCALATION_FIELDS) {
-      const a = baseAttrs[field];
-      const b = newAttrs[field];
-      if (a === null || a === undefined || a === '' || b === null || b === undefined || b === '') continue;
-      compared++;
-      if (String(a) !== String(b)) disagreements.push(`${field}: ${String(a)} → ${String(b)}`);
-    }
-    const agreed = compared - disagreements.length;
-    // Substantial disagreement between two models is exactly the case a human
-    // should look at — the stronger answer is stored, but it is not trusted quietly.
-    const outcome = compared > 0 && agreed / compared < 0.6 ? 'human_review' : disagreements.length ? 'kept_stronger' : 'agreed';
+  // "Stronger" must mean a different model: re-asking the one that was unsure
+  // would only buy the same answer twice.
+  const candidates = candidatesFor('analysis').filter((c) => !(c.provider.providerName === args.base.provider && c.model === args.base.model));
+  const recordRow = (row: { escalatedRunId: number | null; provider: string | null; model: string | null; compared: number; agreed: number; disagreements: string[]; outcome: EscalationOutcome['outcome']; reason: string }) =>
     run(
       db,
       `INSERT INTO coding_escalations (content_id, reason, base_run_id, escalated_run_id, base_provider, base_model, escalated_provider, escalated_model, compared, agreed, disagreements_json, outcome)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       contentId,
-      args.reason,
+      row.reason,
       args.base.runId,
-      result.runId,
+      row.escalatedRunId,
       args.base.provider,
       args.base.model,
-      result.provider,
-      result.model,
-      compared,
-      agreed,
-      json(disagreements),
-      outcome
+      row.provider,
+      row.model,
+      row.compared,
+      row.agreed,
+      json(row.disagreements),
+      row.outcome
     );
-    return { outcome, data: result.data, runId: result.runId };
-  } catch (err) {
-    if (err instanceof BudgetPausedError) throw err;
-    // The cheap coding still stands; the escalation simply did not happen.
-    return null;
+
+  for (const stronger of candidates) {
+    try {
+      const result = await runAi({
+        db,
+        workflow: 'enrichment_escalated',
+        task: 'analysis',
+        pin: stronger,
+        budget: args.budget,
+        promptSlug: 'content-enrichment',
+        template: ENRICH_TEMPLATE,
+        schemaVersion: 'enrichment-v2',
+        system: args.request.system,
+        prompt: args.request.prompt,
+        images: stronger.provider.acceptsImages(stronger.model) ? args.request.images : undefined,
+        schema: EnrichmentSchema,
+        input: { ...args.request.input, escalatedFrom: args.base.runId, reason: args.reason },
+        temperature: 0.1,
+        maxOutputTokens: 2000,
+        thinkingBudget: 0,
+        parentRunId: args.base.runId,
+        confidence: (d) => d.confidence,
+      });
+      const baseAttrs = (args.baseData.attributes ?? {}) as Record<string, unknown>;
+      const newAttrs = (result.data.attributes ?? {}) as Record<string, unknown>;
+      const disagreements: string[] = [];
+      let compared = 0;
+      for (const field of ESCALATION_FIELDS) {
+        const a = baseAttrs[field];
+        const b = newAttrs[field];
+        if (a === null || a === undefined || a === '' || b === null || b === undefined || b === '') continue;
+        compared++;
+        if (String(a) !== String(b)) disagreements.push(`${field}: ${String(a)} → ${String(b)}`);
+      }
+      const agreed = compared - disagreements.length;
+      // Substantial disagreement between two models is exactly the case a human
+      // should look at — the stronger answer is stored, but it is not trusted quietly.
+      const outcome = compared > 0 && agreed / compared < 0.6 ? 'human_review' : disagreements.length ? 'kept_stronger' : 'agreed';
+      recordRow({ escalatedRunId: result.runId, provider: result.provider, model: result.model, compared, agreed, disagreements, outcome, reason: args.reason });
+      return { outcome, data: result.data, runId: result.runId };
+    } catch (err) {
+      if (err instanceof BudgetPausedError) throw err;
+      // This stronger model is unavailable; try the next one.
+    }
   }
+
+  // No stronger model could answer. The cheap coding stands, but an unsure
+  // answer does not enter the knowledge base unflagged: it goes to a human.
+  if (candidates.length) {
+    recordRow({ escalatedRunId: null, provider: null, model: null, compared: 0, agreed: 0, disagreements: [], outcome: 'human_review', reason: `${args.reason}; no stronger model was available` });
+  }
+  return null;
 }

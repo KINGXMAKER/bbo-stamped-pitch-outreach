@@ -1,6 +1,6 @@
 # Data model
 
-Schema: `db/migrations/0001_init.ts`, then `0002_coding.ts` (SQLite via `node:sqlite`). Timestamps are ISO-8601 UTC strings. JSON columns hold provider payloads, AI metadata and flexible evidence only — anything filtered or sorted on is a column.
+Schema: `db/migrations/0001_init.ts`, then `0002_coding.ts` … `0005_model_quality.ts` (SQLite via `node:sqlite`). Timestamps are ISO-8601 UTC strings. JSON columns hold provider payloads, AI metadata and flexible evidence only — anything filtered or sorted on is a column.
 
 ## Content
 
@@ -70,7 +70,13 @@ job cannot exceed the day's budget.
 | `search_index` | FTS5 over content, transcripts, people, topics, lessons, rules, experiments, analyses. |
 | `settings`, `settings_history`, `users` | Triggers, Gatekeeper settings, lesson promotion thresholds — with history. |
 | `coding_reviews` | One immutable row per human validation decision: status, note, corrected keys, and the `ai_run_id` that produced the coding under review. |
-| `attribute_corrections` (view) | Each human attribute value paired with the AI value it replaced — the raw material for the per-attribute agreement rate on `/coverage`. |
+| `attribute_corrections` (view) | Each human attribute value paired with the AI value it replaced, and the provider/model that produced the AI value. |
+| `coding_agreement` (view) | Every AI label on a human-reviewed post: AI value, human value, agreed flag, provider and model — the dataset that decides coding models. |
+| `coding_escalations` | When a cheap coding was re-asked of a stronger model: why, both runs and models, fields compared/agreed, the disagreements, and whether it went to human review. |
+| `benchmark_runs`, `benchmark_codings` | Candidate-model re-codings of already-coded posts. Never read by mining; never written to `content_attributes`. |
+
+`ai_runs` also carries `task_class`, `input_tokens`, `output_tokens`,
+`estimated_cost_usd`, `retry_count` and `fallback_reason` (migration 0003).
 
 ## Migrations
 

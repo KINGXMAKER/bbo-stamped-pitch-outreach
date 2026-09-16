@@ -122,7 +122,7 @@ export async function runCodingBenchmark(
         budget,
         promptSlug: 'content-enrichment',
         template: 'benchmark',
-        schemaVersion: 'enrichment-v1',
+        schemaVersion: 'enrichment-v2',
         system: request.system,
         prompt: request.prompt,
         images: provider.acceptsImages(target.model) ? request.images : undefined,
@@ -353,4 +353,39 @@ export function pairAgreement(db: Db, runA: number, runB: number): { compared: n
     agreed += fa;
   }
   return { compared, agreed, rate: compared ? agreed / compared : null, byField };
+}
+
+/**
+ * Freezes the coding currently in the database for these posts as a benchmark
+ * run. Nothing is lost when a post is later re-coded: the previous labels stay
+ * queryable side by side with the new ones (and in ai_runs.output_json).
+ */
+export function snapshotCurrentCoding(db: Db, contentIds: number[], label: string): number {
+  const runId = run(
+    db,
+    `INSERT INTO benchmark_runs (name, task_class, provider, model, params_json, finished_at, notes) VALUES (?, 'coding', 'reference', 'existing coding', ?, ?, ?)`,
+    label,
+    json({ contentIds }),
+    nowIso(),
+    'Snapshot of content_attribute_current before re-coding.'
+  ).lastId;
+  for (const contentId of contentIds) {
+    const attributes = Object.fromEntries(
+      all<{ key: string; value_text: string }>(db, `SELECT key, value_text FROM content_attribute_current WHERE content_id = ? AND source IN ('ai','human')`, contentId).map((r) => [r.key, r.value_text])
+    );
+    const topics = all<{ name: string }>(db, 'SELECT t.name FROM content_topics ct JOIN topics t ON t.id = ct.topic_id WHERE ct.content_id = ? ORDER BY ct.is_primary DESC, ct.confidence DESC, t.name', contentId).map((r) => r.name);
+    const models = all<{ model: string }>(
+      db,
+      `SELECT DISTINCT COALESCE(r.provider, '?') || '/' || COALESCE(r.model, '?') AS model FROM content_attributes a JOIN ai_runs r ON r.id = a.ai_run_id WHERE a.content_id = ? AND a.source = 'ai'`,
+      contentId
+    ).map((r) => r.model);
+    run(
+      db,
+      `INSERT INTO benchmark_codings (benchmark_run_id, content_id, status, output_json) VALUES (?, ?, 'ok', ?) ON CONFLICT (benchmark_run_id, content_id) DO NOTHING`,
+      runId,
+      contentId,
+      json({ attributes, topics, codedBy: models })
+    );
+  }
+  return runId;
 }

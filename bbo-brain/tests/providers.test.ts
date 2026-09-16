@@ -39,7 +39,7 @@ const geminiOk = (content: string, tokens = { promptTokenCount: 1000, candidates
   json: { candidates: [{ content: { parts: [{ text: content }] }, finishReason: 'STOP' }], usageMetadata: tokens },
 });
 
-const ENV_KEYS = ['AI_RETRY_BACKOFF_MS', 'GEMINI_API_KEY', 'OPENROUTER_API_KEY', 'NVIDIA_API_KEY', 'GEMINI_MODEL_PRIMARY', 'GEMINI_MODEL_FALLBACKS', 'OPENROUTER_MODELS', 'NVIDIA_MODELS', 'AI_CODING_PROVIDER', 'AI_CODING_MODEL', 'AI_DAILY_BUDGET_USD', 'AI_MONTHLY_BUDGET_USD', 'AI_MAX_COST_PER_JOB_USD', 'AI_ALLOW_FALLBACK'];
+const ENV_KEYS = ['AI_CODING_FALLBACK_PROVIDERS', 'AI_RETRY_BACKOFF_MS', 'GEMINI_API_KEY', 'OPENROUTER_API_KEY', 'NVIDIA_API_KEY', 'GEMINI_MODEL_PRIMARY', 'GEMINI_MODEL_FALLBACKS', 'OPENROUTER_MODELS', 'NVIDIA_MODELS', 'AI_CODING_PROVIDER', 'AI_CODING_MODEL', 'AI_DAILY_BUDGET_USD', 'AI_MONTHLY_BUDGET_USD', 'AI_MAX_COST_PER_JOB_USD', 'AI_ALLOW_FALLBACK'];
 const saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
@@ -192,6 +192,17 @@ describe('provider routing and fallback', () => {
 
     expect(result.data.verdict).toBe('rescued');
     expect(lastRun(db).provider).toBe('openrouter');
+  });
+
+  it('keeps an unvalidated provider out of the coding fallback chain when told to', () => {
+    process.env.AI_CODING_PROVIDER = 'openrouter';
+    process.env.AI_CODING_MODEL = 'qwen/qwen3-235b-a22b-2507';
+    process.env.AI_CODING_FALLBACK_PROVIDERS = 'openrouter,gemini';
+    const chain = candidatesFor('coding').map((c) => c.provider.providerName);
+
+    expect(chain[0]).toBe('openrouter');
+    expect(chain).toContain('gemini');
+    expect(chain).not.toContain('nvidia');
   });
 
   it('does not fall back at all when fallback is switched off', async () => {
