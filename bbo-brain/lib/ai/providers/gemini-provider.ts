@@ -8,7 +8,9 @@ import type { AIProvider, HealthResult, ProviderResult, TaskClass, TokenUsage } 
  */
 export class GeminiProvider implements AIProvider {
   readonly providerName = 'gemini' as const;
-  readonly supportsImages = true;
+  acceptsImages(): boolean {
+    return true;
+  }
   private readonly apiKey: string;
   private readonly modelsByTask: Record<TaskClass, string[]>;
   private readonly fetchImpl?: typeof fetch;

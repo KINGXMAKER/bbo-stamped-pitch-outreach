@@ -55,6 +55,7 @@ async function aiBatch(
   let failed = 0;
   let stop = false;
   let paused: string | null = null;
+  let lastError: string | null = null;
   let cursor = 0;
   const worker = async () => {
     while (cursor < ids.length && !stop) {
@@ -71,7 +72,8 @@ async function aiBatch(
           continue;
         }
         failed++;
-        ctx.log('ai call failed', { contentId: id, message: err instanceof Error ? err.message : String(err) });
+        lastError = err instanceof Error ? err.message : String(err);
+        ctx.log('ai call failed', { contentId: id, message: lastError });
         if (err instanceof AiError && (err.kind === 'hard' || err.kind === 'not-configured')) stop = true; // a bad key won't fix itself
       }
     }
@@ -79,6 +81,11 @@ async function aiBatch(
   await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, ids.length)) }, worker));
   markIntegration(ctx.db, 'gemini', failed && !done ? { status: 'needs_attention', error: 'AI calls failed — see AI Agent Runs.' } : { status: 'connected', success: done > 0, records: done });
   const spent = `$${budget.spent.toFixed(4)}`;
+  if (!paused && failed > 0 && done === 0) {
+    // Every provider refused: say FAILED honestly. The posts keep coded_at unset,
+    // so they are simply queued for the next run; the daily loop carries on.
+    throw new Error(`All ${failed} AI calls failed — posts stay queued for the next run. Last error: ${(lastError ?? 'unknown').slice(0, 240)}`);
+  }
   if (paused) {
     return { recordsSeen: ids.length, recordsWritten: done, partial: done > 0, summary: `BUDGET PAUSED after ${done} completed (${spent}) — ${paused}` };
   }

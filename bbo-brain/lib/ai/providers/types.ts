@@ -42,8 +42,8 @@ export interface AIProvider {
   readonly providerName: ProviderName;
   /** Ordered candidates: index 0 is this provider's preferred model for the task. */
   models(task: TaskClass): string[];
-  /** True when this provider can accept hook frames alongside the prompt. */
-  readonly supportsImages: boolean;
+  /** Whether this model can see hook frames. A vendor can host both kinds. */
+  acceptsImages(model: string): boolean;
   /** Structured, schema-bound output (JSON mode where the provider has one). */
   generateStructured(req: GenerateRequest, model: string): Promise<ProviderResult>;
   /** Longer-form reasoning output, still returned as JSON. */

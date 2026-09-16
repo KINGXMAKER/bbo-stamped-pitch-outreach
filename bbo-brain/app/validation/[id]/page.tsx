@@ -36,6 +36,16 @@ export default async function ReviewCoding({ params, searchParams }: { params: P
   const groups = [...new Set(editable.map((a) => a.group))];
   const evidence = EVIDENCE_KEYS.map((key) => ({ def: ATTRIBUTE_DEFINITIONS.find((d2) => d2.key === key)!, value: current.get(key)?.value_text ?? null })).filter((e) => e.value !== null);
   const analysis = d.analyses[0];
+  const codedBy = get<{ provider: string | null; model: string | null }>(
+    db,
+    `SELECT r.provider, r.model FROM content_attributes a JOIN ai_runs r ON r.id = a.ai_run_id WHERE a.content_id = ? AND a.source = 'ai' ORDER BY a.created_at DESC LIMIT 1`,
+    contentId
+  );
+  const escalation = get<{ outcome: string; reason: string; base_model: string | null; escalated_model: string | null; disagreements_json: string }>(
+    db,
+    'SELECT outcome, reason, base_model, escalated_model, disagreements_json FROM coding_escalations WHERE content_id = ? ORDER BY id DESC LIMIT 1',
+    contentId
+  );
 
   return (
     <>
@@ -130,7 +140,16 @@ export default async function ReviewCoding({ params, searchParams }: { params: P
         </div>
 
         <aside className="stack">
-          <Section title="AI coding" note={row.coded_at ? `coded ${fmtDate(row.coded_at, true)}` : 'not coded yet'}>
+          <Section title="AI coding" note={row.coded_at ? `coded ${fmtDate(row.coded_at, true)}${codedBy?.model ? ` · ${codedBy.provider}/${codedBy.model}` : ''}` : 'not coded yet'}>
+            {escalation ? (
+              <div className={`callout xs ${escalation.outcome === 'human_review' ? 'callout-pink' : ''}`} style={{ marginBottom: '.6rem' }}>
+                <strong className="white">{escalation.outcome === 'human_review' ? 'Two models disagreed.' : 'Escalated to a stronger model.'}</strong> {escalation.reason}: {escalation.base_model} →{' '}
+                {escalation.escalated_model}.{' '}
+                {parseJson<string[]>(escalation.disagreements_json, []).length
+                  ? `Differed on ${parseJson<string[]>(escalation.disagreements_json, []).map((x) => x.replace(/_/g, ' ')).join('; ')}.`
+                  : 'They agreed.'}
+              </div>
+            ) : null}
             <form action={reviewCodingAction} className="stack-sm">
               <input type="hidden" name="contentId" value={contentId} />
               {groups.map((group) => (

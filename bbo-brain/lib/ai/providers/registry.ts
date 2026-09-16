@@ -52,6 +52,7 @@ function build(name: ProviderName, cfg: ReturnType<typeof brainConfig>): AIProvi
       // Attribution headers OpenRouter asks integrations to send.
       headers: { 'HTTP-Referer': 'https://github.com/bbo/bbo-brain', 'X-Title': 'BBO BRAIN' },
       modelsByTask: { coding: models, analysis: models, gatekeeper: models, synthesis: models },
+      visionModel: (model) => /-vl-|vision/.test(model),
       fetchImpl: fetchOverride ?? undefined,
     });
   }

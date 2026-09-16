@@ -1,8 +1,8 @@
 # BBO intelligence review
 
-Generated 2026-09-16 23:05 UTC
+Generated 2026-09-16 23:07 UTC
 
-**Corpus.** 45 posts structurally coded out of 951 in the catalogue (151 with media, 940 comparable, 0 human-validated). By class: winner 32/40, loser 9/40, average 0/30, unusual 0/20.
+**Corpus.** 45 posts structurally coded out of 951 in the catalogue (151 with media, 940 comparable, 0 human-validated). By class: winner 32/40, loser 9/40, average 0/30, unusual 0/20. Coded by: google/gemini-2.5-flash 21, google/gemini-2.5-flash-lite 16.
 
 Every claim below is an association measured against BBO's own era-normalised baseline — not a causal statement. Effect is the group median divided by the baseline median.
 
@@ -32,6 +32,8 @@ Every claim below is an association measured against BBO's own era-normalised ba
 | interviewer question | 8 | 24 | 1.80 | 1.87 | 0.96× | 50% | 0.776 | EARLY_SIGNAL | 2025-05-10 → 2026-09-08 |
 | host statement | 8 | 24 | 1.17 | 1.90 | 0.61× | 63% | 0.043 | MODERATE_SIGNAL | 2025-05-10 → 2026-09-08 |
 
+**Possible coding-model artifact:** host statement — the group was coded almost entirely by one model while the baseline was not. Treat as unconfirmed.
+
 - **text first** — supporting: #29 The double massage while getting d***ed down… @wetkittyci… (2.56); #47 Nah her face at the end is pure comedy 😂😂😂 (2.40); #206 “That’s why certain people explore...”. The truth nobody … (2.25)
   - contradicting: #35 Why is it that as soon as some Jersey heads get a little … (1.52); #64 Accountability is a hard thing to come by:  shoutout @fat… (1.62); #12 Saying you want to breed a chick mid stroke is crazy work… (1.71)
 - **interviewer question** — supporting: #342 Today we catchup with @mingluanli as she spills the tea o… (0.39); #441 Today we do an on the spot interview with rising Boston a… (0.43); #199 Today we’re locked in with the one and only @thetriximont… (0.47)
@@ -58,6 +60,8 @@ Every claim below is an association measured against BBO's own era-normalised ba
 | Social media | 9 | 691 | 1.13 | 0.99 | 1.14× | 56% | 0.734 | EARLY_SIGNAL | 2021-06-03 → 2026-09-13 |
 | Clout & fame | 38 | 662 | 1.05 | 0.99 | 1.07× | 55% | 0.752 | MODERATE_SIGNAL | 2021-06-03 → 2026-09-13 |
 
+**Possible coding-model artifact:** Creator business, Cheating, Beauty, Honesty & trust, Nightlife & experiences, Music industry — the group was coded almost entirely by one model while the baseline was not. Treat as unconfirmed.
+
 - **Communication** — supporting: #947 Niggas be scared to talk during sex.. meanwhile I’m like … (10.00); #77 Nah I def wasn’t familiar with your game @desirae.perry.7… (8.55); #107 She gave the whole manual 😭🔊 (7.44)
   - contradicting: #328 Shoutout to @flight23white_  for sitting down with us and… (0.31); #117 Is that bad communication or are men supposed to just fig… (2.18); #193 Talking in the bedroom…  yay or nay?  We discuss… (2.82)
 - **Sex** — supporting: #206 “That’s why certain people explore...”. The truth nobody … (10.00); #695 Today Steph shares a crazy bedroom story.. never heard of… (10.00); #947 Niggas be scared to talk during sex.. meanwhile I’m like … (10.00)
@@ -79,6 +83,8 @@ Every claim below is an association measured against BBO's own era-normalised ba
 | Sex | 45 | 895 | 0.95 | 0.90 | 1.05× | 53% | 0.407 | MODERATE_SIGNAL | 2021-06-03 → 2026-09-13 |
 | Relationships | 79 | 861 | 0.94 | 0.90 | 1.04× | 52% | 0.915 | MODERATE_SIGNAL | 2021-06-03 → 2026-09-13 |
 | Friendships | 23 | 917 | 0.89 | 0.91 | 0.98× | 52% | 0.889 | MODERATE_SIGNAL | 2021-06-03 → 2026-09-13 |
+
+**Possible coding-model artifact:** Cheating, Music industry, Honesty & trust, Creator business, Nightlife & experiences, Beauty — the group was coded almost entirely by one model while the baseline was not. Treat as unconfirmed.
 
 - **Cheating** — supporting: #836 Whats a worse way for you partner to cheat?  Giving the p… (9.61); #42 Not the Fashion Nova packages flying everywhere!! 😂 He’s… (3.48); #911 Snitch on your girlfriend .. or cheat on ya man?  We deba… (2.71)
   - contradicting: #827 “I recognized the background from another girls story.” C… (0.10); #155 See what we had to deal with yall?  Really had to end the… (0.16); #633 Title says it all lol.. but was she right though cause he… (0.16)

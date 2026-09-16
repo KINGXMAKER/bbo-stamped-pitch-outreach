@@ -31,6 +31,9 @@ export type Finding = {
   dateRange: { from: string; to: string } | null;
   supporting: Example[];
   contradicting: Example[];
+  /** Which model coded the group's posts — a pattern carried by one model is a possible artifact. */
+  modelMix: Record<string, number>;
+  modelConfound: boolean;
 };
 
 export type Answer = { number: number; question: string; findings: Finding[]; note: string | null; insufficient: string | null };
@@ -45,10 +48,45 @@ function examples(facts: ContentFact[], metric: MetricKey, order: 'desc' | 'asc'
     .slice(0, limit);
 }
 
+/** contentId → "provider/model" of the run that produced its current hook coding. */
+function codingModels(db: Db): Map<number, string> {
+  return new Map(
+    all<{ content_id: number; model: string }>(
+      db,
+      `SELECT a.content_id, COALESCE(r.provider, '?') || '/' || COALESCE(r.model, '?') AS model
+       FROM content_attributes a JOIN ai_runs r ON r.id = a.ai_run_id
+       WHERE a.source = 'ai' AND a.key = 'hook_type'`
+    ).map((row) => [row.content_id, row.model])
+  );
+}
+
+let modelCache: { db: Db; map: Map<number, string> } | null = null;
+const modelsFor = (db: Db) => (modelCache?.db === db ? modelCache.map : (modelCache = { db, map: codingModels(db) }).map);
+
+function mix(db: Db, facts: ContentFact[]): Record<string, number> {
+  const models = modelsFor(db);
+  const out: Record<string, number> = {};
+  for (const f of facts) {
+    const m = models.get(f.contentId);
+    if (m) out[m] = (out[m] ?? 0) + 1;
+  }
+  return out;
+}
+
 function toFinding(db: Db, e: PatternEvaluation, claim: string): Finding {
   const c = e.comparison;
   const positive = (c.effect ?? 1) >= 1;
+  const groupMix = mix(db, e.groupFacts);
+  const restMix = mix(db, e.restFacts);
+  const share = (m: Record<string, number>) => {
+    const total = Object.values(m).reduce((a, b) => a + b, 0);
+    return total ? Math.max(...Object.values(m)) / total : 0;
+  };
+  // Flag only when the corpus really is mixed and the group is not.
+  const modelConfound = Object.keys(restMix).length > 1 && Object.keys(groupMix).length > 0 && share(groupMix) >= 0.85 && share(restMix) < 0.7;
   return {
+    modelMix: groupMix,
+    modelConfound,
     claim,
     metric: e.pattern.metric,
     metricLabel: METRIC_DEFS[e.pattern.metric].label,
@@ -129,7 +167,7 @@ function overRepresented(facts: ContentFact[], labelSet: string[], keys: string[
 
 export type IntelligenceReport = {
   generatedAt: string;
-  corpus: { total: number; coded: number; comparable: number; mediaAnalysed: number; humanValidated: number; classes: Record<string, { coded: number; target: number }> };
+  corpus: { total: number; coded: number; comparable: number; mediaAnalysed: number; humanValidated: number; classes: Record<string, { coded: number; target: number }>; codedBy: Record<string, number> };
   answers: Answer[];
   overRepresentedBreakouts: ReturnType<typeof overRepresented>;
   overRepresentedLosers: ReturnType<typeof overRepresented>;
@@ -139,6 +177,7 @@ export type IntelligenceReport = {
 };
 
 export function buildIntelligenceReport(db: Db): IntelligenceReport {
+  modelCache = null;
   const facts = comparable(loadFacts(db));
   const coverage = coverageStats(db);
   const corpus = corpusStatus(db);
@@ -259,6 +298,7 @@ export function buildIntelligenceReport(db: Db): IntelligenceReport {
       mediaAnalysed: coverage.mediaAnalyzed,
       humanValidated: coverage.humanValidated,
       classes: Object.fromEntries(Object.entries(corpus.classes).map(([k, v]) => [k, { coded: v.coded, target: v.target }])),
+      codedBy: [...modelsFor(db).values()].reduce<Record<string, number>>((acc, m) => ({ ...acc, [m]: (acc[m] ?? 0) + 1 }), {}),
     },
     answers,
     overRepresentedBreakouts: breakoutAttrs.slice(0, 12),
@@ -279,7 +319,8 @@ export function renderIntelligenceReport(r: IntelligenceReport): string {
   lines.push('# BBO intelligence review', '', `Generated ${r.generatedAt.slice(0, 16).replace('T', ' ')} UTC`, '');
   lines.push(
     `**Corpus.** ${r.corpus.coded} posts structurally coded out of ${r.corpus.total} in the catalogue (${r.corpus.mediaAnalysed} with media, ${r.corpus.comparable} comparable, ${r.corpus.humanValidated} human-validated). ` +
-      `By class: ${Object.entries(r.corpus.classes).map(([k, v]) => `${k} ${v.coded}/${v.target}`).join(', ')}.`,
+      `By class: ${Object.entries(r.corpus.classes).map(([k, v]) => `${k} ${v.coded}/${v.target}`).join(', ')}. ` +
+      `Coded by: ${Object.entries(r.corpus.codedBy).map(([m, n]) => `${m} ${n}`).join(', ') || '—'}.`,
     ''
   );
   lines.push('Every claim below is an association measured against BBO\'s own era-normalised baseline — not a causal statement. Effect is the group median divided by the baseline median.', '');
@@ -294,6 +335,8 @@ export function renderIntelligenceReport(r: IntelligenceReport): string {
         );
       }
       lines.push('');
+      const confounded = a.findings.filter((f) => f.modelConfound).map((f) => f.claim);
+      if (confounded.length) lines.push(`**Possible coding-model artifact:** ${confounded.join(', ')} — the group was coded almost entirely by one model while the baseline was not. Treat as unconfirmed.`, '');
       for (const f of a.findings.slice(0, 3)) {
         if (!f.supporting.length) continue;
         lines.push(`- **${f.claim}** — supporting: ${f.supporting.map((e) => `#${e.contentId} ${e.title} (${e.value?.toFixed(2)})`).join('; ')}`);

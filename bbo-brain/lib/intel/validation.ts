@@ -76,7 +76,10 @@ export function codedRows(db: Db, filter: { status?: ValidationStatus } = {}): C
  * winners would tell us nothing about how the AI codes a flop.
  */
 export function validationSample(db: Db, size = 25): CodedRow[] {
-  const rows = codedRows(db, { status: 'UNREVIEWED' });
+  // Posts where two models substantially disagreed are the most informative
+  // reviews available, so they go first; the stratified quotas fill the rest.
+  const disputed = new Set(all<{ content_id: number }>(db, `SELECT DISTINCT content_id FROM coding_escalations WHERE outcome = 'human_review'`).map((r) => r.content_id));
+  const rows = codedRows(db, { status: 'UNREVIEWED' }).sort((a, b) => Number(disputed.has(b.contentId)) - Number(disputed.has(a.contentId)));
   const quota: Record<CorpusClass, number> = {
     winner: Math.round(size * 0.35),
     loser: Math.round(size * 0.3),
@@ -186,6 +189,15 @@ export function codingAccuracy(db: Db) {
       })
       .sort((a, b) => (a.agreement ?? 1) - (b.agreement ?? 1)),
   };
+}
+
+/** Agreement with human review, per provider/model and attribute — the dataset that picks coding models. */
+export function accuracyByModel(db: Db): Array<{ model: string; key: string; reviewed: number; agreed: number; agreement: number }> {
+  return all<{ model: string; key: string; reviewed: number; agreed: number }>(
+    db,
+    `SELECT COALESCE(ai_provider, '?') || '/' || COALESCE(ai_model, '?') AS model, key, COUNT(*) AS reviewed, SUM(agreed) AS agreed
+     FROM coding_agreement GROUP BY model, key HAVING COUNT(*) > 0 ORDER BY model, key`
+  ).map((r) => ({ ...r, agreement: r.reviewed ? r.agreed / r.reviewed : 0 }));
 }
 
 /** "How much of BBO's historical content does BBO BRAIN actually understand?" */
