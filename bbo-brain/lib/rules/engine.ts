@@ -51,7 +51,8 @@ export function generateRuleProposals(db: Db): ProposalRunResult {
   const result: ProposalRunResult = { considered: 0, proposed: 0, attachedToExistingRule: 0 };
   const lessons = all<{ id: number; text: string; category: string; status: string; confidence_label: string; sample_size: number | null; effect: number | null; direction: string | null; pattern_json: string | null; metrics_json: string | null; origin: string }>(
     db,
-    `SELECT * FROM lessons WHERE status = 'SUPPORTED'`
+    // Lessons mined before content buckets existed pooled venue promos with interview clips; they never become rules.
+    `SELECT * FROM lessons WHERE status = 'SUPPORTED' AND (pattern_json IS NULL OR json_extract(pattern_json, '$.bucket') IS NOT NULL)`
   );
   const activeRules = all<{ id: number; pattern_json: string | null }>(db, `SELECT id, pattern_json FROM rules WHERE status = 'active' AND pattern_json IS NOT NULL`);
 
@@ -220,7 +221,9 @@ export function detectRuleChallenges(db: Db, now = new Date()): ChallengeRunResu
     `SELECT id, code, pattern_json, current_version_id FROM rules WHERE status = 'active' AND pattern_json IS NOT NULL`
   )) {
     const raw = parseJson<Pattern & { expected?: 'higher' | 'lower' }>(rule.pattern_json, null as never);
-    const pattern = parsePattern(rule.pattern_json);
+    const parsed = parsePattern(rule.pattern_json);
+    // Seeded editorial rules describe interview clips; test them inside core interview content, never pooled.
+    const pattern = parsed ? { ...parsed, bucket: parsed.bucket ?? 'CORE_INTERVIEW_CONTENT' } : null;
     if (!pattern || !rule.current_version_id) continue;
     result.rulesChecked++;
     const expected = raw?.expected ?? get<{ direction: string }>(db, 'SELECT l.direction FROM rule_proposals p JOIN lessons l ON l.id = p.lesson_id WHERE p.pattern_json = ? LIMIT 1', rule.pattern_json)?.direction;

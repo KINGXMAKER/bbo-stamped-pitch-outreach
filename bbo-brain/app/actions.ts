@@ -13,6 +13,8 @@ import { decideEditSession, linkPublishedContent, runEditSession } from '@/lib/i
 import { setLessonStatus, type LessonStatus } from '@/lib/intel/lessons';
 import { generateOpportunities, setOpportunityStatus } from '@/lib/intel/opportunities';
 import { recordReview } from '@/lib/intel/validation';
+import { recordBucketLabel } from '@/lib/intel/buckets';
+import { CONTENT_BUCKETS, type ContentBucket } from '@/lib/seed/reference';
 import { buildMonthlyReview, buildWeeklyReview } from '@/lib/intel/reviews';
 import type { MetricKey } from '@/lib/intel/dataset';
 import { decideChallenge, decideProposal, type ChallengeDecision, type ProposalDecision } from '@/lib/rules/engine';
@@ -271,4 +273,24 @@ export async function reviewCodingAction(fd: FormData) {
           : 'Approved. AI coding kept as-is.';
   });
   finish('/validation', error, message);
+}
+
+/**
+ * Human content-bucket labels for the classifier benchmark. One form, many
+ * posts: each labelled post becomes a human attribute, which is the only
+ * reference the bucket benchmark is scored against.
+ */
+export async function labelBucketsAction(fd: FormData) {
+  let saved = 0;
+  const error = await attempt(() => {
+    const db = getDb();
+    for (const [key, value] of fd.entries()) {
+      if (!key.startsWith('b_') || typeof value !== 'string' || !value) continue;
+      const contentId = Number(key.slice(2));
+      if (!Number.isInteger(contentId) || !(CONTENT_BUCKETS as readonly string[]).includes(value)) continue;
+      recordBucketLabel(db, contentId, value as ContentBucket, str(fd, `f_${contentId}`) || null);
+      saved++;
+    }
+  });
+  finish('/validation/buckets', error, `${saved} bucket label${saved === 1 ? '' : 's'} saved. Scores below use only human labels.`);
 }

@@ -69,6 +69,7 @@ function seeded(): Db {
       title: confession ? `Confession ${i}` : `Question ${i}`,
       franchiseSlug: 'podcast',
     });
+    setAttribute(db, contentId, 'content_bucket', 'CORE_INTERVIEW_CONTENT', 'human', 1);
     setAttribute(db, contentId, 'hook_type', confession ? 'confession' : 'question', 'human', 1);
     setAttribute(db, contentId, 'duration_bucket', confession ? '16-30s' : '46-60s', 'measured', 1);
     db.prepare(`INSERT INTO content_topics (content_id, topic_id, is_primary, source) SELECT ?, id, 1, 'human' FROM topics WHERE slug = ?`).run(contentId, confession ? 'dating' : 'money');

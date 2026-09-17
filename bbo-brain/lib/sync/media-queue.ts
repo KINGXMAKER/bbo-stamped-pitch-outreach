@@ -1,4 +1,5 @@
 import { all, get, type Db } from '@/lib/db/client';
+import { bucketOf, bucketRank, isIgnoredBucket } from '@/lib/intel/buckets';
 import { loadFacts, type ContentFact } from '@/lib/intel/dataset';
 
 /**
@@ -110,7 +111,8 @@ const isVideo = (f: ContentFact) => f.format === 'reel' || f.format === 'video' 
 
 /** What the first intelligence corpus looks like right now, per class. */
 export function corpusStatus(db: Db, now = new Date()) {
-  const facts = loadFacts(db);
+  // Baddie of the Month and ignored posts are not part of the intelligence corpus.
+  const facts = loadFacts(db).filter((f) => !isIgnoredBucket(bucketOf(f)));
   const state = loadState(db);
   const classes: CorpusClass[] = ['winner', 'loser', 'average', 'unusual'];
   const counts = Object.fromEntries(classes.map((c) => [c, { coded: 0, withMedia: 0, total: 0, target: CORPUS_TARGETS[c], remaining: CORPUS_TARGETS[c] }])) as Record<
@@ -162,6 +164,8 @@ export function buildQueue(db: Db, opts: QueueOptions): QueueItem[] {
     .map((f) => {
       const s = state.get(f.contentId);
       if (!s) return null;
+      // No media work, coding or analysis is spent on ignored buckets.
+      if (isIgnoredBucket(bucketOf(f))) return null;
       const needsMedia = !s.hasMedia || (isVideo(f) && !s.hasTranscript);
       // Coding reads a transcript or hook frames; a thumbnail alone gives the model nothing to code.
       const needsCoding = !s.coded && (s.hasTranscript || s.hasFrames);
@@ -187,7 +191,8 @@ export function buildQueue(db: Db, opts: QueueOptions): QueueItem[] {
       };
     })
     .filter((x): x is { fact: ContentFact; item: QueueItem } => x !== null)
-    .sort((a, b) => a.item.tier - b.item.tier || (a.item.publishedAt < b.item.publishedAt ? 1 : -1));
+    // Core interview content first, then posts not yet bucketed, then BBO Stamped; tier and recency within that.
+    .sort((a, b) => bucketRank(bucketOf(a.fact)) - bucketRank(bucketOf(b.fact)) || a.item.tier - b.item.tier || (a.item.publishedAt < b.item.publishedAt ? 1 : -1));
 
   const franchiseCap = Math.max(4, Math.ceil(opts.limit * 0.35));
   const guestCap = 3;
@@ -213,37 +218,43 @@ export function buildQueue(db: Db, opts: QueueOptions): QueueItem[] {
     return true;
   };
 
-  // Interleave the classes instead of draining winners first: a run that stops
-  // early (daily cap, quota, an interrupted job) must still leave a corpus that
-  // can contrast winners against losers, not 40 winners and nothing to compare.
+  // Bucket priority dominates: core interview content fills the run first, then
+  // posts not yet bucketed, then BBO Stamped. Inside each bucket the outcome
+  // classes are interleaved, so a run that stops early (daily cap, API quota,
+  // an interrupted job) still leaves a corpus that can contrast winners against
+  // losers — not 40 winners and nothing to compare them with.
   const balanced: CorpusClass[] = ['winner', 'loser', 'average', 'unusual'];
-  const byClass = new Map<CorpusClass, Array<{ fact: ContentFact; item: QueueItem }>>(balanced.map((c) => [c, []]));
-  for (const entry of candidates) byClass.get(entry.item.corpusClass)?.push(entry);
-  const cursor = new Map<CorpusClass, number>(balanced.map((c) => [c, 0]));
   const takenOf = new Map<CorpusClass, number>(balanced.map((c) => [c, 0]));
+  const ranks = [...new Set(candidates.map((c) => bucketRank(bucketOf(c.fact))))].sort((a, b) => a - b);
 
-  while (picked.length < opts.limit) {
-    let best: CorpusClass | null = null;
-    let bestShare = Number.POSITIVE_INFINITY;
-    for (const cls of balanced) {
-      const weight = opts.ignoreTargets ? 1 : status.classes[cls].remaining;
-      if (weight <= 0 || (cursor.get(cls) ?? 0) >= (byClass.get(cls)?.length ?? 0)) continue;
-      const share = (takenOf.get(cls) ?? 0) / weight;
-      if (share < bestShare) {
-        bestShare = share;
-        best = cls;
+  for (const rank of ranks) {
+    const group = candidates.filter((c) => bucketRank(bucketOf(c.fact)) === rank);
+    const byClass = new Map<CorpusClass, Array<{ fact: ContentFact; item: QueueItem }>>(balanced.map((c) => [c, []]));
+    for (const entry of group) byClass.get(entry.item.corpusClass)?.push(entry);
+    const cursor = new Map<CorpusClass, number>(balanced.map((c) => [c, 0]));
+    while (picked.length < opts.limit) {
+      let best: CorpusClass | null = null;
+      let bestShare = Number.POSITIVE_INFINITY;
+      for (const cls of balanced) {
+        const weight = opts.ignoreTargets ? 1 : status.classes[cls].remaining;
+        if (weight <= 0 || (cursor.get(cls) ?? 0) >= (byClass.get(cls)?.length ?? 0)) continue;
+        const share = (takenOf.get(cls) ?? 0) / weight;
+        if (share < bestShare) {
+          bestShare = share;
+          best = cls;
+        }
       }
+      if (!best) break;
+      const list = byClass.get(best)!;
+      let i = cursor.get(best)!;
+      let took = false;
+      while (i < list.length && !took) {
+        took = accept(list[i], false);
+        i++;
+      }
+      cursor.set(best, i);
+      if (took) takenOf.set(best, (takenOf.get(best) ?? 0) + 1);
     }
-    if (!best) break;
-    const list = byClass.get(best)!;
-    let i = cursor.get(best)!;
-    let took = false;
-    while (i < list.length && !took) {
-      took = accept(list[i], false);
-      i++;
-    }
-    cursor.set(best, i);
-    if (took) takenOf.set(best, (takenOf.get(best) ?? 0) + 1);
   }
 
   // Targets met, caps hit, or nothing left in a class: fill the rest in plain

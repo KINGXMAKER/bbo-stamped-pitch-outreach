@@ -246,7 +246,7 @@ export function suggestExperimentsFromLessons(db: Db, limit = 3): number {
     db,
     `SELECT id, text, pattern_json, sample_size FROM lessons
      WHERE origin = 'pattern_mining' AND status IN ('NEW','OBSERVING') AND confidence_label = 'EARLY_SIGNAL'
-       AND related_experiment_id IS NULL AND pattern_json IS NOT NULL
+       AND related_experiment_id IS NULL AND pattern_json IS NOT NULL AND json_extract(pattern_json, '$.bucket') IS NOT NULL
      ORDER BY ABS(LN(COALESCE(effect, 1))) DESC LIMIT ?`,
     limit * 3
   );

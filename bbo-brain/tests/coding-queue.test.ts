@@ -430,7 +430,7 @@ describe('intelligence review', () => {
     for (let i = 0; i < 24; i++) {
       const old = i < 12;
       const { contentId, postId } = makePost(db, { publishedAt: new Date(Date.UTC(old ? 2023 : 2026, 2, 1 + i)).toISOString(), durationS: 30 });
-      run(db, `INSERT INTO content_attributes (content_id, key, value_text, source) VALUES (?, 'hashtag_bucket', ?, 'measured')`, contentId, old ? '5+' : '0');
+      run(db, `INSERT INTO content_attributes (content_id, key, value_text, source) VALUES (?, 'hashtag_bucket', ?, 'measured'), (?, 'content_bucket', 'CORE_INTERVIEW_CONTENT', 'human')`, contentId, old ? '5+' : '0', contentId);
       writeMetrics(db, postId, { reach: 1000, shares: old ? 2 : 20, comments: 5, saves: 5, likes: 50 }, new Date(Date.UTC(old ? 2023 : 2026, 3, 1 + i)).toISOString(), 'test');
     }
     computeAllScores(db, activeScoreVersion(db), new Date(Date.UTC(2026, 5, 1)));
@@ -438,7 +438,9 @@ describe('intelligence review', () => {
     const report = buildIntelligenceReport(db);
     const q11 = report.answers.find((a) => a.number === 11)!;
 
+    expect(report.scope.inScope).toBe(24); // the comparison really ran on these posts
     expect(q11.findings.some((f) => f.claim.startsWith('R-014'))).toBe(false);
+    expect(q11.insufficient).toContain('R-014 — era-confounded');
   });
 });
 

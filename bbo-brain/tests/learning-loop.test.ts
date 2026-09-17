@@ -14,6 +14,7 @@ const DAY = 86_400_000;
 function addPost(db: Db, i: number, start: number, hook: 'confession' | 'question', strong: boolean) {
   const publishedAt = new Date(start + i * 3 * DAY).toISOString();
   const { contentId, postId } = makePost(db, { publishedAt, durationS: 30 });
+  setAttribute(db, contentId, 'content_bucket', 'CORE_INTERVIEW_CONTENT', 'human', 1);
   setAttribute(db, contentId, 'hook_type', hook, 'human', 1);
   const jitter = (i % 5) * 0.03;
   writeMetrics(
@@ -45,7 +46,7 @@ function confessionScoreLesson(db: Db) {
   return get<{ id: number; status: string; confidence_label: string; metrics_json: string }>(
     db,
     `SELECT id, status, confidence_label, metrics_json FROM lessons
-     WHERE pattern_json = '{"key":"hook_type","group":"confession","compare":null,"metric":"performance_score","franchise":null}'`
+     WHERE pattern_json = '{"key":"hook_type","group":"confession","compare":null,"metric":"performance_score","franchise":null,"bucket":"CORE_INTERVIEW_CONTENT"}'`
   );
 }
 

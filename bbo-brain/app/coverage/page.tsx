@@ -4,6 +4,8 @@ import { Empty, PageHead, Section, Stat } from '@/components/ui';
 import { getDb } from '@/lib/db/client';
 import { accuracyByModel, codingAccuracy, coverageStats } from '@/lib/intel/validation';
 import { corpusStatus } from '@/lib/sync/media-queue';
+import { all } from '@/lib/db/client';
+import { BUCKET_DEFINITIONS, CONTENT_BUCKETS } from '@/lib/seed/reference';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Data Coverage' };
@@ -30,6 +32,13 @@ export default function Coverage() {
   const c = coverageStats(db);
   const corpus = corpusStatus(db);
   const accuracy = codingAccuracy(db);
+  const bucketRows = all<{ bucket: string | null; source: string | null; n: number }>(
+    db,
+    `SELECT a.value_text AS bucket, a.source, COUNT(*) AS n FROM content c
+     LEFT JOIN content_attribute_current a ON a.content_id = c.id AND a.key = 'content_bucket'
+     WHERE c.is_demo = 0 GROUP BY a.value_text, a.source`
+  );
+  const unbucketed = bucketRows.filter((r) => r.bucket === null).reduce((a, r) => a + r.n, 0);
   const modelRows = accuracyByModel(db);
   const byModel = Object.values(
     modelRows.reduce<Record<string, { model: string; reviewed: number; agreed: number }>>((acc, r) => {
@@ -65,6 +74,23 @@ export default function Coverage() {
         <Stat label="Structurally coded" value={c.coded} sub={`${c.analysed} with deep analysis`} />
         <Stat label="Human validated" value={c.humanValidated} sub={`${c.unreviewed} awaiting review`} />
       </div>
+
+      <Section title="Content buckets" note={`${unbucketed} of ${c.total} posts not yet bucketed`}>
+        <div className="grid-4">
+          {CONTENT_BUCKETS.map((b) => {
+            const rows = bucketRows.filter((r) => r.bucket === b);
+            const n = rows.reduce((a, r) => a + r.n, 0);
+            return (
+              <div key={b} className="card stack-xs">
+                <span className="card-title">{BUCKET_DEFINITIONS[b].label}</span>
+                <span className="mono white">{n.toLocaleString()}</span>
+                <span className="xs muted">{rows.map((r) => `${r.n} ${r.source}`).join(' · ') || 'none yet'}</span>
+                <span className="xs muted">{BUCKET_DEFINITIONS[b].analysed ? `priority ${BUCKET_DEFINITIONS[b].priority} · analysed` : 'not analysed'}</span>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
 
       <Section title="First intelligence corpus" note={`${corpus.coded} / ${corpus.target} coded · balanced by design`}>
         <div className="grid-2">
