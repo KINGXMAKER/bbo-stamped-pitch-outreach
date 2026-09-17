@@ -9,11 +9,13 @@ import { providerNamed, type Candidate } from '@/lib/ai/providers/registry';
 import type { ProviderName } from '@/lib/ai/providers/types';
 import { setAttribute } from '@/lib/ingest/ingest';
 import { looseConfidence, looseTextNullable } from '@/lib/ai/schema';
+import { getSetting, setSetting } from '@/lib/seed';
 import {
   BUCKET_DEFINITIONS,
   CONTENT_BUCKETS,
   INTERVIEW_FORMATS,
   LEGACY_FRANCHISE_BUCKET,
+  normalizeBucket,
   type ContentBucket,
 } from '@/lib/seed/reference';
 import type { ContentFact } from './dataset';
@@ -21,7 +23,7 @@ import type { ContentFact } from './dataset';
 /**
  * Content buckets: the scope every performance comparison runs inside.
  *
- * CORE_INTERVIEW_CONTENT >>> BBO_STAMPED >>> BADDIE_OF_THE_MONTH >>> OTHER_IGNORE.
+ * CORE_INTERVIEW_CONTENT >>> BBO_STAMPED >>> OTHER_IGNORE.
  * The classifier is a small, separate prompt so the whole catalogue can be
  * bucketed cheaply from caption and media type — most posts have no media.
  * AI bucket labels only reach the attribute table after a benchmark scored
@@ -34,8 +36,7 @@ export const STAMPED = 'BBO_STAMPED' as const;
 export const ANALYSED_BUCKETS: ContentBucket[] = CONTENT_BUCKETS.filter((b) => BUCKET_DEFINITIONS[b].analysed);
 
 export function bucketOf(fact: Pick<ContentFact, 'attrs'>): ContentBucket | null {
-  const v = fact.attrs.content_bucket;
-  return (CONTENT_BUCKETS as readonly string[]).includes(v) ? (v as ContentBucket) : null;
+  return normalizeBucket(fact.attrs.content_bucket);
 }
 
 export function inBucket<T extends Pick<ContentFact, 'attrs'>>(facts: T[], bucket: ContentBucket): T[] {
@@ -79,20 +80,30 @@ export function backfillLegacyBuckets(db: Db): { written: number } {
 
 // ── Classifier ───────────────────────────────────────────────────────────────
 
-export const BUCKET_PROMPT_VERSION = 'content-bucket-v1';
+export const BUCKET_PROMPT_VERSION = 'content-bucket-v3';
 
+/**
+ * v2 (2026-09-17), from the operator's 40 human labels: Baddie of the Month is
+ * OTHER_IGNORE, and posts promoting an episode or upcoming content are
+ * OTHER_IGNORE even when they show the conversation.
+ * v3: v2 over-applied the promo rule to caption-only videos (no transcript, no
+ * frame) and dropped 3 of 16 core clips. The promo rule now needs explicit
+ * promotional wording, and missing media is stated not to be evidence of a promo.
+ */
 const BUCKET_TEMPLATE = `You sort ONE BBO Instagram post into exactly one content bucket. BBO is a New York media brand: podcast, street interviews, venue promotion (BBO Stamped), and assorted social posts.
 
 BUCKETS
 ${CONTENT_BUCKETS.map((b) => `- ${b}: ${BUCKET_DEFINITIONS[b].description}`).join('\n')}
 
 RULES
-- A clip of people talking in an interview or conversation is CORE_INTERVIEW_CONTENT even if the caption promotes an episode, a guest or a series name.
+- CORE_INTERVIEW_CONTENT is a clip of the conversation itself. Caption cues such as "we discuss", "today we talk", "today we sit with", a question put to the audience about the topic, guests tagged with "ft", or podcast / relationship-talk hashtags point to a core clip. A caption that also says the full episode or interview is on YouTube does not change that.
+- Most posts come with no transcript and no frame. Missing media is NOT evidence that a post is a promo or a teaser — judge a caption-only video from its caption.
+- Choose OTHER_IGNORE for promotion only when the caption says so explicitly: highlight reels or "highlight moments", episode compilations or recaps, "new episode" / "episode out now" announcements, "new clip dropping", "coming soon", or a multi-part series post such as "Part 3 coming soon". This applies even when the post shows the conversation.
 - A clip or post whose purpose is showing or promoting a venue, business, food, drink or event experience is BBO_STAMPED, even when someone is interviewed inside the venue.
-- Use BADDIE_OF_THE_MONTH only for Baddie of the Month features.
-- When a post is not clearly one of the first three, choose OTHER_IGNORE.
+- Baddie of the Month features and their behind-the-scenes are OTHER_IGNORE, as are Group Chat carousels, Clock It quotes, announcements and behind-the-scenes posts.
+- When a post is neither core nor Stamped by these rules, choose OTHER_IGNORE.
 - interview_format: "podcast" for sit-down / studio / panel conversations, "street_interview" for mic-on-the-street questions to passers-by; null when the bucket is not CORE_INTERVIEW_CONTENT or the setting cannot be told.
-- Judge from the evidence given (media type, caption, transcript excerpt, frame). Do not quote explicit language.
+- Do not quote explicit language.
 
 Return JSON only: {"content_bucket": one of ${CONTENT_BUCKETS.join(' | ')}, "interview_format": "podcast" | "street_interview" | null, "confidence": "low" | "medium" | "high", "reason": "under 20 words"}`;
 
@@ -184,7 +195,7 @@ export async function classifyBucket(
  * legacy evidence, and reels with none — where most unknown interview clips are.
  * Deterministic, so the same sample can be re-scored after labelling.
  */
-export function bucketBenchmarkSample(db: Db, size = 40): number[] {
+export function bucketBenchmarkSample(db: Db, size = 40, exclude: number[] = []): number[] {
   const rows = all<{ id: number; media_type: string; legacy: string | null; published_at: string }>(
     db,
     `SELECT c.id, pp.media_type, (SELECT value_text FROM content_attributes a WHERE a.content_id = c.id AND a.key = 'franchise' AND a.source IN ('heuristic','audit_v2') LIMIT 1) AS legacy, pp.published_at
@@ -205,11 +216,12 @@ export function bucketBenchmarkSample(db: Db, size = 40): number[] {
     { take: size, match: (r) => r.legacy === null && r.media_type === 'VIDEO' },
   ];
   const picked: number[] = [];
+  const excluded = new Set(exclude);
   for (const stratum of strata) {
     let taken = 0;
     for (const r of rows) {
       if (picked.length >= size || taken >= stratum.take) break;
-      if (picked.includes(r.id) || !stratum.match(r)) continue;
+      if (picked.includes(r.id) || excluded.has(r.id) || !stratum.match(r)) continue;
       picked.push(r.id);
       taken++;
     }
@@ -221,8 +233,8 @@ export function humanBucketLabels(db: Db): Map<number, { bucket: ContentBucket; 
   const formats = new Map(all<{ content_id: number; value_text: string }>(db, `SELECT content_id, value_text FROM content_attributes WHERE key = 'interview_format' AND source = 'human'`).map((r) => [r.content_id, r.value_text]));
   return new Map(
     all<{ content_id: number; value_text: string }>(db, `SELECT content_id, value_text FROM content_attributes WHERE key = 'content_bucket' AND source = 'human'`)
-      .filter((r) => (CONTENT_BUCKETS as readonly string[]).includes(r.value_text))
-      .map((r) => [r.content_id, { bucket: r.value_text as ContentBucket, format: formats.get(r.content_id) ?? null }])
+      .filter((r) => normalizeBucket(r.value_text) !== null)
+      .map((r) => [r.content_id, { bucket: normalizeBucket(r.value_text)!, format: formats.get(r.content_id) ?? null }])
   );
 }
 
@@ -311,11 +323,28 @@ function insertBucketRow(
   );
 }
 
+/**
+ * Posts whose human labels shaped a prompt version. Scoring that version on them
+ * would grade the prompt on its own homework, so they are reported as in-sample
+ * and never count toward the rollout gate.
+ */
+export function promptDesignSamples(db: Db): Record<string, number[]> {
+  return getSetting<Record<string, number[]> | undefined>(db, 'bucket_prompt_design') ?? {};
+}
+
+export function recordPromptDesignSample(db: Db, version: string, contentIds: number[]): void {
+  setSetting(db, 'bucket_prompt_design', { ...promptDesignSamples(db), [version]: [...new Set(contentIds)] });
+}
+
 export type BucketBenchmarkRow = {
   benchmarkRunId: number;
   label: string;
   provider: string;
   model: string;
+  promptVersion: string;
+  /** Labelled posts that were used to write this prompt version — shown, never gated on. */
+  inSampleLabelled: number;
+  inSampleAccuracy: number | null;
   posts: number;
   validRate: number;
   taxonomyViolations: number;
@@ -333,13 +362,14 @@ export type BucketBenchmarkRow = {
 };
 
 export function bucketBenchmarkReport(db: Db, runIds?: number[]): BucketBenchmarkRow[] {
-  const runs = all<{ id: number; name: string; provider: string; model: string }>(
+  const runs = all<{ id: number; name: string; provider: string; model: string; params_json: string }>(
     db,
     runIds?.length
-      ? `SELECT id, name, provider, model FROM benchmark_runs WHERE task_class = 'content_bucket' AND id IN (${runIds.map(() => '?').join(',')}) ORDER BY id`
-      : `SELECT id, name, provider, model FROM benchmark_runs WHERE task_class = 'content_bucket' ORDER BY id`,
+      ? `SELECT id, name, provider, model, params_json FROM benchmark_runs WHERE task_class = 'content_bucket' AND id IN (${runIds.map(() => '?').join(',')}) ORDER BY id`
+      : `SELECT id, name, provider, model, params_json FROM benchmark_runs WHERE task_class = 'content_bucket' ORDER BY id`,
     ...(runIds ?? [])
   );
+  const design = promptDesignSamples(db);
   const human = humanBucketLabels(db);
   const legacy = new Map(
     all<{ content_id: number; value_text: string }>(db, `SELECT content_id, value_text FROM content_attributes WHERE key = 'content_bucket' AND source IN ('heuristic','audit_v2')`).map((r) => [r.content_id, r.value_text])
@@ -350,6 +380,10 @@ export function bucketBenchmarkReport(db: Db, runIds?: number[]): BucketBenchmar
       'SELECT content_id, status, output_json, taxonomy_violations_json, latency_ms, estimated_cost_usd, input_tokens, output_tokens FROM benchmark_codings WHERE benchmark_run_id = ?',
       r.id
     );
+    const promptVersion = parseJson<{ promptVersion?: string }>(r.params_json, {}).promptVersion ?? 'content-bucket-v1';
+    const inSample = new Set(design[promptVersion] ?? []);
+    let inSampleLabelled = 0;
+    let inSampleCorrect = 0;
     const confusion: Record<string, Record<string, number>> = {};
     let labelled = 0;
     let correct = 0;
@@ -363,9 +397,13 @@ export function bucketBenchmarkReport(db: Db, runIds?: number[]): BucketBenchmar
     for (const row of rows) {
       if (row.status !== 'ok' || !row.output_json) continue;
       const out = parseJson<{ content_bucket?: string; interview_format?: string | null }>(row.output_json, {});
-      const predicted = out.content_bucket ?? '—';
+      // Older runs may name a bucket that has since been merged; score it as its current bucket.
+      const predicted = normalizeBucket(out.content_bucket) ?? '—';
       const truth = human.get(row.content_id);
-      if (truth) {
+      if (truth && inSample.has(row.content_id)) {
+        inSampleLabelled++;
+        if (predicted === truth.bucket) inSampleCorrect++;
+      } else if (truth) {
         labelled++;
         confusion[truth.bucket] ??= {};
         confusion[truth.bucket][predicted] = (confusion[truth.bucket][predicted] ?? 0) + 1;
@@ -381,7 +419,7 @@ export function bucketBenchmarkReport(db: Db, runIds?: number[]): BucketBenchmar
       const heuristic = legacy.get(row.content_id);
       if (heuristic) {
         legacyCompared++;
-        if (heuristic === predicted) legacyAgreed++;
+        if (normalizeBucket(heuristic) === predicted) legacyAgreed++;
       }
     }
     const latencies = rows.map((x) => x.latency_ms ?? 0).sort((a, b) => a - b);
@@ -391,6 +429,9 @@ export function bucketBenchmarkReport(db: Db, runIds?: number[]): BucketBenchmar
       label: r.name,
       provider: r.provider,
       model: r.model,
+      promptVersion,
+      inSampleLabelled,
+      inSampleAccuracy: inSampleLabelled ? inSampleCorrect / inSampleLabelled : null,
       posts: rows.length,
       validRate: rows.length ? rows.filter((x) => x.status === 'ok').length / rows.length : 0,
       taxonomyViolations: rows.reduce((a, b) => a + parseJson<string[]>(b.taxonomy_violations_json, []).length, 0),
@@ -415,10 +456,13 @@ export function bucketBenchmarkReport(db: Db, runIds?: number[]): BucketBenchmar
  */
 export function bucketGate(db: Db, model = brainConfig().bucketModel): { passed: boolean; reason: string; row: BucketBenchmarkRow | null } {
   const cfg = brainConfig();
-  const rows = bucketBenchmarkReport(db).filter((r) => r.model === model);
+  // Only the prompt that would actually run counts, scored on posts that did not shape it.
+  const rows = bucketBenchmarkReport(db).filter((r) => r.model === model && r.promptVersion === BUCKET_PROMPT_VERSION);
   const row = rows.sort((a, b) => b.humanLabelled - a.humanLabelled || b.benchmarkRunId - a.benchmarkRunId)[0] ?? null;
-  if (!row) return { passed: false, reason: `no bucket benchmark exists for ${model}`, row };
-  if (row.humanLabelled < cfg.bucketGateMinLabels) return { passed: false, reason: `only ${row.humanLabelled} of the benchmark posts are human-labelled (need ${cfg.bucketGateMinLabels})`, row };
+  if (!row) return { passed: false, reason: `no ${BUCKET_PROMPT_VERSION} benchmark exists for ${model}`, row };
+  if (row.humanLabelled < cfg.bucketGateMinLabels) {
+    return { passed: false, reason: `only ${row.humanLabelled} held-out posts are human-labelled for ${BUCKET_PROMPT_VERSION} (need ${cfg.bucketGateMinLabels})`, row };
+  }
   if ((row.accuracy ?? 0) < cfg.bucketGateMinAccuracy) return { passed: false, reason: `accuracy ${Math.round((row.accuracy ?? 0) * 100)}% is below ${Math.round(cfg.bucketGateMinAccuracy * 100)}%`, row };
   if (row.coreRecall !== null && row.coreRecall < cfg.bucketGateMinCoreRecall) {
     return { passed: false, reason: `core interview recall ${Math.round(row.coreRecall * 100)}% is below ${Math.round(cfg.bucketGateMinCoreRecall * 100)}% — it would hide core clips`, row };

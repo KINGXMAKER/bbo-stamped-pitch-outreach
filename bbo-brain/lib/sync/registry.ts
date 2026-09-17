@@ -270,11 +270,13 @@ export const JOBS: Record<string, JobDef> = {
       const provider = providerNamed(cfg.bucketProvider as 'gemini' | 'openrouter' | 'nvidia');
       if (!provider) return { recordsSeen: 0, recordsWritten: legacy.written, summary: `bucket provider ${cfg.bucketProvider} is not configured` };
       const limit = Math.max(1, Number(ctx.params.limit ?? 200));
-      // Human and legacy labels stand; an AI label from the current prompt version is not redone.
+      // Human labels stand. Legacy heuristics do not: on the labelled sample they were
+      // right 17/23 against the validated classifier's 18/23, so it re-reads those posts too.
+      // An AI label from the current prompt version is not redone.
       const ids = all<{ id: number }>(
         ctx.db,
         `SELECT c.id FROM content c WHERE c.is_demo = 0
-           AND NOT EXISTS (SELECT 1 FROM content_attributes a WHERE a.content_id = c.id AND a.key = 'content_bucket' AND a.source IN ('human','heuristic','audit_v2'))
+           AND NOT EXISTS (SELECT 1 FROM content_attributes a WHERE a.content_id = c.id AND a.key = 'content_bucket' AND a.source = 'human')
            AND NOT EXISTS (SELECT 1 FROM content_attributes a JOIN ai_runs r ON r.id = a.ai_run_id WHERE a.content_id = c.id AND a.key = 'content_bucket' AND a.source = 'ai' AND json_extract(r.input_json, '$.promptVersion') = ?)
          ORDER BY c.id DESC LIMIT ?`,
         BUCKET_PROMPT_VERSION,
@@ -293,7 +295,11 @@ export const JOBS: Record<string, JobDef> = {
       const provider = String(ctx.params.provider ?? '');
       const model = String(ctx.params.model ?? '');
       if (!provider || !model) return { recordsSeen: 0, recordsWritten: 0, summary: 'Pass {"provider":"openrouter|gemini|nvidia","model":"<slug>"}' };
-      const ids = Array.isArray(ctx.params.contentIds) ? (ctx.params.contentIds as number[]) : bucketBenchmarkSample(ctx.db, Number(ctx.params.size ?? 40));
+      // {"holdout": true} draws posts never used in any earlier bucket benchmark.
+      const used = ctx.params.holdout === true
+        ? all<{ params_json: string }>(ctx.db, `SELECT params_json FROM benchmark_runs WHERE task_class = 'content_bucket'`).flatMap((r) => (JSON.parse(r.params_json) as { contentIds?: number[] }).contentIds ?? [])
+        : [];
+      const ids = Array.isArray(ctx.params.contentIds) ? (ctx.params.contentIds as number[]) : bucketBenchmarkSample(ctx.db, Number(ctx.params.size ?? 40), used);
       const r = await runBucketBenchmark(ctx.db, { provider: provider as 'gemini' | 'openrouter' | 'nvidia', model, label: String(ctx.params.label ?? `${provider}:${model}`) }, ids, { budgetUsd: Number(ctx.params.budgetUsd ?? 0.25) });
       const [row] = bucketBenchmarkReport(ctx.db, [r.benchmarkRunId]);
       const scored = row.humanLabelled ? `accuracy ${Math.round((row.accuracy ?? 0) * 100)}% on ${row.humanLabelled} human labels` : 'awaiting human labels';

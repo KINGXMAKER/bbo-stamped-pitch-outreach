@@ -32,7 +32,7 @@ export default async function BucketLabelling({ searchParams }: { searchParams: 
   const labelled = posts.filter((p) => human.has(p.id)).length;
   const report = bucketBenchmarkReport(db);
   const gate = bucketGate(db);
-  const chosen = report.filter((r) => r.model === cfg.bucketModel).sort((a, b) => b.humanLabelled - a.humanLabelled)[0];
+  const chosen = report.filter((r) => r.model === cfg.bucketModel).sort((a, b) => b.benchmarkRunId - a.benchmarkRunId)[0];
 
   return (
     <>
@@ -59,13 +59,14 @@ export default async function BucketLabelling({ searchParams }: { searchParams: 
       </div>
 
       {report.some((r) => r.humanLabelled > 0) ? (
-        <Section title="Candidates scored against your labels" note="human labels only">
+        <Section title="Candidates scored against your labels" note="held-out human labels only · in-sample = posts whose labels shaped that prompt, never counted by the gate">
           <div className="table-wrap">
             <table className="data">
               <thead>
                 <tr>
                   <th>Model</th>
-                  <th className="num">Labelled</th>
+                  <th>Prompt</th>
+                  <th className="num">Held-out labels</th>
                   <th className="num">Accuracy</th>
                   <th className="num">Core recall</th>
                   <th className="num">Core precision</th>
@@ -73,12 +74,14 @@ export default async function BucketLabelling({ searchParams }: { searchParams: 
                   <th className="num">Valid</th>
                   <th className="num">Median</th>
                   <th className="num">$/100</th>
+                  <th className="num">In-sample</th>
                 </tr>
               </thead>
               <tbody>
                 {report.map((r) => (
                   <tr key={r.benchmarkRunId}>
                     <td className="small white">{r.label}</td>
+                    <td className="mono xs muted">{r.promptVersion}</td>
                     <td className="num">{r.humanLabelled}</td>
                     <td className="num">{pct(r.accuracy)}</td>
                     <td className="num">{pct(r.coreRecall)}</td>
@@ -87,6 +90,7 @@ export default async function BucketLabelling({ searchParams }: { searchParams: 
                     <td className="num">{pct(r.validRate)}</td>
                     <td className="num">{(r.medianLatencyMs / 1000).toFixed(1)}s</td>
                     <td className="num">{r.costPer100Usd.toFixed(3)}</td>
+                    <td className="num muted">{r.inSampleLabelled ? `${pct(r.inSampleAccuracy)} of ${r.inSampleLabelled}` : '—'}</td>
                   </tr>
                 ))}
               </tbody>

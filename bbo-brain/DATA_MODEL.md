@@ -13,7 +13,7 @@ Schema: `db/migrations/0001_init.ts`, then `0002_coding.ts` … `0005_model_qual
 | `content_attribute_current` (view) | The winning value per attribute | Precedence **human > measured > ai > audit_v2 > heuristic**. A re-sync can never undo a human decision. |
 | `transcripts` | Text + timestamped segments per content and source | `UNIQUE(content_id, source)`. |
 | `content_people`, `content_topics` | Guests/hosts/editors and topics per content, with source + confidence | |
-| `content_bucket`, `interview_format` (attributes) | The analysis scope: CORE_INTERVIEW_CONTENT, BBO_STAMPED, BADDIE_OF_THE_MONTH or OTHER_IGNORE, plus podcast / street_interview inside core | Human > AI (only after the rollout gate) > audit > heuristic. Patterns carry `bucket`; nothing is compared across buckets. |
+| `content_bucket`, `interview_format` (attributes) | The analysis scope: CORE_INTERVIEW_CONTENT, BBO_STAMPED or OTHER_IGNORE (Baddie of the Month merged into OTHER_IGNORE, migration 0006), plus podcast / street_interview inside core | Human > AI (only after the rollout gate) > audit > heuristic. Patterns carry `bucket`; nothing is compared across buckets. |
 | `content_comments` | Comment text | `UNIQUE(post, external_id)`; archive comments use a content hash id. |
 
 Pipeline bookkeeping lives on `content` itself: `media_fetched_at` (media +

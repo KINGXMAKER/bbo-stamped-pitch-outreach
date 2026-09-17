@@ -4,7 +4,7 @@ import { setProviderFetch } from '@/lib/ai/providers/registry';
 import { setGenerator } from '@/lib/ai/run';
 import { setAttribute, writeMetrics } from '@/lib/ingest/ingest';
 import { activeScoreVersion, computeAllScores } from '@/lib/scoring/engine';
-import { backfillLegacyBuckets, BucketSchema, bucketBenchmarkReport, bucketGate, humanBucketLabels, recordBucketLabel } from '@/lib/intel/buckets';
+import { backfillLegacyBuckets, BUCKET_PROMPT_VERSION, BucketSchema, bucketBenchmarkReport, bucketGate, humanBucketLabels, recordBucketLabel, recordPromptDesignSample } from '@/lib/intel/buckets';
 import { mineLessons } from '@/lib/intel/lessons';
 import { buildIntelligenceReport } from '@/lib/intel/report';
 import { runPipeline } from '@/lib/sync/registry';
@@ -57,8 +57,14 @@ function post(db: Db, i: number, opts: { franchise?: string; bucket?: string; st
   return contentId;
 }
 
-function addBenchmark(db: Db, model: string, predictions: Array<[number, string, string | null]>) {
-  const runId = run(db, `INSERT INTO benchmark_runs (name, task_class, provider, model) VALUES (?, 'content_bucket', 'openrouter', ?)`, model, model).lastId;
+function addBenchmark(db: Db, model: string, predictions: Array<[number, string, string | null]>, promptVersion = BUCKET_PROMPT_VERSION) {
+  const runId = run(
+    db,
+    `INSERT INTO benchmark_runs (name, task_class, provider, model, params_json) VALUES (?, 'content_bucket', 'openrouter', ?, ?)`,
+    model,
+    model,
+    JSON.stringify({ contentIds: predictions.map((p) => p[0]), promptVersion })
+  ).lastId;
   for (const [contentId, bucket, format] of predictions) {
     run(db, `INSERT INTO benchmark_codings (benchmark_run_id, content_id, status, output_json) VALUES (?, ?, 'ok', ?)`, runId, contentId, JSON.stringify({ content_bucket: bucket, interview_format: format, confidence: 'high' }));
   }
@@ -68,6 +74,7 @@ function addBenchmark(db: Db, model: string, predictions: Array<[number, string,
 describe('content bucket taxonomy', () => {
   it('rejects a bucket outside the four', () => {
     expect(BucketSchema.safeParse({ content_bucket: 'PODCAST', interview_format: null, confidence: 'high' }).success).toBe(false);
+    expect(BucketSchema.safeParse({ content_bucket: 'BADDIE_OF_THE_MONTH', interview_format: null, confidence: 'high' }).success).toBe(false); // merged into OTHER_IGNORE
     expect(BucketSchema.safeParse({ content_bucket: 'CORE_INTERVIEW_CONTENT', interview_format: 'studio', confidence: 'high' }).data?.interview_format).toBeNull();
   });
 
@@ -151,7 +158,32 @@ describe('bucket benchmark and rollout gate', () => {
     const db = testDb();
     const ids = labelled(db);
     addBenchmark(db, 'candidate/model', ids.map((id, i) => [id, i < 3 ? 'CORE_INTERVIEW_CONTENT' : i === 3 ? 'BBO_STAMPED' : 'OTHER_IGNORE', null]));
-    expect(bucketGate(db).reason).toContain('only 5 of the benchmark posts are human-labelled (need 30)');
+    expect(bucketGate(db).reason).toContain(`only 5 held-out posts are human-labelled for ${BUCKET_PROMPT_VERSION} (need 30)`);
+  });
+
+  it('never lets a prompt pass on the labels that were used to write it', () => {
+    const db = testDb();
+    const ids = labelled(db);
+    const perfect = ids.map((id, i): [number, string, string | null] => [id, i < 3 ? 'CORE_INTERVIEW_CONTENT' : i === 3 ? 'BBO_STAMPED' : 'OTHER_IGNORE', null]);
+    // A perfect score from the previous prompt version does not clear the current one…
+    addBenchmark(db, 'candidate/model', perfect, 'content-bucket-v1');
+    expect(bucketGate(db).passed).toBe(false);
+    // …and neither does a perfect score on the posts that shaped the current version.
+    recordPromptDesignSample(db, BUCKET_PROMPT_VERSION, ids);
+    const runId = addBenchmark(db, 'candidate/model', perfect);
+    const [row] = bucketBenchmarkReport(db, [runId]);
+
+    expect(row.humanLabelled).toBe(0);
+    expect(row.inSampleLabelled).toBe(5);
+    expect(row.inSampleAccuracy).toBe(1);
+    expect(bucketGate(db).passed).toBe(false);
+  });
+
+  it('scores an old run that named a since-merged bucket as its current bucket', () => {
+    const db = testDb();
+    const ids = labelled(db);
+    const runId = addBenchmark(db, 'candidate/model', [[ids[4], 'BADDIE_OF_THE_MONTH', null]], 'content-bucket-v1');
+    expect(bucketBenchmarkReport(db, [runId])[0].accuracy).toBe(1); // human said OTHER_IGNORE
   });
 
   it('does not call a model to bucket the catalogue until the gate passes', async () => {

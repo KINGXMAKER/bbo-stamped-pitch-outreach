@@ -12,14 +12,17 @@ Related: [ARCHITECTURE.md](ARCHITECTURE.md) · [Content buckets](#0-content-buck
 ## 0. Content buckets
 
 BBO BRAIN no longer runs a large franchise system. Every post belongs to one of
-four buckets, and the order is the priority for all analysis spend:
+three buckets, and the order is the priority for all analysis spend:
 
 | Bucket | What it is | Analysed |
 |---|---|---|
-| **CORE_INTERVIEW_CONTENT** | Podcast clips **and** street interview clips — one bucket. `interview_format` (podcast / street_interview) is kept only for optional comparison later. | Highest priority: structured coding, mining, experiments, recommendations, the intelligence review |
+| **CORE_INTERVIEW_CONTENT** | Standalone podcast clips **and** street interview clips — one bucket. `interview_format` (podcast / street_interview) is kept only for optional comparison later. Still core when the caption points to the full episode. | Highest priority: structured coding, mining, experiments, recommendations, the intelligence review |
 | **BBO_STAMPED** | Venue and business content: photos, carousels, reviews, voiceovers, venue interviews, recaps, food and drink, promo skits, activations, ads | Yes, but never pooled with core content |
-| **BADDIE_OF_THE_MONTH** | Baddie of the Month carousels and posts | Identified only |
-| **OTHER_IGNORE** | BBO Group Chat, Clock It quotes, announcements, BTS, everything else | No coding, benchmarking, experiments or recommendations |
+| **OTHER_IGNORE** | Posts promoting an episode or upcoming content (highlight reels, compilations, teasers, "new clip dropping", "Part 3 coming soon"), Baddie of the Month, BBO Group Chat, Clock It, announcements, BTS, everything else | No coding, benchmarking, experiments or recommendations |
+
+Baddie of the Month was a fourth bucket until 2026-09-17, when the operator labelled
+every Baddie of the Month post Other; it was merged (migration 0006), and older
+benchmark output naming it is scored as OTHER_IGNORE.
 
 How it is enforced:
 
@@ -27,31 +30,34 @@ How it is enforced:
   proposals and experiment suggestions only come from bucket-scoped lessons; seeded
   editorial rules are tested inside core interview content.
 - **Work queue.** Media and coding go to core interview content first, then posts not yet
-  bucketed (most turn out to be core), then Stamped. Baddie of the Month and OTHER_IGNORE
-  get no media work or coding and do not count toward the corpus.
+  bucketed, then Stamped. OTHER_IGNORE gets no media work or coding and does not count
+  toward the corpus.
 - **What to make next** and the **intelligence review** are core interview content only,
-  and the review states how many posts each other bucket contributed that were excluded.
+  and the review states how many posts from other buckets it excluded.
 
 Assigning buckets:
 
-1. **Legacy evidence** (`content-buckets` job, every day): unambiguous caption-heuristic
-   and audit franchise evidence is mapped — podcast / street interview → core,
-   Stamped → Stamped, Baddie of the Month → itself, Group Chat / Clock It / announcements
-   / news / faceoff → OTHER_IGNORE. Behind-the-scenes, After Hours, Court, Mirror Talk and
-   Baddie IRL are left to the classifier, because those names do not say what the post is.
-2. **Classifier** (`content-bucket-v1`): a small separate prompt that works from caption
-   and media type — most posts have no media — and uses the first frame and the first 45
-   seconds of transcript when they exist. About $0.01 per 100 posts.
-3. **Humans** (`/validation/buckets`): a stratified 40-post sample covering every bucket.
-   Model guesses are hidden while labelling so they cannot anchor the label.
+1. **Legacy evidence** (`content-buckets` job): unambiguous caption-heuristic and audit
+   franchise evidence is mapped as a starting point. On the labelled sample the
+   heuristics were right 17/23 — the validated classifier 18/23 — so once the gate
+   passes, the classifier re-reads heuristic-labelled posts too. Only human labels stand.
+2. **Classifier** (`content-bucket-v3`): a small separate prompt from caption and media
+   type, with the first frame and 45 s of transcript when they exist. About $0.01 per
+   100 posts. Version history is in `lib/intel/buckets.ts`: v2 added the operator's
+   Baddie-of-the-Month and promo decisions; v3 stopped v2 from treating caption-only
+   videos as promos (it had dropped 3 of 16 core clips).
+3. **Humans** (`/validation/buckets`): stratified samples covering every bucket, with
+   model guesses hidden while labelling.
 
 **Rollout gate.** The bucket decides what BBO BRAIN analyses at all — a classifier that
-drops core clips into OTHER_IGNORE would silently hide the content that matters most. AI
-bucket labels are written to the catalogue only after the configured model's benchmark,
-scored against human labels, reaches `BUCKET_GATE_MIN_LABELS` (30) labels, accuracy ≥
-`BUCKET_GATE_MIN_ACCURACY` (85%) and core-interview recall ≥ `BUCKET_GATE_MIN_CORE_RECALL`
-(90%). Until then the job maps legacy evidence only and says why AI is held.
-`{"force": true}` overrides the gate deliberately.
+drops core clips into OTHER_IGNORE would silently hide the content that matters most.
+AI bucket labels reach the catalogue only when the configured model, **on the current
+prompt version**, clears the gate on **held-out** human labels: posts whose labels were
+used to write that prompt version are recorded (`bucket_prompt_design` setting), shown as
+in-sample, and never counted. Thresholds: `BUCKET_GATE_MIN_LABELS` (30),
+`BUCKET_GATE_MIN_ACCURACY` (85%), `BUCKET_GATE_MIN_CORE_RECALL` (90%). New held-out
+samples come from `benchmark-buckets {"holdout": true}`, which never reuses a benchmarked
+post. `{"force": true}` on `content-buckets` overrides the gate deliberately.
 
 ## 1. The priority queue (`lib/sync/media-queue.ts`)
 
