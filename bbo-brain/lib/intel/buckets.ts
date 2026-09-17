@@ -115,12 +115,56 @@ export const BucketSchema = z.object({
 });
 export type BucketResult = z.infer<typeof BucketSchema>;
 
+/**
+ * Earlier prompt versions, frozen verbatim as they were sent, so a version can be
+ * re-benchmarked on labels collected after it was written. v1 predates every
+ * human label, which makes its score on any labelled post an uncontaminated one.
+ */
+const FROZEN_PROMPTS: Record<string, { template: string; buckets: readonly string[] }> = {
+  'content-bucket-v1': {
+    buckets: ['CORE_INTERVIEW_CONTENT', 'BBO_STAMPED', 'BADDIE_OF_THE_MONTH', 'OTHER_IGNORE'],
+    template: `You sort ONE BBO Instagram post into exactly one content bucket. BBO is a New York media brand: podcast, street interviews, venue promotion (BBO Stamped), and assorted social posts.
+
+BUCKETS
+- CORE_INTERVIEW_CONTENT: Short clips of people talking on camera in an interview or conversation: sit-down podcast clips (podcast set, mics, panel, guest conversation) and street interview clips (mic-on-the-street questions to passers-by).
+- BBO_STAMPED: Business and venue content: venue/business photos, carousels, reviews, voiceovers, venue interviews, recap videos, food and drink footage, promotional skits, activations, business promotion and ad-oriented posts.
+- BADDIE_OF_THE_MONTH: Baddie of the Month carousels and posts spotlighting a woman as that month's feature.
+- OTHER_IGNORE: Everything else: BBO Group Chat "your friend texts you" carousels, Clock It quote posts, announcements, promos for episodes or events, behind-the-scenes, memes and miscellaneous posts.
+
+RULES
+- A clip of people talking in an interview or conversation is CORE_INTERVIEW_CONTENT even if the caption promotes an episode, a guest or a series name.
+- A clip or post whose purpose is showing or promoting a venue, business, food, drink or event experience is BBO_STAMPED, even when someone is interviewed inside the venue.
+- Use BADDIE_OF_THE_MONTH only for Baddie of the Month features.
+- When a post is not clearly one of the first three, choose OTHER_IGNORE.
+- interview_format: "podcast" for sit-down / studio / panel conversations, "street_interview" for mic-on-the-street questions to passers-by; null when the bucket is not CORE_INTERVIEW_CONTENT or the setting cannot be told.
+- Judge from the evidence given (media type, caption, transcript excerpt, frame). Do not quote explicit language.
+
+Return JSON only: {"content_bucket": one of CORE_INTERVIEW_CONTENT | BBO_STAMPED | BADDIE_OF_THE_MONTH | OTHER_IGNORE, "interview_format": "podcast" | "street_interview" | null, "confidence": "low" | "medium" | "high", "reason": "under 20 words"}`,
+  },
+};
+
+export const BUCKET_PROMPT_VERSIONS = [...Object.keys(FROZEN_PROMPTS)];
+
+function promptFor(version: string): { template: string; schema: z.ZodType<BucketResult> } {
+  const frozen = FROZEN_PROMPTS[version];
+  if (!frozen) return { template: BUCKET_TEMPLATE, schema: BucketSchema };
+  // A frozen version may name a bucket that has since been merged: validate against
+  // that version's own list, then map the answer onto today's buckets.
+  const schema = z.object({
+    content_bucket: z.enum(frozen.buckets as [string, ...string[]]).transform((b) => normalizeBucket(b) as ContentBucket),
+    interview_format: BucketSchema.shape.interview_format,
+    confidence: BucketSchema.shape.confidence,
+    reason: BucketSchema.shape.reason,
+  }) as unknown as z.ZodType<BucketResult>;
+  return { template: frozen.template, schema };
+}
+
 function readImage(path: string | null): { mimeType: string; base64: string } | null {
   if (!path || !existsSync(path)) return null;
   return { mimeType: 'image/jpeg', base64: readFileSync(path).toString('base64') };
 }
 
-export function bucketRequest(db: Db, contentId: number): { prompt: string; images: Array<{ mimeType: string; base64: string }>; input: Record<string, unknown> } | null {
+export function bucketRequest(db: Db, contentId: number, promptVersion = BUCKET_PROMPT_VERSION): { prompt: string; images: Array<{ mimeType: string; base64: string }>; input: Record<string, unknown> } | null {
   const row = get<{ caption: string | null; media_type: string | null; product: string | null; duration_s: number | null; thumb_path: string | null; frames_json: string | null }>(
     db,
     `SELECT pp.caption, pp.media_type, pp.media_product_type AS product, c.duration_s, c.thumb_path, c.frames_json
@@ -146,16 +190,24 @@ export function bucketRequest(db: Db, contentId: number): { prompt: string; imag
       image ? 'FRAME: first frame attached.' : 'FRAME: not available.',
     ].join('\n\n'),
     images: image ? [image] : [],
-    input: { contentId, hasTranscript: Boolean(transcript), hasImage: Boolean(image), promptVersion: BUCKET_PROMPT_VERSION },
+    input: { contentId, mediaType: row.media_type, hasTranscript: Boolean(transcript), hasImage: Boolean(image), promptVersion },
   };
+}
+
+/** A video the classifier could only judge from its caption — no transcript, no frame. */
+export function isCaptionOnlyVideo(input: Record<string, unknown>): boolean {
+  return input.mediaType === 'VIDEO' && !input.hasTranscript && !input.hasImage;
 }
 
 export async function classifyBucket(
   db: Db,
   contentId: number,
-  opts: { pin?: Candidate; budget?: BudgetGuard; write?: boolean; capture?: Parameters<typeof runAi>[0]['capture'] } = {}
-): Promise<{ result: BucketResult; runId: number; retries: number } | null> {
-  const request = bucketRequest(db, contentId);
+  opts: { pin?: Candidate; budget?: BudgetGuard; write?: boolean; promptVersion?: string; capture?: Parameters<typeof runAi>[0]['capture'] } = {}
+): Promise<{ result: BucketResult; runId: number; retries: number; held?: boolean } | null> {
+  const version = opts.promptVersion ?? BUCKET_PROMPT_VERSION;
+  if (opts.write && version !== BUCKET_PROMPT_VERSION) throw new Error('Only the current bucket prompt version may write labels.');
+  const { template, schema } = promptFor(version);
+  const request = bucketRequest(db, contentId, version);
   if (!request) return null;
   const images = opts.pin && !opts.pin.provider.acceptsImages(opts.pin.model) ? undefined : request.images;
   const out = await runAi({
@@ -165,12 +217,12 @@ export async function classifyBucket(
     pin: opts.pin,
     budget: opts.budget,
     promptSlug: 'content-bucket',
-    template: BUCKET_TEMPLATE,
-    schemaVersion: BUCKET_PROMPT_VERSION,
-    system: BUCKET_TEMPLATE,
+    template,
+    schemaVersion: version,
+    system: template,
     prompt: request.prompt,
     images,
-    schema: BucketSchema,
+    schema,
     input: request.input,
     temperature: 0,
     maxOutputTokens: 200,
@@ -178,6 +230,12 @@ export async function classifyBucket(
     confidence: (d) => d.confidence,
     capture: opts.capture,
   });
+  if (opts.write && isCaptionOnlyVideo(request.input) && out.data.content_bucket !== CORE) {
+    // Measured 2026-09-17 on 30 held-out labels: caption-only videos lost 36% of core
+    // clips to OTHER_IGNORE; with transcript and frames, none. So a caption-only video
+    // is never filed away as ignored — it stays unbucketed, and in the work queue.
+    return { result: out.data, runId: out.runId, retries: out.retries, held: true };
+  }
   if (opts.write) {
     const conf = out.data.confidence === 'high' ? 0.8 : out.data.confidence === 'medium' ? 0.6 : 0.4;
     run(db, `DELETE FROM content_attributes WHERE content_id = ? AND key IN ('content_bucket','interview_format') AND source = 'ai'`, contentId);
@@ -249,8 +307,9 @@ export async function runBucketBenchmark(
   db: Db,
   target: { provider: ProviderName; model: string; label?: string },
   contentIds: number[],
-  opts: { budgetUsd?: number } = {}
+  opts: { budgetUsd?: number; promptVersion?: string } = {}
 ): Promise<{ benchmarkRunId: number; ok: number; failed: number }> {
+  const promptVersion = opts.promptVersion ?? BUCKET_PROMPT_VERSION;
   const provider = providerNamed(target.provider);
   if (!provider) throw new Error(`Provider ${target.provider} is not configured.`);
   const benchmarkRunId = run(
@@ -260,7 +319,7 @@ export async function runBucketBenchmark(
     'content_bucket',
     target.provider,
     target.model,
-    json({ contentIds, promptVersion: BUCKET_PROMPT_VERSION }),
+    json({ contentIds, promptVersion }),
     'Content bucket classifier benchmark.'
   ).lastId;
   const budget = new BudgetGuard(db, opts.budgetUsd ?? 0.25);
@@ -269,7 +328,7 @@ export async function runBucketBenchmark(
   for (const contentId of contentIds) {
     const attempts: Array<{ text: string; latencyMs: number; usage: { inputTokens?: number; outputTokens?: number }; estimatedCost: number }> = [];
     try {
-      const r = await classifyBucket(db, contentId, { pin: { provider, model: target.model }, budget, capture: (a) => attempts.push(a) });
+      const r = await classifyBucket(db, contentId, { pin: { provider, model: target.model }, budget, promptVersion, capture: (a) => attempts.push(a) });
       if (!r) continue;
       insertBucketRow(db, benchmarkRunId, contentId, 'ok', r.result, attempts, null, r.retries);
       ok++;
