@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { all, get, json, nowIso, parseJson, run, tx, type Db } from '@/lib/db/client';
 import { comparable, loadFacts, type ContentFact, type MetricKey } from './dataset';
 import {
@@ -198,6 +199,34 @@ function nextLessonCode(db: Db): string {
   return `L-${String(n).padStart(3, '0')}`;
 }
 
+/** Latest metric observation per content, for evidence fingerprints. */
+function latestObservations(db: Db): Map<number, string> {
+  return new Map(
+    all<{ content_id: number; observed: string }>(
+      db,
+      `SELECT pp.content_id, MAX(cm.observed_at) AS observed FROM content_metrics cm JOIN platform_posts pp ON pp.id = cm.platform_post_id GROUP BY pp.content_id`
+    ).map((r) => [r.content_id, r.observed])
+  );
+}
+
+/**
+ * What this particular comparison actually looked at: which posts it measured
+ * and how fresh their metrics were. A lesson's supportive streak only grows when
+ * this changes, so re-running mining — or re-labelling the same posts with a
+ * different model — is never counted as new supporting evidence. New posts
+ * entering the comparison, or a newer metric sync, are.
+ */
+export function evidenceVersion(e: PatternEvaluation, latestObserved: Map<number, string>): string {
+  const ids = [...new Set([...e.groupFacts, ...e.restFacts].map((f) => f.contentId))].sort((a, b) => a - b);
+  let newest = '';
+  for (const id of ids) {
+    const at = latestObserved.get(id) ?? '';
+    if (at > newest) newest = at;
+  }
+  const digest = createHash('sha1').update(ids.join(',')).digest('hex').slice(0, 12);
+  return `${newest}|n:${ids.length}|${digest}`;
+}
+
 export type MiningResult = { testsRun: number; created: number; updated: number; imported: number; candidates: number };
 
 /**
@@ -246,13 +275,7 @@ export function mineLessons(db: Db, options: { asOf?: string } = {}): MiningResu
   const evaluated = patterns.map((p) => ({ ...p, e: evaluatePattern(facts, p.pattern, options) }));
   result.testsRun = evaluated.length;
   const labels = loadLabels(db);
-  // "New evidence" = a newer metric observation OR newly coded posts entering
-  // the comparison. Re-running mining on unchanged data changes neither.
-  const version = get<{ observed: string | null; coded: number }>(
-    db,
-    'SELECT (SELECT MAX(observed_at) FROM content_metrics) AS observed, (SELECT COUNT(*) FROM content WHERE coded_at IS NOT NULL) AS coded'
-  );
-  const dataVersion = `${version?.observed ?? ''}|coded:${version?.coded ?? 0}`;
+  const latestObserved = latestObservations(db);
   // False-discovery control across the whole pass: hundreds of comparisons will
   // produce "significant" noise unless the bar rises with the number of tests.
   const pValues = evaluated.map((x) => x.e.comparison.pValue).filter((p): p is number => typeof p === 'number');
@@ -267,7 +290,7 @@ export function mineLessons(db: Db, options: { asOf?: string } = {}): MiningResu
     const bigScoreEffect = e.pattern.metric === 'performance_score' && c.effect !== null && (c.effect >= 1.5 || c.effect <= 0.67) && c.confidence !== 'INSUFFICIENT_DATA' && p <= fdr20;
     if (!known && !((c.verdict === 'positive' || c.verdict === 'negative') && (strongEnough || bigScoreEffect))) continue;
     result.candidates++;
-    const outcome = upsertPatternLesson(db, e, result.testsRun, category, labels, dataVersion);
+    const outcome = upsertPatternLesson(db, e, result.testsRun, category, labels, evidenceVersion(e, latestObserved));
     if (outcome === 'created') result.created++;
     if (outcome === 'updated') result.updated++;
   }
@@ -292,7 +315,7 @@ export function mineLessons(db: Db, options: { asOf?: string } = {}): MiningResu
       run(
         db,
         'UPDATE lessons SET metrics_json = ?, status = ?, last_evaluated_at = ?, updated_at = ? WHERE id = ?',
-        json({ ...meta, brainCheck: evidenceJson(e, result.testsRun, 0, dataVersion) }),
+        json({ ...meta, brainCheck: evidenceJson(e, result.testsRun, 0, evidenceVersion(e, latestObserved)) }),
         status,
         nowIso(),
         nowIso(),
