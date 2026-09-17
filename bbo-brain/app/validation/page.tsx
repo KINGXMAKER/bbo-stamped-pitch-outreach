@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Notice } from '@/components/notice';
 import { Empty, fmtDate, LabelChip, PageHead, ScoreBadge, Section, Stat, Thumb } from '@/components/ui';
 import { all, getDb } from '@/lib/db/client';
-import { codedRows, codingAccuracy, validationSample, type ValidationStatus } from '@/lib/intel/validation';
+import { codedRows, codingAccuracy, currentValidationBatch, validationSample, type ValidationStatus } from '@/lib/intel/validation';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Coding Validation' };
@@ -14,7 +14,9 @@ export default async function Validation({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const db = getDb();
   const size = Math.min(60, Math.max(5, Number(sp.size) || 25));
-  const sample = validationSample(db, size);
+  const frozen = currentValidationBatch(db);
+  // A frozen batch is the queue until it is finished; after that, a rolling sample.
+  const sample = frozen && frozen.reviewed < frozen.rows.length ? frozen.rows : validationSample(db, size);
   const reviewed = codedRows(db).filter((r) => r.status !== 'UNREVIEWED');
   const accuracy = codingAccuracy(db);
   const thumbs = new Set(all<{ id: number }>(db, 'SELECT id FROM content WHERE thumb_path IS NOT NULL').map((r) => r.id));
@@ -95,8 +97,12 @@ export default async function Validation({ searchParams }: { searchParams: Promi
       ) : null}
 
       <Section
-        title="Review queue"
-        note={`${sample.length} posts · balanced across outcome, franchise and topic`}
+        title={frozen && frozen.reviewed < frozen.rows.length ? 'Validation batch' : 'Review queue'}
+        note={
+          frozen && frozen.reviewed < frozen.rows.length
+            ? `${frozen.reviewed} of ${frozen.rows.length} reviewed · frozen ${fmtDate(frozen.batch.createdAt, true)} · balanced across outcome, franchise, topic and hook type`
+            : `${sample.length} posts · balanced across outcome, franchise and topic`
+        }
       >
         {sample.length ? (
           <div className="table-wrap">
