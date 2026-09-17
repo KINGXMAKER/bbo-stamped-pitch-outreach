@@ -2,6 +2,7 @@ const { getGeminiClient, getSupabaseClient, getMatchingExamples, generateText, i
 const { initAiRequest, finishAiRequest, summarizeTrace } = require('./ai/request-context');
 const { createGenerationLog, insertPitchHistoryRows } = require('./ai/generation-log');
 const { getDailySpendUsd } = require('./ai/spend');
+const { EMAIL_SUBJECT, buildEmailBody } = require('./lib/email-template');
 
 // Long, plain-language gap explanations used on the normal (non-condensed) path.
 // Four consolidated gaps — never insulting, always framed as an opportunity.
@@ -27,7 +28,7 @@ function buildSystemPrompt(voicePrompt, examplesPrompt, condensed) {
 
 THE STRATEGY IS FIXED BY THE USER: the Primary Gap is the angle the pitch must lead with; the Secondary Gap supports it once. Do NOT invent a different gap. COMBINE the two gaps into ONE natural angle — never two repetitive paragraphs. If they're the same or the Secondary is blank, make the point once. Never insulting — frame the gap as an opportunity.
 
-EMAIL: open with "Hey, you came across my Instagram feed" flowing straight into the specific thing that caught your attention, then the intro + gap observation, one short paragraph on what a BBO Stamped activation is (curated creators, real reactions/reels/photos, content the business can repost/run as ads), then one clear CTA. Concise, personalized, specific, easy to skim — roughly 150–275 words (up to ~325 only if the content genuinely needs it). Never pad.
+EMAIL: the email body is a FIXED template in the founder's own words, assembled by the server. You write ONLY "email_page_observation": the clause that completes "I checked your page out and …" — a short compliment about something specific on their feed, then what's missing, following the Primary Gap.
 DM: (1) open with "Hey, you came across my Instagram feed" flowing naturally into the specific thing you noticed about their business; (2) then the line "I run BBO Stamped, where I curate creators to raise social media presence and drive foot traffic to places like yours."; (3) the gap in first person ("as I browsed your page I noticed..."); (4) one line on what BBO Stamped brings with a quick parenthetical of content types (think photos, skits, recaps, voiceovers, etc.), then how it makes people pull up. Short and native to Instagram — 80-120 words, hard cap 140; never a mini email. Do not include the CTA link in dm_version (that is dm_part2).
 
 Plain-spoken, founder-led, never corporate. No made-up facts about the business.
@@ -65,14 +66,11 @@ HARD RULES:
 - FORBIDDEN PHRASES — never use any of these AI/agency-sounding lines: "aspirational lifestyle", "discerning women", "consequently", "ignite social proof", "client journey", "full creative production", "premium lens", "social presence isn't optional anymore", "discover you, trust you, decide to spend money with you", "I hope this message finds you well", "elevate your digital presence", "synergy", "unlock your brand potential", "comprehensive marketing solutions".
 - Do NOT include any Instagram reel/post links or "past activations" links anywhere in the output.
 
-EMAIL STRUCTURE (mandatory):
-1. Opener, used as the very first words: "Hey, you came across my Instagram feed" — continue the same sentence naturally into the specific thing about their business that caught your attention (e.g. "Hey, you came across my Instagram feed and your [specific thing] caught my attention."). Never "Hi,", never "I came across your Instagram", never "Your page came across my feed", never "I found you on Instagram".
-2. Locked intro line, used exactly (adapt only the business-type reference if truly needed): "I run BBO Stamped, where we curate creators to raise a business's social media presence and drive real foot traffic to places like yours."
-3. Then go straight into the personalized gap observation — no further warm-up sentences, no "I'll keep this short", no compliment paragraph before the gap. Any compliment is a short clause inside the gap observation.
-4. One short paragraph on what a BBO Stamped activation is (curated group of creators, one activation, real reactions/reels/photos/customer-style content, content they can repost and run as ads).
-5. The 60K / NJ–NY line — only if it reads naturally.
-6. CTA: a quick-call ask, then the BBO Stamped page link.
-- Length is a SOFT target, not a cap: roughly 150–275 words; up to ~325 only when the content genuinely needs it. Prioritize CONCISE, PERSONALIZED, SPECIFIC and EASY TO SKIM over hitting a number. Never pad to reach a length, never repeat a point. Short paragraphs, no giant blocks, one clear CTA.
+EMAIL (fixed template — do NOT write an email body):
+The server inserts your "email_page_observation" into this sentence of the founder's live email: "I checked your page out and [email_page_observation]. We should show people actually enjoying your place."
+- Write ONLY the clause after "and": lower-case start, no leading "I checked your page out", no period at the end.
+- 12–35 words. A specific, genuine compliment about their actual feed (a dish, a drink, an event, the space) as a short clause, then what's missing — framed by the Primary Gap. Plain founder voice, e.g. "the food shots are A1, but the lifestyle component is missing".
+- Never insulting, never invent facts, no BBO pitch, no link, no business-name stuffing.
 
 DM STRUCTURE (mandatory):
 1. Opener, used as the very first words: "Hey, you came across my Instagram feed" — continue the sentence naturally into the specific thing you noticed (e.g. "Hey, you came across my Instagram feed and I noticed..." or "Hey, you came across my Instagram feed and your [specific thing] caught my attention."). Warm and human, never salesy. Never "Hi,", never "I came across your Instagram", never "Your page came across my feed", never "I found you on Instagram".
@@ -169,28 +167,13 @@ async function compressField(ai, label, textValue, maxWords, deadlineMs, aiOpts)
 // budgetMs is how much time is left in the request — the two compressions run in parallel
 // (not sequentially) and are skipped entirely once there isn't enough time left to risk them,
 // since returning a slightly-over-cap draft beats blowing the whole request past the timeout.
-const EMAIL_REPAIR_WORDS = 350;
-
 async function enforceLength(ai, data, budgetMs, aiOpts) {
   const MIN_BUDGET_MS = 2500;
   if (budgetMs < MIN_BUDGET_MS) return data;
   const perCallDeadline = Math.min(6000, budgetMs - 500);
 
   const jobs = [];
-  // Email length is a soft target (~150–275, up to ~325). Only a clearly runaway email (> EMAIL_REPAIR_WORDS)
-  // is worth an extra model request; a strong 220–300 word email is left alone.
-  if (countWords(data.email_body) > EMAIL_REPAIR_WORDS) {
-    jobs.push(
-      compressField(ai, 'email', data.email_body, 275, perCallDeadline, aiOpts).then(compressed => {
-        if (compressed && countWords(compressed) <= 325) {
-          // Guarantee the fixed CTA link survived compression.
-          data.email_body = compressed.includes('bbouniverse.com/pages/bbo-stamped')
-            ? compressed
-            : compressed.trimEnd() + '\n\n' + BBO_CTA;
-        }
-      })
-    );
-  }
+  // The email is a fixed template (lib/email-template.js) and is never compressed.
   if (countWords(data.dm_version) > 140) {
     jobs.push(
       compressField(ai, 'Instagram DM', data.dm_version, 120, perCallDeadline, aiOpts).then(compressed => {
@@ -307,7 +290,7 @@ WRITING RULES:
 - The DM should feel like it came from a real person who actually looked at their page
 - Every pitch angle must reference something real about their feed or business
 - Keep all descriptions in the audit (visible_vibe, already_do_well, missing, bbo_angle, risk_caution) extremely concise (1-2 punchy sentences max)
-- Follow the mandatory EMAIL STRUCTURE and DM STRUCTURE (DM hard cap 140 words; email length is a soft target)
+- Follow the mandatory DM STRUCTURE (DM hard cap 140 words) and write only the email_page_observation clause for the email
 `;
     }
 
@@ -362,7 +345,8 @@ Return ONLY this JSON (no markdown, no backticks). Keep every field tight and us
   "three_sentence_pitch": "Three short sentences: 1) something real about their page, 2) what it's missing, 3) how BBO Stamped closes it and why that helps them",
   "dm_version": "Instagram DM, 60-100 words: open with 'Hey, you came across my Instagram feed' flowing into the specific thing you noticed, then 'I run BBO Stamped, where I curate creators to raise social media presence and drive foot traffic to places like yours.', then the gap in first person, then one line on what BBO brings (photos, recaps, lifestyle content with real people). No link in this field.",
   "dm_part2": "Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped",
-  "call_talking_points": ["3-4 quick phone talking points: the hook, what's missing, why BBO helps, the ask"]
+  "call_talking_points": ["3-4 quick phone talking points: the hook, what's missing, why BBO helps, the ask"],
+  "email_page_observation": "Clause completing 'I checked your page out and …' (12-35 words, lower-case start, no final period): a specific compliment about their feed, then what's missing"
 }`;
 
     const userPrompt = `Write a full BBO Stamped pitch for this business. Lead the entire pitch with the Primary Gap the user selected; use the Secondary Gap in support. Keep the focus on their Instagram/social feed and building social proof.
@@ -414,17 +398,16 @@ Return ONLY this JSON structure (no markdown, no backticks):
   ],
   "dm_version": "Instagram DM body — follow the DM STRUCTURE exactly. Start with 'Hey, you came across my Instagram feed' flowing naturally into the specific thing you noticed about their business, then the locked 'I run BBO Stamped...' line, then the gap in first person ('as I browsed your page I noticed...'), then one line on what BBO Stamped brings with a quick parenthetical of content types (think photos, skits, recaps, voiceovers, etc.). Do NOT include the CTA link here (that is dm_part2). 80-120 words, hard cap 140. Max 2 short paragraphs. Conversational, never a mini email.",
   "dm_part2": "Instagram DM Part 2 — fixed closing CTA linking to the BBO Stamped page.",
-  "email_subject": "Your Instagram may be costing you customers",
-  "email_body": "Full email pitch following the EMAIL STRUCTURE exactly: open with 'Hey, you came across my Instagram feed' flowing into the specific thing that caught your attention, then the locked intro line, straight into the personalized gap observation, one short paragraph on what a BBO Stamped activation is, the 60K/NJ-NY line only if natural, then one clear CTA. Soft target ~150-275 words (up to ~325 only if genuinely needed) — concise, specific, easy to skim, no padding, no repetition. MUST end with the fixed closing line: 'Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped'",
+  "email_page_observation": "ONLY the clause completing \"I checked your page out and …\" (12-35 words, lower-case start, no final period): a specific compliment about their feed, then what's missing per the Primary Gap. Example: the food shots are A1, but the lifestyle component is missing",
   "call_talking_points": ["4-5 talking points for a phone pitch"],
   "follow_up": "3-5 day follow up DM — references the first message, adds urgency, keeps it short (under 90 words). Ends with the same fixed closing line: 'Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped'",
   "internal_notes": "Brief internal note on why this pitch approach was chosen"
 }
 
-Both dm_part2 and the closing lines of email_body must be exactly this fixed CTA text (on its own lines, after the CTA paragraph in email_body):
+dm_part2 must be exactly this fixed CTA text:
 "Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped"
 
-Do NOT include any Instagram reel/post links or "past activations" links anywhere in dm_version, dm_part2, or email_body. The BBO Stamped page link above is the only link that should ever appear.`;
+Do NOT include any Instagram reel/post links or "past activations" links anywhere in dm_version, dm_part2, or email_page_observation. The BBO Stamped page link above is the only link that should ever appear.`;
 
     // JSON mode kills malformed-output parse failures. Optionally set GEMINI_MODEL_PITCH
     // (e.g. gemini-2.5-pro on a paid key) to try a stronger model first — single attempt,
@@ -508,8 +491,11 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
       }
     }
 
-    // Fixed subject line for all Stamped pitches — enforced here so the model can never drift.
-    data.email_subject = 'Your Instagram may be costing you customers';
+    // The email is the founder's fixed live template with one model-written observation; the subject is
+    // fixed too, so neither can drift.
+    data.email_subject = EMAIL_SUBJECT;
+    if (!data.email_page_observation) console.warn(`[gen ${requestId}] no email_page_observation returned — using the template's default observation`);
+    data.email_body = buildEmailBody(data.email_page_observation);
 
     if (usedCompact) {
       // Compact fallback: guarantee the DM CTA link survived, and skip the length guard entirely
