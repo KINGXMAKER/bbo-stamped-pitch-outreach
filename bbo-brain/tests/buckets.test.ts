@@ -101,6 +101,18 @@ describe('content bucket taxonomy', () => {
     expect(bucket(allAccess)).toBeNull(); // behind-the-scenes could be anything: left to the classifier
     expect(bucket(humanSaid)).toBe('BBO_STAMPED');
   });
+
+  it('retires the model format label when a human moves a post out of core', () => {
+    const db = testDb();
+    const id = post(db, 1, { franchise: 'podcast' });
+    backfillLegacyBuckets(db);
+    const format = () => get<{ v: string }>(db, `SELECT value_text v FROM content_attribute_current WHERE content_id = ? AND key = 'interview_format'`, id)?.v ?? null;
+    expect(format()).toBe('podcast');
+
+    recordBucketLabel(db, id, 'OTHER_IGNORE', null);
+    expect(format()).toBeNull();
+    expect(catalogueAccounting(db).strayFormatLabels).toBe(0);
+  });
 });
 
 describe('bucket benchmark and rollout gate', () => {
