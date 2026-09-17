@@ -3,6 +3,7 @@ import path from 'node:path';
 import { all, get, json, nowIso, parseJson, run, tx, type Db } from '@/lib/db/client';
 import { getSetting } from '@/lib/seed';
 import { comparable, loadFacts } from '@/lib/intel/dataset';
+import { currentValidationBatch } from '@/lib/intel/validation';
 import { canonicalPattern, describePattern, evaluatePattern, loadLabels, parsePattern, valueLabel, type Pattern } from '@/lib/intel/patterns';
 import { setLessonStatus } from '@/lib/intel/lessons';
 import { CONFIDENCE_ORDER, type ConfidenceLabel } from '@/lib/intel/stats';
@@ -39,7 +40,7 @@ function proposalText(db: Db, pattern: Pattern, direction: string, effect: numbe
     : `Avoid defaulting to ${subject}${scope} — associated with ${effect.toFixed(2)}x ${metric} (weaker) across ${n} posts.`;
 }
 
-export type ProposalRunResult = { considered: number; proposed: number; attachedToExistingRule: number };
+export type ProposalRunResult = { considered: number; proposed: number; attachedToExistingRule: number; blockedReason?: string };
 
 /**
  * Lesson → rule proposal, only with repeated evidence: SUPPORTED status, at least
@@ -49,6 +50,12 @@ export type ProposalRunResult = { considered: number; proposed: number; attached
 export function generateRuleProposals(db: Db): ProposalRunResult {
   const cfg = getSetting<{ minConfidence: ConfidenceLabel; minSample: number; consecutiveEvaluations: number }>(db, 'lesson_promotion');
   const result: ProposalRunResult = { considered: 0, proposed: 0, attachedToExistingRule: 0 };
+  // Lessons mined from model labels no human has checked cannot become BBO rules.
+  const batch = currentValidationBatch(db);
+  if (batch && batch.reviewed < batch.rows.length) {
+    result.blockedReason = `coding validation incomplete (${batch.reviewed}/${batch.rows.length} reviewed) — findings stay provisional`;
+    return result;
+  }
   const lessons = all<{ id: number; text: string; category: string; status: string; confidence_label: string; sample_size: number | null; effect: number | null; direction: string | null; pattern_json: string | null; metrics_json: string | null; origin: string }>(
     db,
     // Lessons mined before content buckets existed pooled venue promos with interview clips; they never become rules.

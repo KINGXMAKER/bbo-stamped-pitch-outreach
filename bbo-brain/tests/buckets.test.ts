@@ -6,10 +6,15 @@ import { setAttribute, writeMetrics } from '@/lib/ingest/ingest';
 import { activeScoreVersion, computeAllScores } from '@/lib/scoring/engine';
 import { backfillLegacyBuckets, BUCKET_PROMPT_VERSION, BucketSchema, bucketBenchmarkReport, bucketGate, classifyBucket, humanBucketLabels, recordBucketLabel, recordPromptDesignSample } from '@/lib/intel/buckets';
 import { providerNamed } from '@/lib/ai/providers/registry';
-import { mineLessons } from '@/lib/intel/lessons';
+import { archiveLegacyPooledLessons, mineLessons } from '@/lib/intel/lessons';
+import { createValidationBatch, recordReview } from '@/lib/intel/validation';
+import { generateRuleProposals } from '@/lib/rules/engine';
+import { catalogueAccounting } from '@/lib/intel/buckets';
+import { WEEKLY_PIPELINE } from '@/lib/sync/registry';
 import { buildIntelligenceReport } from '@/lib/intel/report';
 import { runPipeline } from '@/lib/sync/registry';
 import { buildQueue } from '@/lib/sync/media-queue';
+import { loadFacts } from '@/lib/intel/dataset';
 import { makePost, testDb } from './helpers';
 
 // Synthetic fixture — never shown as BBO data. No real provider is called.
@@ -276,6 +281,85 @@ describe('priority and scope', () => {
     expect(bucket(withMedia)).toBe('OTHER_IGNORE');
     expect(bucket(coreBare)).toBe('CORE_INTERVIEW_CONTENT');
     expect(bucket(carousel)).toBe('OTHER_IGNORE');
+  });
+
+  it('accounts for every post exactly once, and counts formats inside core only', () => {
+    const db = testDb();
+    for (let i = 0; i < 9; i++) post(db, i, { bucket: i < 4 ? 'CORE_INTERVIEW_CONTENT' : i < 6 ? 'BBO_STAMPED' : i < 8 ? 'OTHER_IGNORE' : undefined });
+    const core = loadFacts(db).filter((f) => f.attrs.content_bucket === 'CORE_INTERVIEW_CONTENT').map((f) => f.contentId);
+    setAttribute(db, core[0], 'interview_format', 'podcast', 'human', 1);
+    setAttribute(db, core[1], 'interview_format', 'street_interview', 'human', 1);
+    computeAllScores(db, activeScoreVersion(db), NOW);
+
+    const a = catalogueAccounting(db);
+
+    expect(a.buckets.reduce((n, b) => n + b.total, 0)).toBe(a.totalPosts); // no post counted twice or lost
+    expect(a.formats.podcast + a.formats.streetInterview + a.formats.noFormatYet).toBe(a.formats.core);
+    expect(a.formats.core).toBe(4);
+    expect(a.strayFormatLabels).toBe(0);
+    expect(a.buckets.find((b) => b.bucket === '(unbucketed)')?.total).toBe(1);
+  });
+});
+
+describe('retiring legacy pooled lessons', () => {
+  it('archives them without deleting, and stops them counting as evidence', () => {
+    const db = testDb();
+    const pooled = run(
+      db,
+      `INSERT INTO lessons (code, text, category, origin, status, confidence_label, sample_size, effect, direction, pattern_json, metrics_json, first_seen_at, created_at)
+       VALUES ('L-900', 'pooled lesson', 'hook', 'pattern_mining', 'SUPPORTED', 'STRONG_SIGNAL', 40, 1.5, 'positive',
+               '{"key":"hook_type","group":"confession","compare":null,"metric":"performance_score","franchise":null}',
+               '{"supportiveStreak":3,"testsRun":200}', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`
+    ).lastId;
+    const scoped = run(
+      db,
+      `INSERT INTO lessons (code, text, category, origin, status, confidence_label, sample_size, effect, direction, pattern_json, metrics_json)
+       VALUES ('L-901', 'bucket-scoped lesson', 'hook', 'pattern_mining', 'SUPPORTED', 'STRONG_SIGNAL', 40, 1.5, 'positive',
+               '{"key":"hook_type","group":"confession","compare":null,"metric":"performance_score","franchise":null,"bucket":"CORE_INTERVIEW_CONTENT"}', '{"supportiveStreak":3}')`
+    ).lastId;
+    const audit = run(db, `INSERT INTO lessons (code, text, category, origin, status, confidence_label) VALUES ('A-L1', 'audit claim', 'hook', 'imported_audit', 'OBSERVING', 'EARLY_SIGNAL')`).lastId;
+
+    const r = archiveLegacyPooledLessons(db);
+    const row = get<{ status: string; created_at: string; first_seen_at: string; metrics_json: string }>(db, 'SELECT status, created_at, first_seen_at, metrics_json FROM lessons WHERE id = ?', pooled)!;
+    const meta = JSON.parse(row.metrics_json) as { supportiveStreak: number; testsRun: number; archived: { tags: string[]; methodology: string } };
+
+    expect(r.archived).toBe(1);
+    expect(row.status).toBe('ARCHIVED');
+    expect(row.created_at).toBe('2026-01-01T00:00:00.000Z'); // history preserved, not rewritten
+    expect(meta.supportiveStreak).toBe(3); // original evidence kept
+    expect(meta.testsRun).toBe(200);
+    expect(meta.archived.tags).toEqual(['LEGACY_POOLED_ANALYSIS', 'SUPERSEDED_BY_BUCKET_SCOPED_MINING']);
+    expect(get<{ n: number }>(db, 'SELECT COUNT(*) n FROM lesson_events WHERE lesson_id = ? AND to_status = ?', pooled, 'ARCHIVED')?.n).toBe(1);
+    expect(get<{ status: string }>(db, 'SELECT status FROM lessons WHERE id = ?', scoped)?.status).toBe('SUPPORTED');
+    expect(get<{ status: string }>(db, 'SELECT status FROM lessons WHERE id = ?', audit)?.status).toBe('OBSERVING');
+    // An archived lesson is not current evidence: it cannot propose a rule.
+    expect(all(db, `SELECT 1 FROM lessons WHERE status = 'SUPPORTED' AND json_extract(pattern_json, '$.bucket') IS NULL`)).toHaveLength(0);
+  });
+});
+
+describe('validation gates rule promotion', () => {
+  it('creates no rule proposals while the validation batch is unreviewed', () => {
+    const db = testDb();
+    for (let i = 0; i < 8; i++) {
+      const id = post(db, i, { bucket: 'CORE_INTERVIEW_CONTENT', media: true, strong: i % 2 === 0 });
+      setAttribute(db, id, 'hook_type', i % 2 === 0 ? 'confession' : 'question', 'ai', 0.8);
+      run(db, 'UPDATE content SET coded_at = ? WHERE id = ?', NOW.toISOString(), id);
+    }
+    computeAllScores(db, activeScoreVersion(db), NOW);
+    createValidationBatch(db, 3);
+
+    expect(generateRuleProposals(db).blockedReason).toContain('coding validation incomplete');
+
+    const batch = createValidationBatch(db, 2);
+    for (const id of batch.ids) recordReview(db, { contentId: id, status: 'APPROVED' });
+    expect(generateRuleProposals(db).blockedReason).toBeUndefined();
+  });
+
+  it('runs the weekly loop, not a daily one', () => {
+    expect(WEEKLY_PIPELINE).toContain('weekly-review');
+    expect(WEEKLY_PIPELINE).toContain('content-buckets');
+    expect(WEEKLY_PIPELINE.indexOf('media-transcripts')).toBeLessThan(WEEKLY_PIPELINE.indexOf('content-buckets'));
+    expect(WEEKLY_PIPELINE.indexOf('score')).toBeLessThan(WEEKLY_PIPELINE.indexOf('mine-lessons'));
   });
 });
 

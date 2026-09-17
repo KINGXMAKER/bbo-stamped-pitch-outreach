@@ -18,7 +18,7 @@ import {
   normalizeBucket,
   type ContentBucket,
 } from '@/lib/seed/reference';
-import type { ContentFact } from './dataset';
+import { comparable, loadFacts, type ContentFact } from './dataset';
 
 /**
  * Content buckets: the scope every performance comparison runs inside.
@@ -240,7 +240,13 @@ export async function classifyBucket(
     const conf = out.data.confidence === 'high' ? 0.8 : out.data.confidence === 'medium' ? 0.6 : 0.4;
     run(db, `DELETE FROM content_attributes WHERE content_id = ? AND key IN ('content_bucket','interview_format') AND source = 'ai'`, contentId);
     setAttribute(db, contentId, 'content_bucket', out.data.content_bucket, 'ai', conf, out.runId);
-    if (out.data.content_bucket === CORE && out.data.interview_format) setAttribute(db, contentId, 'interview_format', out.data.interview_format, 'ai', conf, out.runId);
+    if (out.data.content_bucket === CORE && out.data.interview_format) {
+      setAttribute(db, contentId, 'interview_format', out.data.interview_format, 'ai', conf, out.runId);
+    } else {
+      // interview_format only means something inside core interview content. A post that
+      // moved out of core must not keep a stale podcast/street label behind it.
+      run(db, `DELETE FROM content_attributes WHERE content_id = ? AND key = 'interview_format' AND source != 'human'`, contentId);
+    }
   }
   return { result: out.data, runId: out.runId, retries: out.retries };
 }
@@ -527,4 +533,55 @@ export function bucketGate(db: Db, model = brainConfig().bucketModel): { passed:
     return { passed: false, reason: `core interview recall ${Math.round(row.coreRecall * 100)}% is below ${Math.round(cfg.bucketGateMinCoreRecall * 100)}% — it would hide core clips`, row };
   }
   return { passed: true, reason: `passed on ${row.humanLabelled} human labels: accuracy ${Math.round((row.accuracy ?? 0) * 100)}%, core recall ${row.coreRecall === null ? '—' : `${Math.round(row.coreRecall * 100)}%`}`, row };
+}
+
+export type CatalogueAccounting = {
+  totalPosts: number;
+  buckets: Array<{ bucket: string; label: string; total: number; comparable: number; immature: number; unscored: number; analysed: boolean; coded: number; withMedia: number }>;
+  formats: { core: number; podcast: number; streetInterview: number; noFormatYet: number };
+  /** interview_format rows that sit outside core interview content — should always be 0. */
+  strayFormatLabels: number;
+};
+
+/**
+ * One authoritative reconciliation of every post in the catalogue. Buckets
+ * partition the catalogue exactly once; "comparable" is the subset any
+ * performance comparison can use (mature enough to have a peer baseline).
+ * Formats are counted inside core only — podcast and street interview are
+ * subtypes of core, not buckets of their own.
+ */
+export function catalogueAccounting(db: Db): CatalogueAccounting {
+  const facts = loadFacts(db);
+  const comparableIds = new Set(comparable(facts).map((f) => f.contentId));
+  const coded = new Set(all<{ id: number }>(db, 'SELECT id FROM content WHERE coded_at IS NOT NULL').map((r) => r.id));
+  const withMedia = new Set(
+    all<{ id: number }>(db, `SELECT c.id FROM content c WHERE c.thumb_path IS NOT NULL OR EXISTS (SELECT 1 FROM transcripts t WHERE t.content_id = c.id)`).map((r) => r.id)
+  );
+  const keys = [...CONTENT_BUCKETS, '(unbucketed)'];
+  const buckets = keys.map((key) => {
+    const rows = facts.filter((f) => (normalizeBucket(f.attrs.content_bucket) ?? '(unbucketed)') === key);
+    return {
+      bucket: key,
+      label: key === '(unbucketed)' ? 'Not yet bucketed' : BUCKET_DEFINITIONS[key as ContentBucket].label,
+      total: rows.length,
+      comparable: rows.filter((f) => comparableIds.has(f.contentId)).length,
+      immature: rows.filter((f) => !comparableIds.has(f.contentId) && !f.isMature).length,
+      unscored: rows.filter((f) => !comparableIds.has(f.contentId) && f.isMature).length,
+      analysed: key !== '(unbucketed)' && BUCKET_DEFINITIONS[key as ContentBucket].analysed,
+      coded: rows.filter((f) => coded.has(f.contentId)).length,
+      withMedia: rows.filter((f) => withMedia.has(f.contentId)).length,
+    };
+  });
+  const core = facts.filter((f) => normalizeBucket(f.attrs.content_bucket) === CORE);
+  return {
+    totalPosts: facts.length,
+    buckets,
+    formats: {
+      core: core.length,
+      podcast: core.filter((f) => f.attrs.interview_format === 'podcast').length,
+      streetInterview: core.filter((f) => f.attrs.interview_format === 'street_interview').length,
+      noFormatYet: core.filter((f) => !f.attrs.interview_format).length,
+    },
+    strayFormatLabels: facts.filter((f) => f.attrs.interview_format && normalizeBucket(f.attrs.content_bucket) !== CORE).length,
+  };
 }

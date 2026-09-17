@@ -8,10 +8,10 @@ import { defaultArchivePaths, importArchiveFiles } from '@/lib/ingest/archive';
 import { defaultLearningMemoryPath, importLearningMemory } from '@/lib/ingest/learning-memory';
 import { computeAllScores } from '@/lib/scoring/engine';
 import { analysisQueue, analyzeContent, enrichContent } from '@/lib/intel/analysis';
-import { mineLessons } from '@/lib/intel/lessons';
+import { archiveLegacyPooledLessons, mineLessons } from '@/lib/intel/lessons';
 import { benchmarkReport, benchmarkSample, runCodingBenchmark } from '@/lib/intel/benchmark';
 import { buildIntelligenceReport, renderIntelligenceReport } from '@/lib/intel/report';
-import { createValidationBatch } from '@/lib/intel/validation';
+import { createValidationBatch, renderValidationReport, validationReport } from '@/lib/intel/validation';
 import { BUCKET_PROMPT_VERSION, backfillLegacyBuckets, bucketBenchmarkReport, bucketBenchmarkSample, bucketGate, classifyBucket, runBucketBenchmark } from '@/lib/intel/buckets';
 import { providerNamed } from '@/lib/ai/providers/registry';
 import { autoAssign, evaluateExperiment, suggestExperimentsFromLessons } from '@/lib/intel/experiments';
@@ -337,6 +337,33 @@ export const JOBS: Record<string, JobDef> = {
       return { recordsSeen: batch.size, recordsWritten: batch.ids.length, summary: `${batch.ids.length} posts frozen for human review` };
     },
   },
+  'archive-legacy-lessons': {
+    label: 'Archive pooled legacy lessons',
+    description: 'Retire lessons mined before content buckets existed. Nothing is deleted: status, history, metrics and dates are kept for audit.',
+    phase: 'learning',
+    run: async (ctx) => {
+      const r = archiveLegacyPooledLessons(ctx.db);
+      return { recordsSeen: r.archived, recordsWritten: r.archived, summary: `${r.archived} legacy pooled lessons archived (LEGACY_POOLED_ANALYSIS · SUPERSEDED_BY_BUCKET_SCOPED_MINING)` };
+    },
+  },
+  'validation-report': {
+    label: 'Coding validation report',
+    description: 'What human review says the AI understands: agreement per field, confusions, and accuracy by media and model. Writes data/reports/.',
+    phase: 'learning',
+    run: async (ctx) => {
+      const report = validationReport(ctx.db);
+      if (!report.reviewed) return { recordsSeen: 0, recordsWritten: 0, summary: 'no human reviews yet — nothing to measure' };
+      const dir = path.join(process.cwd(), 'data', 'reports');
+      mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, `validation-${new Date().toISOString().slice(0, 10)}.md`);
+      writeFileSync(file, renderValidationReport(report), 'utf8');
+      return {
+        recordsSeen: report.overall.compared,
+        recordsWritten: report.reviewed,
+        summary: `${report.reviewed} posts reviewed · overall agreement ${report.overall.rate === null ? 'n/a' : `${Math.round(report.overall.rate * 100)}%`} · ${report.unreliable.length} field(s) excluded from mining · ${file.replace(process.cwd() + '/', '')}`,
+      };
+    },
+  },
   'intelligence-report': {
     label: 'Intelligence review',
     description: 'Answer the fourteen standing questions from calculated evidence, with sample sizes, effects and confidence. Writes data/reports/.',
@@ -370,6 +397,7 @@ export const JOBS: Record<string, JobDef> = {
     phase: 'learning',
     run: async (ctx) => {
       const r = generateRuleProposals(ctx.db);
+      if (r.blockedReason) return { recordsSeen: 0, recordsWritten: 0, summary: `HELD — ${r.blockedReason}` };
       return { recordsSeen: r.considered, recordsWritten: r.proposed, summary: `${r.considered} supported lessons considered · ${r.proposed} proposals · ${r.attachedToExistingRule} attached to existing rules` };
     },
   },
@@ -422,7 +450,34 @@ export const JOBS: Record<string, JobDef> = {
   search: { label: 'Rebuild search index', description: 'FTS5 over content, transcripts, people, topics, lessons, rules, experiments, analyses.', phase: 'graph', run: async (ctx) => { const n = rebuildSearchIndex(ctx.db); return { recordsSeen: n, recordsWritten: n, summary: `${n} documents indexed` }; } },
 };
 
-/** The daily loop, in dependency order. Each step is its own recorded job. */
+/**
+ * The weekly loop, in dependency order. Each step is its own recorded job and
+ * processes only what is new: the syncs are incremental, media and coding come
+ * off the priority queue under their caps, and bucketing skips posts that
+ * already carry a current-version label. Scoring and mining re-run the
+ * historical comparisons, which is what makes new data mean anything.
+ */
+export const WEEKLY_PIPELINE = [
+  'instagram-content',
+  'instagram-metrics',
+  'instagram-account',
+  'media-transcripts',
+  'content-buckets',
+  'score',
+  'provider-health',
+  'ai-enrich',
+  'analyze',
+  'mine-lessons',
+  'experiments',
+  'rule-challenges',
+  'rule-proposals',
+  'opportunities',
+  'graph',
+  'search',
+  'weekly-review',
+];
+
+/** Kept so `npm run job -- daily` still works for manual runs; not installed on a schedule. */
 export const DAILY_PIPELINE = ['instagram-content', 'instagram-metrics', 'instagram-account', 'media-transcripts', 'content-buckets', 'score', 'provider-health', 'ai-enrich', 'analyze', 'mine-lessons', 'rule-proposals', 'rule-challenges', 'experiments', 'opportunities', 'graph', 'search'];
 
 export async function runNamedJob(db: Db, kind: string, params: Record<string, unknown> = {}): Promise<JobRecord> {

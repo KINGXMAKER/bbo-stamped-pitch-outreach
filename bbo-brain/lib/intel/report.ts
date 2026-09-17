@@ -5,6 +5,7 @@ import { comparable, loadFacts, METRIC_DEFS, metricValue, type ContentFact, type
 import { evaluatePattern, loadLabels, valueLabel, valuesFor, type PatternEvaluation } from './patterns';
 import { corpusStatus } from '@/lib/sync/media-queue';
 import { coverageStats } from './validation';
+import { catalogueAccounting, type CatalogueAccounting } from './buckets';
 import { benchmarkReport, pairAgreement } from './benchmark';
 import { brainConfig } from '@/lib/config';
 
@@ -199,6 +200,9 @@ export type IntelligenceReport = {
   nextMoves: Array<{ title: string; rationale: string; score: number | null }>;
   labelReliability: string | null;
   untrustedFields: string[];
+  accounting: CatalogueAccounting;
+  /** True while no human has validated the coded attributes these findings rest on. */
+  provisional: boolean;
 };
 
 /** What the benchmark says about the model that produced the corpus labels. */
@@ -410,6 +414,8 @@ export function buildIntelligenceReport(db: Db, opts: { bucket?: ContentBucket }
     nextMoves,
     labelReliability: describeLabelReliability(db),
     untrustedFields: brainConfig().untrustedCodingFields,
+    accounting: catalogueAccounting(db),
+    provisional: coverage.humanValidated === 0,
   };
 }
 
@@ -421,10 +427,31 @@ const day = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : '—')
 export function renderIntelligenceReport(r: IntelligenceReport): string {
   const lines: string[] = [];
   lines.push(`# BBO intelligence review — ${r.scope.label}`, '', `Generated ${r.generatedAt.slice(0, 16).replace('T', ' ')} UTC`, '');
+  if (r.provisional) {
+    lines.push(
+      '> **PROVISIONAL — HUMAN LABEL VALIDATION PENDING.** Every finding below rests on model-assigned attribute labels that no human has checked yet.',
+      '> None of it may become a BBO rule until the Coding Validation batch is reviewed.',
+      ''
+    );
+  }
+  const a = r.accounting;
+  lines.push('## Catalogue accounting', '', `All ${a.totalPosts} posts, counted once each. "Comparable" is the subset with a peer baseline — the only posts any comparison can use.`, '');
+  lines.push('| Bucket | Posts | Comparable | Too recent | No baseline | With media | Structurally coded | Analysed |', '|---|---|---|---|---|---|---|---|');
+  for (const b of a.buckets) {
+    lines.push(`| ${b.label} | ${b.total} | ${b.comparable} | ${b.immature} | ${b.unscored} | ${b.withMedia} | ${b.coded} | ${b.analysed ? 'yes' : 'no'} |`);
+  }
+  const sums = a.buckets.reduce((acc, b) => ({ total: acc.total + b.total, comparable: acc.comparable + b.comparable, immature: acc.immature + b.immature, unscored: acc.unscored + b.unscored, media: acc.media + b.withMedia, coded: acc.coded + b.coded }), { total: 0, comparable: 0, immature: 0, unscored: 0, media: 0, coded: 0 });
+  lines.push(`| **Total** | **${sums.total}** | ${sums.comparable} | ${sums.immature} | ${sums.unscored} | ${sums.media} | ${sums.coded} | |`, '');
   lines.push(
-    `**Scope.** ${r.scope.inScope} comparable posts are ${r.scope.label.toLowerCase()} (${r.scope.codedInScope} with structured coding). ` +
-      `Excluded: ${Object.entries(r.scope.otherBuckets).map(([k, n]) => `${BUCKET_DEFINITIONS[k as ContentBucket]?.label ?? k} ${n}`).join(', ') || 'no other buckets'}` +
-      `${r.scope.unbucketed ? `, and ${r.scope.unbucketed} posts not yet assigned to a bucket` : ''}. Performance is never pooled across buckets.`,
+    `Inside core interview content, ${a.formats.podcast} are podcast clips and ${a.formats.streetInterview} street interviews, with ${a.formats.noFormatYet} not yet sub-typed ` +
+      `(${a.formats.podcast} + ${a.formats.streetInterview} + ${a.formats.noFormatYet} = ${a.formats.core}). Podcast and street interview are subtypes **inside** this one bucket, not buckets of their own.` +
+      `${a.strayFormatLabels ? ` ⚠ ${a.strayFormatLabels} format labels sit outside core and need clearing.` : ''}`,
+    ''
+  );
+  lines.push(
+    `**This review's scope.** ${r.scope.inScope} comparable ${r.scope.label.toLowerCase()} posts; ${r.scope.codedInScope} of them carry structured coding (${a.buckets.find((b) => b.bucket === r.scope.bucket)?.coded ?? r.scope.codedInScope} coded in this bucket in total). ` +
+      `Excluded: ${Object.entries(r.scope.otherBuckets).map(([k, n]) => `${BUCKET_DEFINITIONS[k as ContentBucket]?.label ?? k} ${n} comparable`).join(', ') || 'no other buckets'}` +
+      `${r.scope.unbucketed ? `, ${r.scope.unbucketed} not yet bucketed` : ''}, and the ${sums.total - sums.comparable} posts of any bucket that have no peer baseline yet. Performance is never pooled across buckets.`,
     ''
   );
   lines.push(

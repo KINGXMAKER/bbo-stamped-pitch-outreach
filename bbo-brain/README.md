@@ -46,11 +46,11 @@ npm run dev                         # http://127.0.0.1:3200
 
 Secrets are read from the repo-root `../.env` and `bbo-brain/.env.local` (see `.env.example`). Nothing is exposed to the browser.
 
-## Daily operation
+## Weekly operation
 
 ```bash
-npm run job -- daily                # sync → media/transcripts → score → AI coding → analysis → lessons → proposals → challenges → experiments → opportunities → graph → search
-npm run job -- weekly-review
+npm run job -- weekly               # the scheduled loop: sync → media/transcripts → buckets → score → coding → analysis → lessons → experiments → challenges → proposals → opportunities → graph → search → weekly review
+npm run job -- daily                # same steps, manual only — no daily schedule is installed
 npm run job -- list                 # every job and what it does
 ```
 
@@ -112,7 +112,7 @@ Known limitations are listed plainly on the Integrations page and in `COMPOSIO_I
 ## Development
 
 ```bash
-npm test            # vitest — 174 tests
+npm test            # vitest — 178 tests
 npm run typecheck
 npm run lint
 ```

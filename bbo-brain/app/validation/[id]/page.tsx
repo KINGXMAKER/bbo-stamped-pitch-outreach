@@ -36,6 +36,10 @@ export default async function ReviewCoding({ params, searchParams }: { params: P
   const groups = [...new Set(editable.map((a) => a.group))];
   const evidence = EVIDENCE_KEYS.map((key) => ({ def: ATTRIBUTE_DEFINITIONS.find((d2) => d2.key === key)!, value: current.get(key)?.value_text ?? null })).filter((e) => e.value !== null);
   const analysis = d.analyses[0];
+  const aiTopics = d.fact.topics.map((t) => t.name);
+  const topicSource = get<{ source: string }>(db, 'SELECT source FROM content_topics WHERE content_id = ? ORDER BY is_primary DESC LIMIT 1', contentId)?.source ?? null;
+  const knownTopics = all<{ name: string }>(db, 'SELECT name FROM topics ORDER BY name').map((t) => t.name);
+  const debate = current.get('underlying_debate')?.value_text ?? null;
   const codedBy = get<{ provider: string | null; model: string | null }>(
     db,
     `SELECT r.provider, r.model FROM content_attributes a JOIN ai_runs r ON r.id = a.ai_run_id WHERE a.content_id = ? AND a.source = 'ai' ORDER BY a.created_at DESC LIMIT 1`,
@@ -104,6 +108,29 @@ export default async function ReviewCoding({ params, searchParams }: { params: P
             ) : (
               <Empty title="No transcript">The AI coded this from caption and metrics only — weigh its labels accordingly.</Empty>
             )}
+          </Section>
+
+          <Section title="What the AI read into it" note={`topics from ${topicSource ?? 'no source'}`}>
+            <div className="card stack-xs">
+              <div className="stack-xs">
+                <span className="xs muted">Topics</span>
+                <span className="row-tight" style={{ flexWrap: 'wrap' }}>
+                  {aiTopics.length ? aiTopics.map((t) => <span key={t} className="chip chip-muted">{t}</span>) : <span className="small muted">none</span>}
+                </span>
+              </div>
+              {debate ? (
+                <div className="stack-xs">
+                  <span className="xs muted">Underlying debate</span>
+                  <span className="small">{debate}</span>
+                </div>
+              ) : null}
+              {analysis?.actual_topic ? (
+                <div className="stack-xs">
+                  <span className="xs muted">What it is actually about</span>
+                  <span className="small">{analysis.actual_topic}</span>
+                </div>
+              ) : null}
+            </div>
           </Section>
 
           {evidence.length ? (
@@ -186,6 +213,19 @@ export default async function ReviewCoding({ params, searchParams }: { params: P
                     })}
                 </div>
               ))}
+
+              <div className="field">
+                <label className="field-label" htmlFor="topics">
+                  Topics (first one is primary)
+                </label>
+                <input id="topics" name="topics" defaultValue={aiTopics.join(', ')} list="known-topics" autoComplete="off" />
+                <datalist id="known-topics">
+                  {knownTopics.map((t) => (
+                    <option key={t} value={t} />
+                  ))}
+                </datalist>
+                <span className="xs muted">Comma-separated. Saved as your topics only if you change them and choose Save corrections.</span>
+              </div>
 
               <div className="field">
                 <label className="field-label" htmlFor="note">

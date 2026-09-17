@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { unreliableCodedFields } from './validation';
 import { all, get, json, nowIso, parseJson, run, tx, type Db } from '@/lib/db/client';
 import { comparable, loadFacts, type ContentFact, type MetricKey } from './dataset';
 import {
@@ -245,10 +246,13 @@ export function mineLessons(db: Db, options: { asOf?: string } = {}): MiningResu
   const result: MiningResult = { testsRun: 0, created: 0, updated: 0, imported: 0, candidates: 0 };
   if (facts.length < STAT_THRESHOLDS.minN * 2) return result;
 
+  // A field human review has shown the model gets wrong more often than not is
+  // not evidence: it is excluded from mining until the model improves on it.
+  const unreliable = new Set(unreliableCodedFields(db));
   const defs = all<{ key: string; attr_group: string; value_type: string }>(
     db,
     `SELECT key, attr_group, value_type FROM attribute_definitions WHERE is_comparable = 1 AND value_type IN ('enum','boolean')`
-  );
+  ).filter((d) => !unreliable.has(d.key));
   const patterns: Array<{ pattern: Pattern; category: string }> = [];
   // Every comparison runs inside one content bucket: a venue promo and a podcast
   // clip want different viewer behaviour, so their performance is never pooled.
@@ -394,4 +398,33 @@ export function setLessonStatus(db: Db, lessonId: number, status: LessonStatus, 
       note
     );
   });
+}
+
+export const LEGACY_ARCHIVE_TAGS = ['LEGACY_POOLED_ANALYSIS', 'SUPERSEDED_BY_BUCKET_SCOPED_MINING'] as const;
+
+/**
+ * Retires lessons mined before content buckets existed. They pooled venue promos,
+ * Baddie of the Month posts and interview clips into one comparison, so they are
+ * no longer current evidence — but they are never deleted: status, belief history,
+ * original metrics, methodology and first-seen date all stay for audit.
+ */
+export function archiveLegacyPooledLessons(db: Db, note = 'Pooled content buckets; superseded by bucket-scoped mining.'): { archived: number } {
+  const rows = all<{ id: number; metrics_json: string | null }>(
+    db,
+    `SELECT id, metrics_json FROM lessons
+     WHERE origin = 'pattern_mining' AND pattern_json IS NOT NULL
+       AND json_extract(pattern_json, '$.bucket') IS NULL
+       AND status NOT IN ('ARCHIVED','PROMOTED_TO_RULE')`
+  );
+  for (const row of rows) {
+    const meta = parseJson<Record<string, unknown>>(row.metrics_json, {});
+    run(
+      db,
+      'UPDATE lessons SET metrics_json = ? WHERE id = ?',
+      json({ ...meta, archived: { tags: [...LEGACY_ARCHIVE_TAGS], at: nowIso(), reason: note, methodology: 'mined across all content buckets before the bucket taxonomy existed' } }),
+      row.id
+    );
+    setLessonStatus(db, row.id, 'ARCHIVED', `${LEGACY_ARCHIVE_TAGS.join(' · ')} — ${note}`);
+  }
+  return { archived: rows.length };
 }

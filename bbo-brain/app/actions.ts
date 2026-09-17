@@ -262,7 +262,11 @@ export async function reviewCodingAction(fd: FormData) {
   let message = '';
   const error = await attempt(() => {
     if (status !== 'APPROVED' && status !== 'EDITED' && status !== 'REJECTED') throw new Error(`Unknown review decision "${status}".`);
-    const { changed } = recordReview(getDb(), { contentId, status, note: str(fd, 'note') || undefined, values });
+    const topics = str(fd, 'topics')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+    const { changed } = recordReview(getDb(), { contentId, status, note: str(fd, 'note') || undefined, values, topics });
     message =
       status === 'REJECTED'
         ? 'Rejected. The post is back in the coding queue and will be re-analysed.'
