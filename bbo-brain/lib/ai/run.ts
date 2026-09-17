@@ -232,6 +232,8 @@ export async function runAi<T>(args: AiRunArgs<T>): Promise<AiRunResult<T>> {
 
   const deadProviders = new Set<string>();
   let lastError: AiError | null = null;
+  /** One line per failed candidate, so a total failure explains every hop. */
+  const trail: string[] = [];
 
   for (const candidate of candidates) {
     if (deadProviders.has(candidate.provider.providerName)) continue;
@@ -279,6 +281,7 @@ export async function runAi<T>(args: AiRunArgs<T>): Promise<AiRunResult<T>> {
           }
           guard.record(result.estimatedCost + repaired.estimatedCost);
           lastError = new AiError({ kind: 'bad-output', model: candidate.model, message: `${candidate.provider.providerName} ${candidate.model} output failed validation: ${parsed.error}` });
+          trail.push(lastError.message.slice(0, 160));
           break; // schema failure survived a repair → escalate to the next candidate
         }
         guard.record(result.estimatedCost);
@@ -291,6 +294,7 @@ export async function runAi<T>(args: AiRunArgs<T>): Promise<AiRunResult<T>> {
         }
         const failure = err instanceof AiError ? err : new AiError({ kind: 'transient', model: candidate.model, message: err instanceof Error ? err.message : String(err) });
         lastError = failure;
+        if (!(failure.kind === 'transient' && attempt < 2)) trail.push(failure.message.slice(0, 160));
         if (failure.kind === 'hard') {
           // 401/403 and other hard refusals are configuration, not weather.
           deadProviders.add(candidate.provider.providerName);
@@ -309,7 +313,8 @@ export async function runAi<T>(args: AiRunArgs<T>): Promise<AiRunResult<T>> {
   }
 
   const message = lastError?.message ?? 'Every configured AI provider failed.';
-  record('error', null, `${message} (tried ${attempted.join(', ')})`.slice(0, 1000), null, null);
+  const detail = trail.length > 1 ? ` — every attempt: ${trail.join(' | ')}` : '';
+  record('error', null, `${message} (tried ${attempted.join(', ')})${detail}`.slice(0, 1000), null, null);
   throw lastError ?? new AiError({ kind: 'transient', message });
 }
 

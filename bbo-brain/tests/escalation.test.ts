@@ -201,4 +201,17 @@ describe('disagreement escalation', () => {
     clearAiCoding(db, id);
     expect(all(db, 'SELECT key, source FROM content_attributes WHERE content_id = ?', id)).toEqual([{ key: 'duration_bucket', source: 'measured' }]);
   });
+
+  it('does not let the coding model overwrite a field it is not validated on', async () => {
+    const db = testDb();
+    const id = seedPost(db, 'plain');
+    run(db, `INSERT INTO content_attributes (content_id, key, value_text, source) VALUES (?, 'franchise', 'podcast', 'heuristic')`, id);
+    setProviderFetch(mockGemini(() => JSON.stringify({ ...JSON.parse(coding({}, 'high')), franchise: 'bbo-group-chat' })));
+
+    await enrichContent(db, id);
+
+    expect(get(db, `SELECT 1 AS x FROM content_attributes WHERE content_id = ? AND key = 'franchise' AND source = 'ai'`, id)).toBeUndefined();
+    expect(get<{ v: string }>(db, `SELECT value_text v FROM content_attribute_current WHERE content_id = ? AND key = 'franchise'`, id)?.v).toBe('podcast');
+  });
 });
+

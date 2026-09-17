@@ -60,6 +60,11 @@ export function brainConfig() {
     // Total posts to hold structured coding for. Coding stops here until the
     // corpus has been inspected and this is deliberately raised.
     codingCorpusLimit: int('AI_CODING_CORPUS_LIMIT', 150),
+    // Fields the coding model has not been validated on. Its values are kept in
+    // ai_runs for audit but never written as attributes, so weaker evidence
+    // (heuristics, audits) is not overruled by a known-bad classifier.
+    // franchise: Qwen3-VL-32B agreed 11–17% with the reference (2026-09-16).
+    untrustedCodingFields: list('AI_CODING_UNTRUSTED_FIELDS', ['franchise']),
 
     // Providers. Keys decide what exists; the per-task settings decide what is
     // preferred. A task never silently upgrades to a pricier model: fallback

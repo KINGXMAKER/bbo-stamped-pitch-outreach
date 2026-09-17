@@ -526,7 +526,12 @@ export async function enrichContent(
   if (previouslyCoded || options.recode) clearAiCoding(db, contentId);
   applyAiAttributes(db, contentId, d, conf, escalation?.runId ?? result.runId);
   if (d.opening_hook) setAttribute(db, contentId, 'opening_hook', d.opening_hook, 'ai', conf, escalation?.runId ?? result.runId);
-  if (d.franchise && franchises.includes(d.franchise)) setAttribute(db, contentId, 'franchise', d.franchise, 'ai', conf, escalation?.runId ?? result.runId);
+  const untrusted = new Set(brainConfig().untrustedCodingFields);
+  if (d.franchise && franchises.includes(d.franchise) && !untrusted.has('franchise')) setAttribute(db, contentId, 'franchise', d.franchise, 'ai', conf, escalation?.runId ?? result.runId);
+  for (const key of untrusted) {
+    if (key === 'franchise') continue;
+    run(db, `DELETE FROM content_attributes WHERE content_id = ? AND key = ? AND source = 'ai'`, contentId, key);
+  }
   run(db, 'UPDATE content SET coded_at = ? WHERE id = ?', nowIso(), contentId);
   return { status: 'enriched', escalated: escalation?.outcome ?? null };
 }

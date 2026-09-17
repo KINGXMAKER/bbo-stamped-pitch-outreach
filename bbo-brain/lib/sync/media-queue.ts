@@ -83,16 +83,27 @@ export type QueueItem = {
   needsCoding: boolean;
 };
 
-type State = { hasMedia: boolean; hasTranscript: boolean; coded: boolean; externalId: string };
+type State = { hasMedia: boolean; hasTranscript: boolean; hasFrames: boolean; coded: boolean; externalId: string };
 
 function loadState(db: Db): Map<number, State> {
-  const rows = all<{ id: number; external_id: string; thumb_path: string | null; coded_at: string | null; has_transcript: number }>(
+  const rows = all<{ id: number; external_id: string; thumb_path: string | null; coded_at: string | null; has_transcript: number; frames_json: string | null }>(
     db,
-    `SELECT c.id, pp.external_id, c.thumb_path, c.coded_at,
+    `SELECT c.id, pp.external_id, c.thumb_path, c.coded_at, c.frames_json,
             EXISTS (SELECT 1 FROM transcripts t WHERE t.content_id = c.id) AS has_transcript
      FROM content c JOIN platform_posts pp ON pp.id = c.primary_post_id`
   );
-  return new Map(rows.map((r) => [r.id, { hasMedia: Boolean(r.thumb_path), hasTranscript: r.has_transcript === 1, coded: Boolean(r.coded_at), externalId: r.external_id }]));
+  return new Map(
+    rows.map((r) => [
+      r.id,
+      {
+        hasMedia: Boolean(r.thumb_path),
+        hasTranscript: r.has_transcript === 1,
+        hasFrames: Boolean(r.frames_json && r.frames_json !== '[]'),
+        coded: Boolean(r.coded_at),
+        externalId: r.external_id,
+      },
+    ])
+  );
 }
 
 const isVideo = (f: ContentFact) => f.format === 'reel' || f.format === 'video' || f.format === 'short';
@@ -152,7 +163,8 @@ export function buildQueue(db: Db, opts: QueueOptions): QueueItem[] {
       const s = state.get(f.contentId);
       if (!s) return null;
       const needsMedia = !s.hasMedia || (isVideo(f) && !s.hasTranscript);
-      const needsCoding = !s.coded && (s.hasMedia || s.hasTranscript);
+      // Coding reads a transcript or hook frames; a thumbnail alone gives the model nothing to code.
+      const needsCoding = !s.coded && (s.hasTranscript || s.hasFrames);
       const wanted = opts.stage === 'media' ? needsMedia : needsCoding;
       if (!wanted) return null;
       const { tier, reason } = tierFor(f, now);

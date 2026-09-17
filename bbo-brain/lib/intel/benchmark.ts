@@ -29,6 +29,7 @@ export const NEEDS_FRAMES_OR_SPEAKERS = new Set(['opening_type', 'guest_answer_o
 
 export const AGREEMENT_FIELDS = [
   'primary_topic',
+  'franchise',
   'hook_type',
   'opening_type',
   'question_opening',
@@ -226,11 +227,30 @@ export type BenchmarkReportRow = {
   textAgreement: number | null;
 };
 
-/** Agreement is measured against the coding already in the database (Gemini's, human-corrected where reviewed). */
-export function benchmarkReport(db: Db, benchmarkRunIds?: number[]): BenchmarkReportRow[] {
+/**
+ * Agreement is measured against a reference. Pass `referenceRunId` (a snapshot
+ * from snapshotCurrentCoding) to pin it: comparing against live labels after a
+ * re-code would silently change the yardstick between benchmark runs.
+ */
+export function benchmarkReport(db: Db, benchmarkRunIds?: number[], opts: { referenceRunId?: number } = {}): BenchmarkReportRow[] {
+  const frozen = opts.referenceRunId
+    ? new Map(
+        all<{ content_id: number; output_json: string }>(db, 'SELECT content_id, output_json FROM benchmark_codings WHERE benchmark_run_id = ?', opts.referenceRunId).map((r) => [
+          r.content_id,
+          parseJson<Record<string, unknown>>(r.output_json, {}),
+        ])
+      )
+    : null;
+  const reference = (contentId: number, field: string) => {
+    if (!frozen) return referenceValue(db, contentId, field);
+    const out = frozen.get(contentId);
+    return out ? candidateValue(out, field) : null;
+  };
   const runs = all<{ id: number; name: string; provider: string; model: string }>(
     db,
-    benchmarkRunIds?.length ? `SELECT id, name, provider, model FROM benchmark_runs WHERE id IN (${benchmarkRunIds.map(() => '?').join(',')}) ORDER BY id` : 'SELECT id, name, provider, model FROM benchmark_runs ORDER BY id',
+    benchmarkRunIds?.length
+      ? `SELECT id, name, provider, model FROM benchmark_runs WHERE id IN (${benchmarkRunIds.map(() => '?').join(',')}) ORDER BY id`
+      : `SELECT id, name, provider, model FROM benchmark_runs WHERE provider != 'reference' ORDER BY id`,
     ...(benchmarkRunIds ?? [])
   );
   return runs.map((r) => {
@@ -252,10 +272,10 @@ export function benchmarkReport(db: Db, benchmarkRunIds?: number[]): BenchmarkRe
       for (const row of rows) {
         if (row.status !== 'ok' || !row.output_json) continue;
         const candidate = candidateValue(parseJson<Record<string, unknown>>(row.output_json, {}), field);
-        const reference = referenceValue(db, row.content_id, field);
-        if (candidate === null || reference === null) continue;
+        const expected = reference(row.content_id, field);
+        if (candidate === null || expected === null) continue;
         compared++;
-        if (candidate === reference) agreed++;
+        if (candidate === expected) agreed++;
       }
       agreement[field] = { compared, agreed, rate: compared ? agreed / compared : null };
       agreedTotal += agreed;
@@ -292,6 +312,11 @@ export function benchmarkReport(db: Db, benchmarkRunIds?: number[]): BenchmarkRe
 }
 
 function candidateValue(output: Record<string, unknown>, field: string): string | null {
+  if (field === 'franchise') {
+    const attrs = (output.attributes ?? {}) as Record<string, unknown>;
+    const value = output.franchise ?? attrs.franchise;
+    return typeof value === 'string' && value ? value.toLowerCase() : null;
+  }
   if (field === 'primary_topic') {
     const topics = Array.isArray(output.topics) ? (output.topics as unknown[]) : [];
     const first = topics[0];

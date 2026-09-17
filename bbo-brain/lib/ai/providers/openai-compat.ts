@@ -24,10 +24,24 @@ export type CompatOptions = {
 
 type ChatResponse = {
   choices?: Array<{ message?: { content?: string | null; reasoning?: string | null }; finish_reason?: string }>;
-  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cost?: number; cost_details?: { upstream_inference_cost?: number } };
   model?: string;
+  /** OpenRouter: the upstream host that actually served the request. */
+  provider?: string;
   error?: { message?: string; code?: number | string };
 };
+
+/**
+ * Finish reasons that mean the host stopped the answer itself (a moderation
+ * cut-off mid-JSON on adult content was verified 2026-09-16: Alibaba,
+ * finish_reason "error"). Repairing such an answer only reproduces the cut.
+ */
+const HOST_STOPPED = new Set(['error', 'content_filter']);
+
+function actualCost(data: ChatResponse): number | null {
+  const reported = data.usage?.cost_details?.upstream_inference_cost ?? data.usage?.cost;
+  return typeof reported === 'number' && Number.isFinite(reported) && reported > 0 ? reported : null;
+}
 
 export class OpenAICompatProvider implements AIProvider {
   readonly providerName: ProviderName;
@@ -81,7 +95,7 @@ export class OpenAICompatProvider implements AIProvider {
     }
   }
 
-  private async call(req: GenerateRequest, model: string, opts: { jsonMode: boolean; maxTokens: number }): Promise<ProviderResult> {
+  private async call(req: GenerateRequest, model: string, opts: { jsonMode: boolean; maxTokens: number; excludeHosts?: string[] }): Promise<ProviderResult> {
     const started = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), req.timeoutMs ?? 120_000);
@@ -99,6 +113,7 @@ export class OpenAICompatProvider implements AIProvider {
       temperature: req.temperature ?? 0.3,
       max_tokens: opts.maxTokens,
       ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
+      ...(opts.excludeHosts?.length && this.providerName === 'openrouter' ? { provider: { ignore: opts.excludeHosts } } : {}),
       ...(this.opts.extraBody?.(model, req) ?? {}),
     };
 
@@ -129,6 +144,20 @@ export class OpenAICompatProvider implements AIProvider {
       // Reasoning models put chain-of-thought in a separate field. We never read
       // it, never store it, and treat an answer-free response as a failure.
       const text = (data.choices?.[0]?.message?.content ?? '').trim();
+      const finish = data.choices?.[0]?.finish_reason ?? '';
+      if (HOST_STOPPED.has(finish)) {
+        // Try the same model on a different host once; if none exists, the
+        // model is unavailable for this content and the next candidate runs.
+        if (this.providerName === 'openrouter' && data.provider && !(opts.excludeHosts ?? []).includes(data.provider)) {
+          clearTimeout(timer);
+          return this.call(req, model, { ...opts, excludeHosts: [...(opts.excludeHosts ?? []), data.provider] });
+        }
+        throw new AiError({
+          kind: 'bad-output',
+          model,
+          message: `${this.providerName} ${model} stopped generating (finish_reason=${finish}${data.provider ? `, host ${data.provider}` : ''})`,
+        });
+      }
       if (!text) {
         throw new AiError({
           kind: 'bad-output',
@@ -146,7 +175,8 @@ export class OpenAICompatProvider implements AIProvider {
         providerName: this.providerName,
         modelName: data.model ?? model,
         usage,
-        estimatedCost: estimateCost(this.providerName, model, usage),
+        // OpenRouter reports what the call actually cost; prefer it to our estimate.
+        estimatedCost: actualCost(data) ?? estimateCost(this.providerName, model, usage),
         latencyMs: Date.now() - started,
       };
     } catch (err) {
