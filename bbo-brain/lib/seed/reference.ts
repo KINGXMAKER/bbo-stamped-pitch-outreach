@@ -69,16 +69,30 @@ type AttrDef = {
  * Buckets are never mixed in one performance comparison: a venue promo and a
  * podcast clip want different viewer behaviour.
  */
-export const CONTENT_BUCKETS = ['CORE_INTERVIEW_CONTENT', 'BBO_STAMPED', 'BADDIE_OF_THE_MONTH', 'OTHER_IGNORE'] as const;
+export const CONTENT_BUCKETS = ['CORE_INTERVIEW_CONTENT', 'BBO_STAMPED', 'OTHER_IGNORE'] as const;
 export type ContentBucket = (typeof CONTENT_BUCKETS)[number];
 export const INTERVIEW_FORMATS = ['podcast', 'street_interview'] as const;
+
+/**
+ * Buckets that existed in an earlier taxonomy and now fold into a current one.
+ * Baddie of the Month merged into OTHER_IGNORE on 2026-09-17 (operator decision,
+ * after labelling every Baddie of the Month post as Other).
+ */
+export const RETIRED_BUCKETS: Record<string, ContentBucket> = { BADDIE_OF_THE_MONTH: 'OTHER_IGNORE' };
+
+export function normalizeBucket(value: unknown): ContentBucket | null {
+  if (typeof value !== 'string') return null;
+  if ((CONTENT_BUCKETS as readonly string[]).includes(value)) return value as ContentBucket;
+  return RETIRED_BUCKETS[value] ?? null;
+}
 
 export const BUCKET_DEFINITIONS: Record<ContentBucket, { label: string; priority: number; analysed: boolean; description: string }> = {
   CORE_INTERVIEW_CONTENT: {
     label: 'Core interview content',
     priority: 1,
     analysed: true,
-    description: 'Short clips of people talking on camera in an interview or conversation: sit-down podcast clips (podcast set, mics, panel, guest conversation) and street interview clips (mic-on-the-street questions to passers-by).',
+    description:
+      'A standalone clip of people talking on camera in an interview or conversation: sit-down podcast clips (podcast set, mics, panel, guest conversation) and street interview clips (mic-on-the-street questions to passers-by). Still core when the caption also points to the full episode.',
   },
   BBO_STAMPED: {
     label: 'BBO Stamped',
@@ -86,17 +100,12 @@ export const BUCKET_DEFINITIONS: Record<ContentBucket, { label: string; priority
     analysed: true,
     description: 'Business and venue content: venue/business photos, carousels, reviews, voiceovers, venue interviews, recap videos, food and drink footage, promotional skits, activations, business promotion and ad-oriented posts.',
   },
-  BADDIE_OF_THE_MONTH: {
-    label: 'Baddie of the Month',
-    priority: 3,
-    analysed: false,
-    description: 'Baddie of the Month carousels and posts spotlighting a woman as that month\'s feature.',
-  },
   OTHER_IGNORE: {
     label: 'Other (ignored)',
-    priority: 4,
+    priority: 3,
     analysed: false,
-    description: 'Everything else: BBO Group Chat "your friend texts you" carousels, Clock It quote posts, announcements, promos for episodes or events, behind-the-scenes, memes and miscellaneous posts.',
+    description:
+      'Everything else: posts promoting an episode or upcoming content (highlight reels, compilations, teasers, "new episode", "new clip dropping", "Part 3 coming soon" multi-part series), Baddie of the Month features and their behind-the-scenes, BBO Group Chat "your friend texts you" carousels, Clock It quote posts, announcements, behind-the-scenes, memes and miscellaneous posts.',
   },
 };
 
@@ -105,7 +114,7 @@ export const LEGACY_FRANCHISE_BUCKET: Record<string, { bucket: ContentBucket; fo
   podcast: { bucket: 'CORE_INTERVIEW_CONTENT', format: 'podcast' },
   'street-interview': { bucket: 'CORE_INTERVIEW_CONTENT', format: 'street_interview' },
   'bbo-stamped': { bucket: 'BBO_STAMPED' },
-  'baddies-of-the-month': { bucket: 'BADDIE_OF_THE_MONTH' },
+  'baddies-of-the-month': { bucket: 'OTHER_IGNORE' },
   'bbo-group-chat': { bucket: 'OTHER_IGNORE' },
   'clock-it': { bucket: 'OTHER_IGNORE' },
   announcements: { bucket: 'OTHER_IGNORE' },
