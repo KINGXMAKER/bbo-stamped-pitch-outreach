@@ -12,6 +12,10 @@
 [functions."generate-pitch"]
   timeout = 26
 
+# Restores circuit-broken AI models only after successful probes; probes disabled models for telemetry.
+[functions."ai-health-probe"]
+  schedule = "*/5 * * * *"
+
 [[redirects]]
   from = "/api/analyze-screenshot"
   to = "/.netlify/functions/analyze-screenshot"
@@ -60,6 +64,11 @@
 [[redirects]]
   from = "/api/update-pitch-sent"
   to = "/.netlify/functions/update-pitch-sent"
+  status = 200
+
+[[redirects]]
+  from = "/api/ai-health"
+  to = "/.netlify/functions/ai-health"
   status = 200
 
 [[redirects]]

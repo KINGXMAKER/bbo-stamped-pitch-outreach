@@ -2,6 +2,9 @@ const { createClient } = require('@supabase/supabase-js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs');
 const path = require('path');
+const aiConfig = require('./ai/config');
+const aiRouter = require('./ai/router');
+const { isTransientError, isModelUnavailable, isHardError, isQuotaError } = require('./ai/errors');
 
 // Load environment variables for local development
 try {
@@ -38,261 +41,23 @@ function getGeminiClient() {
   return new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 }
 
+// Primary Gemini model for the current routing config (first non-disabled Gemini candidate).
 function getModelName() {
-  return process.env.GEMINI_MODEL_PRIMARY || process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const first = aiConfig.getRoute().find(c => c.provider === 'gemini' && !c.disabled);
+  return first ? first.model : 'gemini-3.5-flash-lite';
 }
 
-// Ordered list of models to try: primary first, then fallbacks. De-duped.
+// Ordered Gemini models normal traffic may use: primary first, then fallbacks. Disabled models excluded.
 // An optional primaryOverride is prepended (the regular chain becomes its fallback).
 function getModelChain(primaryOverride) {
-  const primary = getModelName();
-  const fallbacks = (process.env.GEMINI_MODEL_FALLBACKS || 'gemini-3.5-flash-lite,gemini-3.6-flash')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
-  const chain = primaryOverride ? [primaryOverride, primary, ...fallbacks] : [primary, ...fallbacks];
-  return [...new Set(chain)];
+  return aiConfig.getRoute(primaryOverride).filter(c => c.provider === 'gemini' && !c.disabled).map(c => c.model);
 }
 
-const TRANSIENT_CODES = ['429', '500', '502', '503', '504'];
-const HARD_CODES = ['400', '401', '403'];
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// The Gemini SDK renders HTTP errors as "[NNN Reason] ...", e.g. "[429 Too Many Requests]".
-// Anchor on that bracketed form instead of a bare substring search — a naive `.includes('400')`
-// can false-positive on unrelated 3-digit numbers elsewhere in the message (a retry-delay like
-// "2.199104009s" contains "400" and was misclassifying transient 429 quota errors as hard errors).
-function getStatusCode(err) {
-  const m = (err && err.message) ? err.message : '';
-  const match = m.match(/\[(\d{3})[\s\]]/);
-  return match ? match[1] : null;
-}
-
-// Retry these — temporary overload / capacity. Backoff then fall back to next model.
-// Includes SDK-level request-timeout aborts ("This operation was aborted") — the
-// @google/generative-ai SDK implements its `timeout` option via AbortController, and an
-// abort is functionally identical to a timeout: worth retrying, not a reason to give up.
-function isTransientError(err) {
-  const m = (err && err.message) ? err.message : '';
-  const code = getStatusCode(err);
-  return (code && TRANSIENT_CODES.includes(code)) ||
-    /overload|unavailable|high demand|try again later|deadline|timeout|ETIMEDOUT|ECONNRESET|aborted|AbortError/i.test(m);
-}
-
-// A missing/removed model (404) is not transient, but we should still skip to the next model in the chain.
-function isModelUnavailable(err) {
-  const code = getStatusCode(err);
-  const m = (err && err.message) ? err.message : '';
-  return code === '404' || /not found|is not supported/i.test(m);
-}
-
-// Hard failures — never retry, never fall back. Auth, bad key, malformed request, invalid image.
-function isHardError(err) {
-  if (isModelUnavailable(err)) return false; // 404 handled separately (try next model)
-  const code = getStatusCode(err);
-  const m = (err && err.message) ? err.message : '';
-  return (code && HARD_CODES.includes(code)) ||
-    /API key|api_key|permission|invalid argument|invalid image|unsupported/i.test(m);
-}
-
-// Rate-limit / quota (429). On the FREE tier each model has its OWN per-minute quota bucket,
-// so the right move is to skip straight to the NEXT model (separate bucket) rather than retry
-// the same one — our sub-4s backoffs can't outwait a per-minute reset and just burn more quota.
-function isQuotaError(err) {
-  const m = (err && err.message) ? err.message : '';
-  return getStatusCode(err) === '429' || /quota|rate.?limit|too many requests|resource_exhausted/i.test(m);
-}
-
-// When every model fails we still have to report ONE error. The LAST model's error is the wrong
-// pick: the tail of the chain is its least reliable rung, so its failure routinely masks the real
-// wall hit further up — usually 429 quota exhaustion. Rank failures by how actionable the cause is
-// and report the winner. Ranking reuses the status-code predicates above, never a digit scan.
-const FAILURE_RANK = { quota: 3, unavailable: 2, transient: 1, other: 0 };
-
-function classifyFailure(err) {
-  if (isQuotaError(err)) return 'quota';              // 429 — quota spent, wait for the reset
-  if (isModelUnavailable(err)) return 'unavailable';  // 404 — model retired, the chain needs updating
-  if (isTransientError(err)) return 'transient';      // 5xx / timeout — worth retrying
-  return 'other';
-}
-
-// Cross-provider fallback: NVIDIA NIM (OpenAI-compatible, free tier).
-// Text-only — fires when every Gemini model in the chain has failed.
-async function generateWithNvidia(prompt, systemInstruction, timeoutMs) {
-  const key = process.env.NVIDIA_API_KEY;
-  const model = process.env.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct';
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-      body: JSON.stringify({
-        model,
-        messages: [
-          ...(systemInstruction ? [{ role: 'system', content: systemInstruction }] : []),
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.6,
-        max_tokens: 4096,
-        stream: false
-      }),
-      signal: controller.signal
-    });
-    if (!res.ok) {
-      const detail = (await res.text().catch(() => '')).slice(0, 200);
-      throw new Error(`NVIDIA fallback returned ${res.status}: ${detail}`);
-    }
-    const data = await res.json();
-    const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-    if (!text) throw new Error('NVIDIA fallback returned an empty response');
-    console.log(`[nvidia] fallback succeeded on ${model}`);
-    return { text, modelUsed: `nvidia:${model}` };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// Core resilient caller. contentArg is whatever the SDK's generateContent accepts
-// (a string for text, or a parts array for multimodal). Returns { text, modelUsed }.
-// deadlineMs caps total wall-clock so we never blow past the Netlify function timeout.
-// opts:
-//   json              — force valid JSON output (Gemini responseMimeType)
-//   primaryModel      — prepend this model; the regular chain becomes its fallback
-//   primaryTimeoutMs  — cap the primary's request time so fallbacks still fit in the deadline
-//   primaryMaxAttempts— attempts allowed for the primary (default: same as fallbacks)
+// Core resilient caller — delegates to the deadline-bounded, circuit-aware router (ai/router.js).
+// contentArg is a string (text) or a parts array (multimodal). Returns { text, modelUsed, provider, usage, estCostUsd }.
+// opts: json, primaryModel, generationId, task, trace, budget, noTokenCap.
 async function generateContentResilient(genAI, contentArg, modelConfigExtra, deadlineMs, opts) {
-  opts = opts || {};
-  const models = getModelChain(opts.primaryModel);
-  const deadline = Date.now() + (deadlineMs || 25000);
-  const MAX_ATTEMPTS = 3;
-  let lastErr;
-  // Highest-ranked failure seen anywhere in the chain — this is what gets reported if all fail.
-  let topErr, topKind = null, topModel = null;
-  const noteFailure = (err, modelName) => {
-    lastErr = err;
-    const kind = classifyFailure(err);
-    if (!topKind || FAILURE_RANK[kind] > FAILURE_RANK[topKind]) {
-      topErr = err; topKind = kind; topModel = modelName || null;
-    }
-  };
-
-  const config = { ...(modelConfigExtra || {}) };
-  if (opts.json) {
-    config.generationConfig = { ...(config.generationConfig || {}), responseMimeType: 'application/json' };
-  }
-  // Cap output length so generation can't run unbounded (the dominant latency driver). Env-tunable.
-  const maxOutTokens = parseInt(process.env.LLM_MAX_OUTPUT_TOKENS || '3500', 10);
-  if (maxOutTokens > 0 && !opts.noTokenCap) {
-    config.generationConfig = { ...(config.generationConfig || {}), maxOutputTokens: maxOutTokens };
-  }
-
-  // Thinking models reason before answering — ON by default, and the single biggest cause of slow
-  // pitch generation. Keep it minimal for a copywriting task where speed matters far more than
-  // chain-of-thought. The two families take DIFFERENT fields, and sending the wrong one is fatal:
-  // gemini-3.5-flash-lite answers 400 to thinkingBudget, which isHardError treats as a hard stop for
-  // the whole chain (verified against the live API 2026-09-16).
-  //   gemini-3.x → thinkingLevel (default "low"; GEMINI_THINKING_LEVEL=high if deeper reasoning is needed)
-  //   gemini-2.5 → thinkingBudget (default 0)
-  // Anything else gets no thinkingConfig (older models reject the field).
-  const thinkingLevel = process.env.GEMINI_THINKING_LEVEL || 'low';
-  const thinkingBudget = parseInt(process.env.GEMINI_THINKING_BUDGET || '0', 10);
-  const modelConfigFor = (modelName) => {
-    let thinkingConfig = null;
-    if (/^gemini-3/.test(modelName)) thinkingConfig = { thinkingLevel };
-    else if (/2\.5/.test(modelName) && Number.isFinite(thinkingBudget)) thinkingConfig = { thinkingBudget };
-    if (thinkingConfig) {
-      return { ...config, generationConfig: { ...(config.generationConfig || {}), thinkingConfig } };
-    }
-    return config;
-  };
-
-  // Below this, a request is essentially guaranteed to abort before Gemini can respond —
-  // don't bother issuing it, just move on (next attempt/model/NVIDIA/give up).
-  const MIN_REQUEST_TIMEOUT_MS = 3000;
-
-  for (const modelName of models) {
-    const isPrimary = modelName === models[0];
-    const attemptsAllowed = (isPrimary && opts.primaryMaxAttempts) ? opts.primaryMaxAttempts : MAX_ATTEMPTS;
-    for (let attempt = 0; attempt < attemptsAllowed; attempt++) {
-      const remaining = deadline - Date.now();
-      if (remaining < MIN_REQUEST_TIMEOUT_MS) {
-        console.warn(`[gemini] ${modelName} skipped — only ${remaining}ms left in budget (floor is ${MIN_REQUEST_TIMEOUT_MS}ms).`);
-        break;
-      }
-      const attemptStart = Date.now();
-      // Per-request timeout: never let one slow call eat the whole deadline.
-      const reqTimeout = (isPrimary && opts.primaryTimeoutMs) ? Math.min(remaining, opts.primaryTimeoutMs) : remaining;
-      console.log(`[gemini] → ${modelName} attempt ${attempt + 1}/${attemptsAllowed}, timeout=${reqTimeout}ms, budget left=${remaining}ms`);
-      try {
-        const model = genAI.getGenerativeModel({ model: modelName, ...modelConfigFor(modelName) }, { timeout: reqTimeout });
-        const result = await model.generateContent(contentArg);
-        console.log(`[gemini] ✓ ${modelName} responded in ${Date.now() - attemptStart}ms (attempt ${attempt + 1})`);
-        return { text: result.response.text(), modelUsed: modelName };
-      } catch (err) {
-        const elapsed = Date.now() - attemptStart;
-        noteFailure(err, modelName);
-
-        if (isHardError(err)) {
-          console.error(`[gemini] ✗ hard error on ${modelName} after ${elapsed}ms — not retrying: ${err.message}`);
-          throw err;
-        }
-
-        // Quota/429: don't retry THIS model (separate free-tier bucket per model) — jump to the
-        // next model immediately. This turns the fallback chain into free-tier quota spreading.
-        if (isQuotaError(err)) {
-          console.warn(`[gemini] ✗ ${modelName} quota/429 after ${elapsed}ms — skipping to next model (separate quota bucket).`);
-          break;
-        }
-
-        if (isTransientError(err) && attempt < attemptsAllowed - 1) {
-          const backoff = 800 * Math.pow(2, attempt) + Math.floor(Math.random() * 400); // 800/1600/3200 + jitter
-          if (Date.now() + backoff >= deadline) {
-            console.warn(`[gemini] ✗ ${modelName} transient after ${elapsed}ms but no time left to retry — falling back.`);
-            break;
-          }
-          console.warn(`[gemini] ✗ ${modelName} transient after ${elapsed}ms (attempt ${attempt + 1}): ${err.message}. retrying in ${backoff}ms`);
-          await sleep(backoff);
-          continue;
-        }
-
-        // Out of retries, or a non-transient model-availability issue — move to next model.
-        console.warn(`[gemini] ✗ ${modelName} exhausted/unavailable after ${elapsed}ms: ${err.message}. trying next model.`);
-        break;
-      }
-    }
-  }
-
-  // Last rung: cross-provider NVIDIA fallback (text prompts only).
-  const remaining = deadline - Date.now();
-  if (process.env.NVIDIA_API_KEY && typeof contentArg === 'string' && remaining > 3000) {
-    try {
-      console.warn('[gemini] all Gemini models failed — trying NVIDIA fallback');
-      const systemInstruction = (modelConfigExtra && modelConfigExtra.systemInstruction) || null;
-      return await generateWithNvidia(contentArg, systemInstruction, remaining);
-    } catch (nvErr) {
-      console.error('[nvidia] fallback failed:', nvErr.message);
-      noteFailure(nvErr, 'nvidia');
-    }
-  }
-
-  // Embedding the ACTIONABLE error's message (not the last one's) also means getStatusCode on this
-  // wrapper extracts the code that matters — a caller reading the bracketed status sees the 429 that
-  // actually blocked the run, not a 503/404 from the last rung.
-  const reported = topErr || lastErr;
-  const e = new Error(
-    `All Gemini models failed (tried ${models.join(', ')}). ` +
-    `Most actionable failure — ${topKind || 'unknown'}${topModel ? ` on ${topModel}` : ''}: ` +
-    `${reported ? reported.message : 'unknown'}`
-  );
-  e.allModelsFailed = true;
-  e.failureKind = topKind;       // 'quota' | 'unavailable' | 'transient' | 'other'
-  e.actionableError = reported;
-  e.lastError = lastErr;         // literal last rung, kept for debugging
-  throw e;
+  return aiRouter.generate(genAI, contentArg, modelConfigExtra, deadlineMs, opts);
 }
 
 async function generateText(genAI, prompt, systemInstruction, opts) {

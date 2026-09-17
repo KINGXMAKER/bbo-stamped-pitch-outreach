@@ -4,6 +4,12 @@ const {
   isHardError,
   isModelUnavailable
 } = require('./shared');
+const { initAiRequest, finishAiRequest } = require('./ai/request-context');
+
+// Screenshot scans are short JSON extractions: measured 2.0–3.0s on gemini-3.5-flash-lite / 3.6-flash.
+// Bound the whole scan and each model attempt so a degraded model can't hold the user for 20s+.
+const SCAN_DEADLINE_MS = parseInt(process.env.AI_SCAN_DEADLINE_MS || '15000', 10);
+const SCAN_ATTEMPT_WINDOWS_MS = [8000];
 
 const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 const MAX_BASE64_CHARS = 12 * 1024 * 1024; // ~9MB binary, generous headroom over the 8MB client cap
@@ -88,7 +94,16 @@ Extract what's visible and return a JSON object with these exact fields:
 
 Be specific and detailed. If you can't determine something, use an empty string. Do NOT include any gap or pitch-angle selection. Return ONLY valid JSON, no markdown.`;
 
-    const { text, modelUsed } = await generateWithImage(ai, prompt, base64Data, mimeType, { json: true });
+    const aiRequest = initAiRequest(event);
+    let text, modelUsed;
+    try {
+      ({ text, modelUsed } = await generateWithImage(ai, prompt, base64Data, mimeType, {
+        json: true, task: 'screenshot_scan', deadlineMs: SCAN_DEADLINE_MS, attemptWindowsMs: SCAN_ATTEMPT_WINDOWS_MS,
+        generationId: aiRequest.generationId, trace: aiRequest.trace, budget: aiRequest.budget,
+      }));
+    } finally {
+      await finishAiRequest();
+    }
     const cleaned = text.replace(/^```json\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
 
     let data;

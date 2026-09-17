@@ -1,4 +1,6 @@
 const { getGeminiClient, getSupabaseClient, getMatchingExamples, generateText, isHardError, isQuotaError, isTransientError, isModelUnavailable } = require('./shared');
+const { initAiRequest, finishAiRequest, summarizeTrace } = require('./ai/request-context');
+const { createGenerationLog, insertPitchHistoryRows } = require('./ai/generation-log');
 
 // Long, plain-language gap explanations used on the normal (non-condensed) path.
 // Four consolidated gaps — never insulting, always framed as an opportunity.
@@ -150,11 +152,11 @@ function capText(s, maxChars) {
 
 // Ask the model to compress one field to a word budget while preserving voice, the
 // locked opener, and (for emails) the CTA link. Returns compressed text or null on failure.
-async function compressField(ai, label, textValue, maxWords, deadlineMs) {
+async function compressField(ai, label, textValue, maxWords, deadlineMs, aiOpts) {
   const sys = `You compress outreach copy. Return ONLY the rewritten ${label} as plain text — no JSON, no quotes, no markdown. Keep the same founder-led voice, the exact opening line, every fact, and any link. Do not add anything new. Never exceed ${maxWords} words.`;
   const prompt = `Rewrite this ${label} so it is ${maxWords} words or fewer while keeping the opener, the gap point, and the CTA. Stay plain and direct.\n\n${label}:\n"""\n${textValue}\n"""`;
   try {
-    const out = (await generateText(ai, prompt, sys, { deadlineMs })).trim();
+    const out = (await generateText(ai, prompt, sys, { ...aiOpts, task: 'length_guard', deadlineMs })).trim();
     return out.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '').replace(/^"+|"+$/g, '').trim();
   } catch (e) {
     console.error(`[length-guard] compression of ${label} failed:`, e.message);
@@ -166,7 +168,7 @@ async function compressField(ai, label, textValue, maxWords, deadlineMs) {
 // budgetMs is how much time is left in the request — the two compressions run in parallel
 // (not sequentially) and are skipped entirely once there isn't enough time left to risk them,
 // since returning a slightly-over-cap draft beats blowing the whole request past the timeout.
-async function enforceLength(ai, data, budgetMs) {
+async function enforceLength(ai, data, budgetMs, aiOpts) {
   const MIN_BUDGET_MS = 2500;
   if (budgetMs < MIN_BUDGET_MS) return data;
   const perCallDeadline = Math.min(6000, budgetMs - 500);
@@ -174,7 +176,7 @@ async function enforceLength(ai, data, budgetMs) {
   const jobs = [];
   if (countWords(data.email_body) > 190) {
     jobs.push(
-      compressField(ai, 'email', data.email_body, 170, perCallDeadline).then(compressed => {
+      compressField(ai, 'email', data.email_body, 170, perCallDeadline, aiOpts).then(compressed => {
         if (compressed && countWords(compressed) <= 200) {
           // Guarantee the fixed CTA link survived compression.
           data.email_body = compressed.includes('bbouniverse.com/pages/bbo-stamped')
@@ -186,7 +188,7 @@ async function enforceLength(ai, data, budgetMs) {
   }
   if (countWords(data.dm_version) > 140) {
     jobs.push(
-      compressField(ai, 'Instagram DM', data.dm_version, 120, perCallDeadline).then(compressed => {
+      compressField(ai, 'Instagram DM', data.dm_version, 120, perCallDeadline, aiOpts).then(compressed => {
         if (compressed && countWords(compressed) <= 150) data.dm_version = compressed;
       })
     );
@@ -205,23 +207,28 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
 
   const requestStart = Date.now();
-  // Short correlation id so every phase log for one generation can be grepped together in the
-  // Netlify function logs. Not a secret; safe to return to the client for support.
-  const requestId = Math.random().toString(36).slice(2, 10);
+  // One generation id per user request: correlates phase logs, [ai-attempt] lines, the
+  // pitch_generations record, its attempts and both pitch_history channel rows. Safe to return.
+  const aiRequest = initAiRequest(event);
+  const requestId = aiRequest.generationId;
+  const aiOpts = { generationId: requestId, trace: aiRequest.trace, budget: aiRequest.budget };
+  let generationLog = null;
   const phase = (name) => console.log(`[gen ${requestId}] ${name} @ +${Date.now() - requestStart}ms`);
 
-  // Total soft budget for this invocation. Default 9s so the whole pipeline (primary + automatic
-  // fallback + serialize) finishes UNDER Netlify's default 10s synchronous-function ceiling on
-  // Free/Starter plans — the actual cause of the production timeouts. On a Pro plan where
-  // netlify.toml's timeout=26 is honored, set LLM_TOTAL_BUDGET_MS=24000 to allow a richer pass.
-  // This only works because thinking is now disabled + output is token-capped (see shared.js),
-  // which turns the primary call from ~10-20s into a few seconds.
-  const TOTAL_BUDGET_MS = parseInt(process.env.LLM_TOTAL_BUDGET_MS || '9000', 10);
+  // Total generation deadline for this invocation. This site's plan honors netlify.toml's 26s
+  // function timeout (a 21s production run completed on 2026-09-17), so 20s leaves ~6s for Supabase
+  // reads/writes and cold start. Measured on real inputs, gemini-3.5-flash-lite needs p50 5.2s /
+  // p95 9.3s for a full pitch, so a ~10s total could not fit a full pitch plus any fallback.
+  // Inside this deadline the router bounds every model attempt (AI_ATTEMPT_WINDOWS_MS), so a
+  // degraded model can never eat the whole budget. Set LLM_TOTAL_BUDGET_MS=9000 on a 10s plan.
+  const TOTAL_BUDGET_MS = parseInt(process.env.LLM_TOTAL_BUDGET_MS || '20000', 10);
   const PRIMARY_TIMEOUT_MS = parseInt(process.env.LLM_PRIMARY_TIMEOUT_MS || '0', 10); // 0 = derive from budget
   const timeLeft = () => TOTAL_BUDGET_MS - (Date.now() - requestStart);
 
   let modelUsed = null;      // set by generateText via the { onModel } hook below
   let fallbackUsed = false;  // true once the compact fallback path runs
+  // true when the response is the small fallback shape (hoisted so failure bookkeeping can read it)
+  let usedCompact = false;
 
   try {
     phase('request received');
@@ -230,6 +237,9 @@ exports.handler = async (event) => {
 
     if (!businessName) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Business name is required' }) };
     phase('input validated');
+
+    generationLog = createGenerationLog(getSupabaseClient(), { generationId: requestId, businessName, fastMode, payload: body });
+    generationLog.start();
 
     // Long screenshot-scan notes / vibe text were the biggest single driver of slow generation
     // on mobile — cap them before they ever reach the prompt. Typical hand-typed notes are well
@@ -429,7 +439,6 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
     let text;
     // usedCompact tracks whether the response is the small fallback shape — if so we skip the
     // length-guard (no email to compress, DM is already short) and force the fixed DM CTA.
-    let usedCompact = false;
 
     if (fastMode) {
       // Manual "Try Again" → go straight to the fast compact path. Plain flash (no pitchOpts
@@ -438,7 +447,7 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
       fallbackUsed = true;
       const dl = Math.max(3500, timeLeft() - RESERVE_AFTER_GEN_MS);
       phase(`fastMode compact generation start (deadline=${dl}ms)`);
-      text = (await generateText(ai, userPromptCompact, systemPromptCondensed, { json: true, deadlineMs: dl, onModel })).trim();
+      text = (await generateText(ai, userPromptCompact, systemPromptCondensed, { ...aiOpts, task: 'pitch_compact', json: true, deadlineMs: dl, onModel })).trim();
       phase('fastMode compact generation done');
     } else {
       // Bound the primary so the fallback still fits. On the 9s default this gives the primary
@@ -448,7 +457,7 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
       primaryDeadline = Math.max(3500, primaryDeadline);
       try {
         phase(`primary (full) generation start (deadline=${primaryDeadline}ms)`);
-        text = (await generateText(ai, userPrompt, systemPrompt, { ...pitchOpts, deadlineMs: primaryDeadline, onModel })).trim();
+        text = (await generateText(ai, userPrompt, systemPrompt, { ...aiOpts, ...pitchOpts, task: 'pitch_full', deadlineMs: primaryDeadline, onModel })).trim();
         phase('primary generation done');
       } catch (genErr) {
         // Hard errors (bad key, auth, invalid request) won't be fixed by a smaller prompt.
@@ -461,7 +470,7 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
         fallbackUsed = true;
         const fallbackDeadline = Math.max(3000, timeLeft() - RESERVE_AFTER_GEN_MS);
         phase(`auto-fallback compact generation start (deadline=${fallbackDeadline}ms)`);
-        text = (await generateText(ai, userPromptCompact, systemPromptCondensed, { json: true, deadlineMs: fallbackDeadline, onModel })).trim();
+        text = (await generateText(ai, userPromptCompact, systemPromptCondensed, { ...aiOpts, task: 'pitch_compact', json: true, deadlineMs: fallbackDeadline, onModel })).trim();
         phase('auto-fallback compact generation done');
       }
     }
@@ -481,7 +490,7 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
         fallbackUsed = true;
         const dl = Math.max(3000, timeLeft() - RESERVE_AFTER_GEN_MS);
         phase(`malformed-json fallback compact generation start (deadline=${dl}ms)`);
-        const t2 = (await generateText(ai, userPromptCompact, systemPromptCondensed, { json: true, deadlineMs: dl, onModel })).trim();
+        const t2 = (await generateText(ai, userPromptCompact, systemPromptCondensed, { ...aiOpts, task: 'pitch_compact', json: true, deadlineMs: dl, onModel })).trim();
         data = tryParse(t2); // if THIS throws, the outer catch returns a clean "invalid response"
         phase('malformed-json fallback json parsed');
       } else {
@@ -504,73 +513,74 @@ Do NOT include any Instagram reel/post links or "past activations" links anywher
     } else {
       // Server-side length guard: compress over-cap email/DM bodies before returning. Budget-aware
       // so it's skipped once there isn't enough time left to risk it (see enforceLength above).
-      await enforceLength(ai, data, timeLeft());
+      await enforceLength(ai, data, timeLeft(), aiOpts);
     }
 
-    // 4. Log the generation to pitch_history in Supabase
-    let dmHistoryId = null;
-    let emailHistoryId = null;
+    // 4. Log the deliverables to pitch_history: one row per channel (dm, email). The frontend marks
+    // each channel sent separately and records outcomes per row, so these two rows are intentional —
+    // they are linked to ONE logical generation via generation_id. Written only on success, in a
+    // single insert (both rows or neither), so failed attempts never add history rows.
+    let historyIds = { dm: null, email: null };
+    const historyRow = (channel, draft) => ({
+      business_name: businessName, venue_type: null, gap_type: primaryGap || null, channel,
+      ai_draft: draft, pitch_payload: body, outcome: 'pending', outcome_score: 50,
+    });
     try {
-      const { data: dmRow } = await supabase
-        .from('pitch_history')
-        .insert({
-          business_name: businessName,
-          venue_type: null,
-          gap_type: primaryGap || null,
-          channel: 'dm',
-          ai_draft: data.dm_version,
-          pitch_payload: body,
-          outcome: 'pending',
-          outcome_score: 50
-        })
-        .select('id')
-        .single();
-      if (dmRow) dmHistoryId = dmRow.id;
-
-      const { data: emailRow } = await supabase
-        .from('pitch_history')
-        .insert({
-          business_name: businessName,
-          venue_type: null,
-          gap_type: primaryGap || null,
-          channel: 'email',
-          ai_draft: data.email_body,
-          pitch_payload: body,
-          outcome: 'pending',
-          outcome_score: 50
-        })
-        .select('id')
-        .single();
-      if (emailRow) emailHistoryId = emailRow.id;
+      historyIds = await insertPitchHistoryRows(supabase,
+        [historyRow('dm', data.dm_version), historyRow('email', data.email_body)], requestId, generationLog);
     } catch (dbErr) {
-      console.error('Failed to log pitch history:', dbErr);
+      console.error('Failed to log pitch history:', dbErr && dbErr.message);
     }
 
     // Add history IDs to the response
-    data.history_ids = {
-      dm: dmHistoryId,
-      email: emailHistoryId
-    };
+    data.history_ids = historyIds;
 
     // Operational metadata — safe for the client (no secrets). The frontend keeps it in dev mode
     // / logs; it doesn't need to be shown prominently in the UI.
+    const summary = summarizeTrace(aiRequest.trace);
     data._meta = {
       requestId,
       modelUsed: modelUsed || null,
       fallbackUsed,
       compact: usedCompact,
+      attempts: summary.attemptsCount,
+      estimatedCostUsd: summary.estimatedCostUsd,
       totalDurationMs: Date.now() - requestStart
     };
     phase(`response returned (model=${modelUsed}, fallback=${fallbackUsed}, compact=${usedCompact})`);
+    await completeGeneration('success', { data });
 
     return { statusCode: 200, headers, body: JSON.stringify(data) };
 
   } catch (err) {
     console.error(`[gen ${requestId}] error after +${Date.now() - requestStart}ms:`, err && err.message);
+    await completeGeneration('failed', { err });
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ error: friendlyErrorMessage(err), requestId })
     };
+  }
+
+  // One summary line per generation — answers "why was this request slow?" — then persist the
+  // generation record + attempts and the breaker/spend state. Bounded; never throws.
+  async function completeGeneration(status, { data, err }) {
+    const latencyMs = Date.now() - requestStart;
+    const summary = summarizeTrace(aiRequest.trace);
+    console.log('[ai-generation] ' + JSON.stringify({
+      generationId: requestId, status, totalLatencyMs: latencyMs, modelUsed: modelUsed || null,
+      providerUsed: summary.providerUsed, attempts: summary.attemptsCount, fallbackUsed, compact: usedCompact,
+      fallbackReasons: summary.fallbackReasons, inputTokens: summary.inputTokens, outputTokens: summary.outputTokens,
+      estimatedCostUsd: summary.estimatedCostUsd, errorKind: err ? (err.errorClass || err.failureKind || err.code || 'error') : null,
+    }));
+    try {
+      await Promise.all([
+        generationLog && generationLog.finish({ status, summary, latencyMs, compact: usedCompact, fallbackUsed,
+          error: err || null, finalPitch: data || null, attempts: aiRequest.trace.attempts }),
+        finishAiRequest(),
+      ]);
+    } catch (e) {
+      console.warn(`[gen ${requestId}] generation bookkeeping failed: ${e && e.message}`);
+    }
   }
 };
