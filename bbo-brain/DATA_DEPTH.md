@@ -201,42 +201,54 @@ measured AI accuracy once reviews exist.
 
 ---
 
-## 6. Daily sequence
+## 6. Weekly sequence
 
-`npm run job -- daily` runs, in dependency order:
+BBO BRAIN runs **once a week**, not daily. `npm run job -- weekly` runs, in
+dependency order:
 
 1. `instagram-content` — new and updated posts
 2. `instagram-metrics` — fresh metric snapshots
 3. `instagram-account` — account-level data
-4. `media-transcripts` — priority queue, media + frames + transcript (local, no AI spend)
-5. `score` — era-normalised scoring and labels
-6. `provider-health` — one tiny JSON call per configured AI provider, plus the budget position
-7. `ai-enrich` — structured coding on the validated coding model, priority queue, stops at `AI_CODING_CORPUS_LIMIT`
-8. `analyze` — deep analysis of the posts that warrant it (analysis-class model)
-9. `mine-lessons` — patterns with sample size, effect, p-value, FDR control
-10. `rule-proposals` → `rule-challenges` — proposals for **human** approval only
-11. `experiments` → `opportunities` → `graph` → `search`
+4. `media-transcripts` — priority queue: media, hook frames and transcripts (local, no AI spend)
+5. `content-buckets` — bucket the new posts (after media, never before)
+6. `score` — era-normalised scoring and labels
+7. `provider-health` — one tiny JSON call per provider, plus the budget position
+8. `ai-enrich` — structured coding, priority queue, stops at `AI_CODING_CORPUS_LIMIT`
+9. `analyze` — deep analysis of the posts that warrant it
+10. `mine-lessons` — patterns with sample size, effect, p-value, FDR control, per bucket
+11. `experiments` → `rule-challenges` → `rule-proposals` — evaluate tests, check whether rules gained or lost support, propose only on genuinely repeated evidence
+12. `opportunities` → `graph` → `search` → `weekly-review`
 
-**What happens when AI is unavailable.** Content, metrics, media, scoring,
-mining, graph and search never depend on a model. If every AI provider refuses,
-`ai-enrich` reports FAILED and its posts stay queued for tomorrow; if the budget
-is spent, it reports BUDGET PAUSED without making a single paid call. Either
-way the loop carries on (tests: `tests/daily-resilience.test.ts`). Only a failed
+Each step processes what is new: the syncs are incremental, media and coding come
+off the priority queue under their caps, and bucketing skips posts that already
+carry a current-version label. Scoring and mining re-run the historical
+comparisons, which is what makes the new data mean anything — the archive is not
+re-coded or re-bucketed every week.
+
+`npm run job -- daily` still runs the same steps for a manual pass, and every job
+can be triggered by name at any time from the CLI, Settings or the Command Center.
+
+**What happens when AI is unavailable.** Content, metrics, media, scoring, mining,
+graph and search never depend on a model. If every AI provider refuses,
+`ai-enrich` reports FAILED and its posts stay queued for next week; if the budget
+is spent, it reports BUDGET PAUSED without making a single paid call. Either way
+the loop carries on (tests: `tests/daily-resilience.test.ts`). Only a failed
 Instagram content or metrics sync stops the loop, because everything after it
 would reason over stale data.
 
 ### Scheduling (nothing is installed until you install it)
 
-`scripts/launchd/com.bbo.brain.daily.plist` is a template. Installing it would
-add exactly one file, `~/Library/LaunchAgents/com.bbo.brain.daily.plist`, with a
-single job: at 07:30 local time run `npm run job -- daily` in this directory, and
-on Mondays also `npm run job -- weekly-review`, appending to `data/daily.log`.
-It adds no login item, no network listener, and no other system change.
+`scripts/launchd/com.bbo.brain.weekly.plist` is a template. Installing it would
+add exactly one file, `~/Library/LaunchAgents/com.bbo.brain.weekly.plist`, with a
+single job: **Thursdays at 09:00 local time**, run `npm run job -- weekly` in this
+directory, appending to `data/weekly.log`. It adds no login item, no network
+listener, no daily job, and no other system change.
 
-Expected daily AI spend with the current selection: provider health checks
-(≈$0.0002), coding only for posts that are new and fall under
-`AI_CODING_CORPUS_LIMIT` (≈$0.0006 each), deep analysis for posts crossing the
-triggers, and all of it capped at `AI_DAILY_BUDGET_USD`.
+Expected weekly AI spend with the current selection: provider health checks
+(≈$0.0002), bucket classification for new posts (≈$0.0001 each), coding only for
+new posts under `AI_CODING_CORPUS_LIMIT` (≈$0.0006 each), deep analysis for posts
+crossing the triggers, and all of it capped by `AI_DAILY_BUDGET_USD` and
+`AI_MONTHLY_BUDGET_USD`.
 
 ```bash
 cp scripts/launchd/com.bbo.brain.daily.plist ~/Library/LaunchAgents/

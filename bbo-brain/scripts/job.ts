@@ -4,12 +4,13 @@
  *   npm run job -- list
  *   npm run job -- score
  *   npm run job -- instagram-metrics '{"all":true}'
- *   npm run job -- daily
+ *   npm run job -- weekly       # the scheduled loop
+ *   npm run job -- daily        # same steps, manual only
  *   npm run job -- backfill        # archive + learnings + full Instagram history + scoring + mining
  */
 import { getDb } from '@/lib/db/client';
 import { seedReference } from '@/lib/seed';
-import { DAILY_PIPELINE, JOBS, runNamedJob, runPipeline } from '@/lib/sync/registry';
+import { DAILY_PIPELINE, JOBS, runNamedJob, runPipeline, WEEKLY_PIPELINE } from '@/lib/sync/registry';
 
 const [kind = 'list', rawParams] = process.argv.slice(2);
 const db = getDb();
@@ -23,12 +24,13 @@ function print(r: { kind: string; status: string; summary: string | null; error:
 async function main() {
   if (kind === 'list') {
     for (const [k, d] of Object.entries(JOBS)) console.log(`${k.padEnd(24)} [${d.phase}] ${d.description}`);
-    console.log(`\ndaily = ${DAILY_PIPELINE.join(' → ')}`);
+    console.log(`\nweekly = ${WEEKLY_PIPELINE.join(' → ')}`);
+    console.log(`\ndaily (manual only) = ${DAILY_PIPELINE.join(' → ')}`);
     return;
   }
   const params = rawParams ? (JSON.parse(rawParams) as Record<string, unknown>) : {};
-  if (kind === 'daily') {
-    for (const r of await runPipeline(db)) print(r);
+  if (kind === 'weekly' || kind === 'daily') {
+    for (const r of await runPipeline(db, kind === 'weekly' ? WEEKLY_PIPELINE : DAILY_PIPELINE)) print(r);
     return;
   }
   if (kind === 'backfill') {

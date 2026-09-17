@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Notice } from '@/components/notice';
 import { Empty, fmtDate, LabelChip, PageHead, ScoreBadge, Section, Stat, Thumb } from '@/components/ui';
 import { all, getDb } from '@/lib/db/client';
-import { codedRows, codingAccuracy, currentValidationBatch, validationSample, type ValidationStatus } from '@/lib/intel/validation';
+import { codedRows, codingAccuracy, currentValidationBatch, validationReport, validationSample, type ValidationStatus } from '@/lib/intel/validation';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Coding Validation' };
@@ -23,6 +23,7 @@ export default async function Validation({ searchParams }: { searchParams: Promi
   const counts = { APPROVED: 0, EDITED: 0, REJECTED: 0 } as Record<string, number>;
   for (const r of reviewed) counts[r.status]++;
   const worst = accuracy.attributes.filter((a) => a.agreement !== null && a.agreement < 0.8);
+  const report = validationReport(db);
   const sampleMix = sample.reduce<Record<string, number>>((acc, r) => ({ ...acc, [r.corpusClass]: (acc[r.corpusClass] ?? 0) + 1 }), {});
   const [topClass, topCount] = Object.entries(sampleMix).sort((a, b) => b[1] - a[1])[0] ?? ['', 0];
   const skewed = sample.length >= 8 && topCount / sample.length > 0.5;
@@ -99,6 +100,78 @@ export default async function Validation({ searchParams }: { searchParams: Promi
           <strong className="white">This sample is skewed.</strong> {Math.round((topCount / sample.length) * 100)}% of it is {CLASS_LABEL[topClass]?.toLowerCase() ?? topClass} posts — the
           quota asks for a spread, but only what has been coded can be sampled. Agreement rates measured from it are provisional until the corpus is balanced.
         </div>
+      ) : null}
+
+      {report.reviewed ? (
+        <Section
+          title="What your review says the AI understands"
+          note={`${report.reviewed} posts · ${report.overall.compared} labels compared${report.batchSize ? ` · batch ${report.batchReviewed}/${report.batchSize}` : ''}`}
+        >
+          <div className="grid-4">
+            <Stat label="Overall agreement" value={report.overall.rate === null ? '—' : `${Math.round(report.overall.rate * 100)}%`} sub={`${report.overall.agreed}/${report.overall.compared} labels`} tone="pink" />
+            <Stat label="Hook type" value={`${Math.round((report.fields.find((f) => f.key === 'hook_type')?.rate ?? 0) * 100)}%`} sub={`${report.fields.find((f) => f.key === 'hook_type')?.compared ?? 0} compared`} />
+            <Stat label="Opening type" value={`${Math.round((report.fields.find((f) => f.key === 'opening_type')?.rate ?? 0) * 100)}%`} sub={`${report.fields.find((f) => f.key === 'opening_type')?.compared ?? 0} compared`} />
+            <Stat label="Topics" value={report.topics.rate === null ? '—' : `${Math.round(report.topics.rate * 100)}%`} sub={`${report.topics.compared} posts`} />
+          </div>
+          <div className="split" style={{ marginTop: '1rem' }}>
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Field</th>
+                    <th className="num">Agreement</th>
+                    <th className="num">Compared</th>
+                    <th>Most common confusions (AI → you)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.fields.map((f) => (
+                    <tr key={f.key}>
+                      <td className="small white">{f.key.replace(/_/g, ' ')}</td>
+                      <td className={`num ${f.rate >= 0.8 ? 'up' : f.rate < 0.6 ? 'down' : ''}`}>{Math.round(f.rate * 100)}%</td>
+                      <td className="num">{f.compared}</td>
+                      <td className="xs muted">{f.confusions.map((c) => `${c.from} → ${c.to} (${c.n})`).join('; ') || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <aside className="stack">
+              <div className="card stack-xs xs">
+                <span className="card-title">By what the model could see</span>
+                {report.byMedia.map((m) => (
+                  <div key={m.input} className="spread">
+                    <span className="muted">{m.input}</span>
+                    <span className="mono">
+                      {Math.round(m.rate * 100)}% <span className="muted">of {m.compared}</span>
+                    </span>
+                  </div>
+                ))}
+                <div className="divider" />
+                <span className="card-title">By model</span>
+                {report.byModel.map((m) => (
+                  <div key={m.model} className="spread">
+                    <span className="muted clamp-2" style={{ maxWidth: '11rem' }}>
+                      {m.model}
+                    </span>
+                    <span className="mono">
+                      {Math.round(m.rate * 100)}% <span className="muted">of {m.compared}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className={`callout xs ${report.unreliable.length ? 'callout-red' : ''}`}>
+                {report.unreliable.length ? (
+                  <>
+                    <strong className="white">Excluded from lesson mining:</strong> {report.unreliable.join(', ')}. Below 60% agreement on 10+ reviews, so these fields no longer count as evidence.
+                  </>
+                ) : (
+                  <>No field is below 60% agreement on 10+ reviews, so none is excluded from lesson mining.</>
+                )}
+              </div>
+            </aside>
+          </div>
+        </Section>
       ) : null}
 
       <Section

@@ -135,6 +135,8 @@ export type ReviewInput = {
   note?: string;
   /** key → corrected value ('' clears a human override). Only used for EDITED. */
   values?: Record<string, string>;
+  /** Corrected topic names, first one primary. Only used for EDITED. */
+  topics?: string[];
 };
 
 export function recordReview(db: Db, input: ReviewInput): { changed: string[] } {
@@ -158,6 +160,22 @@ export function recordReview(db: Db, input: ReviewInput): { changed: string[] } 
           setAttribute(db, input.contentId, key, value, 'human', 1);
         }
         changed.push(key);
+      }
+    }
+
+    if (input.status === 'EDITED' && input.topics) {
+      // Topics live in their own table; the AI's list stays recoverable in ai_runs.output_json.
+      const wanted = input.topics.map((t) => t.trim()).filter(Boolean);
+      const ids = wanted
+        .map((name) => get<{ id: number }>(db, 'SELECT id FROM topics WHERE lower(name) = lower(?) OR lower(slug) = lower(?)', name, name.replace(/\s+/g, '-'))?.id)
+        .filter((id): id is number => typeof id === 'number');
+      const before = all<{ topic_id: number }>(db, 'SELECT topic_id FROM content_topics WHERE content_id = ? ORDER BY is_primary DESC, topic_id', input.contentId).map((r) => r.topic_id);
+      if (ids.length && (ids.length !== before.length || ids.some((id, i) => id !== before[i]))) {
+        run(db, 'DELETE FROM content_topics WHERE content_id = ?', input.contentId);
+        [...new Set(ids)].forEach((topicId, i) =>
+          run(db, `INSERT INTO content_topics (content_id, topic_id, is_primary, source, confidence) VALUES (?, ?, ?, 'human', 1)`, input.contentId, topicId, i === 0 ? 1 : 0)
+        );
+        changed.push('topics');
       }
     }
 
@@ -270,4 +288,146 @@ export function currentValidationBatch(db: Db): { batch: ValidationBatch; rows: 
   // A rejected post leaves the coded set (it is re-queued) but still counts as reviewed.
   const reviewed = all<{ id: number }>(db, `SELECT id FROM content WHERE coding_validation_status != 'UNREVIEWED' AND id IN (${batch.ids.map(() => '?').join(',')})`, ...batch.ids).length;
   return { batch, rows, reviewed };
+}
+
+export type ValidationReport = {
+  reviewed: number;
+  batchSize: number;
+  batchReviewed: number;
+  overall: { compared: number; agreed: number; rate: number | null };
+  fields: Array<{ key: string; compared: number; agreed: number; rate: number; confusions: Array<{ from: string; to: string; n: number }> }>;
+  topics: { compared: number; agreed: number; rate: number | null };
+  byMedia: Array<{ input: 'with media' | 'caption only'; compared: number; agreed: number; rate: number }>;
+  byModel: Array<{ model: string; compared: number; agreed: number; rate: number }>;
+  unreliable: string[];
+};
+
+/**
+ * What human review says about the model's content understanding: agreement per
+ * field, the confusions behind it, and whether media was available. Fields that
+ * fall below the reliability bar stop feeding lesson mining (see unreliableCodedFields).
+ */
+export function validationReport(db: Db): ValidationReport {
+  const rows = all<{ content_id: number; key: string; ai_value: string; human_value: string | null; agreed: number; ai_provider: string | null; ai_model: string | null }>(
+    db,
+    `SELECT content_id, key, ai_value, human_value, agreed, ai_provider, ai_model FROM coding_agreement WHERE key IN (${REVIEW_KEYS.map(() => '?').join(',')})`,
+    ...REVIEW_KEYS
+  );
+  const media = new Map(
+    all<{ id: number; has_media: number }>(
+      db,
+      `SELECT c.id, (c.thumb_path IS NOT NULL OR EXISTS (SELECT 1 FROM transcripts t WHERE t.content_id = c.id)) AS has_media FROM content c`
+    ).map((r) => [r.id, r.has_media === 1])
+  );
+  const byKey = new Map<string, typeof rows>();
+  for (const r of rows) byKey.set(r.key, [...(byKey.get(r.key) ?? []), r]);
+
+  const fields = [...byKey.entries()]
+    .map(([key, list]) => {
+      const agreed = list.filter((r) => r.agreed === 1).length;
+      const confusions = new Map<string, number>();
+      for (const r of list) {
+        if (r.agreed === 1 || !r.human_value) continue;
+        const k = `${r.ai_value}→${r.human_value}`;
+        confusions.set(k, (confusions.get(k) ?? 0) + 1);
+      }
+      return {
+        key,
+        compared: list.length,
+        agreed,
+        rate: list.length ? agreed / list.length : 0,
+        confusions: [...confusions.entries()]
+          .map(([k, n]) => ({ from: k.split('→')[0], to: k.split('→')[1], n }))
+          .sort((a, b) => b.n - a.n)
+          .slice(0, 3),
+      };
+    })
+    .sort((a, b) => a.rate - b.rate);
+
+  const group = <T extends string>(pick: (r: (typeof rows)[number]) => T | null) => {
+    const acc = new Map<T, { compared: number; agreed: number }>();
+    for (const r of rows) {
+      const k = pick(r);
+      if (k === null) continue;
+      const cur = acc.get(k) ?? { compared: 0, agreed: 0 };
+      acc.set(k, { compared: cur.compared + 1, agreed: cur.agreed + (r.agreed === 1 ? 1 : 0) });
+    }
+    return [...acc.entries()].map(([k, v]) => ({ key: k, ...v, rate: v.compared ? v.agreed / v.compared : 0 }));
+  };
+
+  const reviewedPosts = all<{ n: number }>(db, `SELECT COUNT(DISTINCT content_id) AS n FROM coding_reviews WHERE status IN ('APPROVED','EDITED')`)[0]?.n ?? 0;
+  const batch = currentValidationBatch(db);
+  const topicRows = all<{ content_id: number; human: number }>(
+    db,
+    `SELECT ct.content_id, SUM(ct.source = 'human') AS human FROM content_topics ct
+     WHERE ct.content_id IN (SELECT DISTINCT content_id FROM coding_reviews WHERE status IN ('APPROVED','EDITED')) GROUP BY ct.content_id`
+  );
+  return {
+    reviewed: reviewedPosts,
+    batchSize: batch?.rows.length ?? 0,
+    batchReviewed: batch?.reviewed ?? 0,
+    overall: { compared: rows.length, agreed: rows.filter((r) => r.agreed === 1).length, rate: rows.length ? rows.filter((r) => r.agreed === 1).length / rows.length : null },
+    fields,
+    // A reviewed post whose topics a human left alone counts as agreement.
+    topics: { compared: topicRows.length, agreed: topicRows.filter((r) => r.human === 0).length, rate: topicRows.length ? topicRows.filter((r) => r.human === 0).length / topicRows.length : null },
+    byMedia: group((r) => (media.get(r.content_id) ? 'with media' : 'caption only')).map((g) => ({ input: g.key as 'with media' | 'caption only', compared: g.compared, agreed: g.agreed, rate: g.rate })),
+    byModel: group((r) => `${r.ai_provider ?? '?'}/${r.ai_model ?? '?'}`).map((g) => ({ model: g.key, compared: g.compared, agreed: g.agreed, rate: g.rate })),
+    unreliable: unreliableCodedFields(db),
+  };
+}
+
+/**
+ * Fields human review has shown the model gets wrong too often to mine on.
+ * Needs a real sample before it judges anything: below MIN_REVIEWS a field is
+ * neither trusted nor distrusted on this basis.
+ */
+export const RELIABILITY_MIN_REVIEWS = 10;
+export const RELIABILITY_MIN_AGREEMENT = 0.6;
+
+export function unreliableCodedFields(db: Db): string[] {
+  return all<{ key: string; n: number; agreed: number }>(
+    db,
+    `SELECT key, COUNT(*) AS n, SUM(agreed) AS agreed FROM coding_agreement WHERE key IN (${REVIEW_KEYS.map(() => '?').join(',')}) GROUP BY key`,
+    ...REVIEW_KEYS
+  )
+    .filter((r) => r.n >= RELIABILITY_MIN_REVIEWS && r.agreed / r.n < RELIABILITY_MIN_AGREEMENT)
+    .map((r) => r.key);
+}
+
+const vpct = (x: number | null) => (x === null ? '—' : `${Math.round(x * 100)}%`);
+
+/** The model-quality dataset, written down: what human review says the AI understands. */
+export function renderValidationReport(r: ValidationReport): string {
+  const lines: string[] = [];
+  lines.push('# BBO BRAIN coding validation', '', `${r.reviewed} posts reviewed (batch ${r.batchReviewed}/${r.batchSize}) · ${r.overall.compared} labels compared`, '');
+  lines.push(`**Overall agreement: ${vpct(r.overall.rate)}** (${r.overall.agreed}/${r.overall.compared} labels).`, '');
+  const field = (key: string) => r.fields.find((f) => f.key === key);
+  lines.push('| Headline | Agreement | Compared |', '|---|---|---|');
+  for (const key of ['hook_type', 'opening_type']) {
+    const f = field(key);
+    lines.push(`| ${key.replace(/_/g, ' ')} | ${f ? vpct(f.rate) : '—'} | ${f?.compared ?? 0} |`);
+  }
+  lines.push(`| topics | ${vpct(r.topics.rate)} | ${r.topics.compared} |`, '');
+  lines.push('## Every field, worst first', '', '| Field | Agreement | Compared | Most common confusions (AI → human) |', '|---|---|---|---|');
+  for (const f of r.fields) {
+    lines.push(`| ${f.key.replace(/_/g, ' ')} | ${vpct(f.rate)} | ${f.compared} | ${f.confusions.map((c) => `${c.from} → ${c.to} (${c.n})`).join('; ') || '—'} |`);
+  }
+  lines.push('');
+  if (r.byMedia.length) {
+    lines.push('## Accuracy by what the model could see', '', '| Input | Agreement | Compared |', '|---|---|---|');
+    for (const m of r.byMedia) lines.push(`| ${m.input} | ${vpct(m.rate)} | ${m.compared} |`);
+    lines.push('');
+  }
+  if (r.byModel.length) {
+    lines.push('## Accuracy by model', '', '| Model | Agreement | Compared |', '|---|---|---|');
+    for (const m of r.byModel) lines.push(`| ${m.model} | ${vpct(m.rate)} | ${m.compared} |`);
+    lines.push('');
+  }
+  lines.push(
+    r.unreliable.length
+      ? `**Excluded from lesson mining:** ${r.unreliable.join(', ')} — below ${Math.round(RELIABILITY_MIN_AGREEMENT * 100)}% agreement on ${RELIABILITY_MIN_REVIEWS}+ reviews.`
+      : `No field is below ${Math.round(RELIABILITY_MIN_AGREEMENT * 100)}% agreement on ${RELIABILITY_MIN_REVIEWS}+ reviews, so none is excluded from lesson mining.`,
+    ''
+  );
+  return lines.join('\n');
 }
