@@ -28,6 +28,17 @@ function recentFailures(entry, now, cfg) {
   return (entry.failures || []).filter(ts => now - ts <= cfg.windowMs);
 }
 
+// DEGRADED is only meaningful while its failures are inside the window. A model that failed once and then
+// saw no traffic (e.g. an idle secondary) would otherwise stay DEGRADED forever: nothing else moves it —
+// normal successes never reach it and the prober only visits OPEN/PROBING models. OPEN/PROBING are left
+// alone: only probes restore those.
+function effectiveEntry(entry, now, cfg) {
+  if (!entry || entry.state !== STATES.DEGRADED) return entry;
+  const failures = recentFailures(entry, now, cfg);
+  if (failures.length) return failures.length === entry.failures.length ? entry : { ...entry, failures };
+  return { ...fresh(), updatedAt: entry.updatedAt };
+}
+
 function isRoutable(entry) {
   return !entry || entry.state === STATES.HEALTHY || entry.state === STATES.DEGRADED;
 }
@@ -99,11 +110,13 @@ async function load({ force = false } = {}) {
   return memory;
 }
 
-// Newest entry wins per model; spend adds this instance's unflushed delta onto the remote total.
+// Newest entry wins per model; on a timestamp tie this instance's entry wins, because it was derived from
+// state it had already read (otherwise a same-millisecond probe recovery is silently discarded).
+// Spend adds this instance's unflushed delta onto the remote total.
 function merge(local, remote) {
   const circuits = { ...(remote.circuits || {}) };
   for (const [key, entry] of Object.entries(local.circuits || {})) {
-    if (!circuits[key] || (entry.updatedAt || 0) > (circuits[key].updatedAt || 0)) circuits[key] = entry;
+    if (!circuits[key] || (entry.updatedAt || 0) >= (circuits[key].updatedAt || 0)) circuits[key] = entry;
   }
   const probes = { ...(remote.probes || {}), ...(local.probes || {}) };
   const spend = remote.spend && remote.spend.date ? { ...remote.spend } : { ...(local.spend || {}) };
@@ -115,6 +128,7 @@ async function flush() {
   try {
     const remote = (await store.getJSON(STATE_KEY)) || { circuits: {}, spend: { date: null, usd: 0 }, probes: {} };
     const merged = merge(memory, remote);
+    merged.circuits = normalizeCircuits(merged.circuits);
     const today = utcDate();
     const remoteUsd = merged.spend.date === today ? merged.spend.usd || 0 : 0;
     merged.spend = { date: today, usd: +(remoteUsd + spendDelta).toFixed(6) };
@@ -129,7 +143,13 @@ async function flush() {
 
 const utcDate = () => new Date().toISOString().slice(0, 10);
 
-function get(key) { return memory.circuits[key] || null; }
+function normalizeCircuits(circuits) {
+  const now = Date.now();
+  const cfg = getCircuitConfig();
+  return Object.fromEntries(Object.entries(circuits || {}).map(([k, e]) => [k, effectiveEntry(e, now, cfg)]));
+}
+
+function get(key) { return effectiveEntry(memory.circuits[key] || null, Date.now(), getCircuitConfig()); }
 
 function set(key, entry) {
   if (entry === memory.circuits[key]) return;
@@ -171,14 +191,14 @@ function addSpend(usd) {
   dirty = true;
 }
 
-function snapshot() { return { store: storeKind(), ...memory, spend: { date: utcDate(), usd: +spentTodayUsd().toFixed(6) } }; }
+function snapshot() { return { store: storeKind(), ...memory, circuits: normalizeCircuits(memory.circuits), spend: { date: utcDate(), usd: +spentTodayUsd().toFixed(6) } }; }
 
 // Test hook.
 function _reset() { memory = { circuits: {}, spend: { date: null, usd: 0 }, probes: {} }; spendDelta = 0; store = null; loadedAt = 0; dirty = false; }
 
 module.exports = {
   STATES, CIRCUIT_ERROR_CLASSES,
-  isRoutable, applyFailure, applySuccess, applyProbeResult, isDueForProbe,
+  effectiveEntry, isRoutable, applyFailure, applySuccess, applyProbeResult, isDueForProbe,
   bindStore, storeKind, load, flush, get, recordFailure, recordSuccess, recordProbe, lastProbeAt,
   spentTodayUsd, addSpend, snapshot, _reset,
 };

@@ -59,3 +59,38 @@ test('transition functions do not mutate their input', () => {
   c.applyFailure(before, 'transient', '503', 1, cfg);
   assert.equal(JSON.stringify(before), snapshot);
 });
+
+test('DEGRADED expires to HEALTHY once its failures leave the window (idle secondary)', () => {
+  const e = c.applyFailure(c.applyFailure(null, 'quota', '429', 0, cfg), 'quota', '429', 10, cfg);
+  assert.equal(e.state, 'DEGRADED');
+  assert.equal(c.effectiveEntry(e, 30000, cfg).state, 'DEGRADED', 'still inside the window');
+  assert.equal(c.effectiveEntry(e, 70000, cfg).state, 'HEALTHY', 'window elapsed with no new failures');
+  let open = null;
+  for (const t of [0, 1, 2]) open = c.applyFailure(open, 'transient', '503', t, cfg);
+  assert.equal(c.effectiveEntry(open, 999999, cfg).state, 'OPEN', 'only probes restore an OPEN circuit');
+});
+
+test('probe recovery persists through the shared store and is what other instances load', async () => {
+  const saved = {};
+  const store = { kind: 'test', getJSON: async (k) => (saved[k] ? JSON.parse(saved[k]) : null), setJSON: async (k, v) => { saved[k] = JSON.stringify(v); } };
+  const keys = ['AI_CIRCUIT_FAILURE_THRESHOLD', 'AI_CIRCUIT_COOLDOWN_MS', 'AI_CIRCUIT_PROBE_SUCCESSES'];
+  const prev = keys.map(k => process.env[k]);
+  Object.assign(process.env, { AI_CIRCUIT_FAILURE_THRESHOLD: '2', AI_CIRCUIT_COOLDOWN_MS: '0', AI_CIRCUIT_PROBE_SUCCESSES: '2' });
+  const quiet = console.warn; console.warn = () => {};
+  try {
+    c._reset(); c.bindStore(store);
+    c.recordFailure('gemini:m', 'transient', '503'); c.recordFailure('gemini:m', 'transient', '503');
+    await c.flush();
+    c._reset(); c.bindStore(store); await c.load({ force: true });          // another instance
+    assert.equal(c.get('gemini:m').state, 'OPEN');
+    c.recordProbe('gemini:m', true, null, 10); await c.flush();
+    c._reset(); c.bindStore(store); await c.load({ force: true });
+    assert.equal(c.get('gemini:m').state, 'PROBING', 'one probe is not enough');
+    c.recordProbe('gemini:m', true, null, 10); await c.flush();
+    c._reset(); c.bindStore(store); await c.load({ force: true });
+    assert.equal(c.get('gemini:m').state, 'HEALTHY', 'recovered state is persisted and loaded elsewhere');
+  } finally {
+    console.warn = quiet; c._reset();
+    keys.forEach((k, i) => { if (prev[i] === undefined) delete process.env[k]; else process.env[k] = prev[i]; });
+  }
+});
