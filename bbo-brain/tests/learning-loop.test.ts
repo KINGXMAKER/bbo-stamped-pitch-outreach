@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { all, get, type Db } from '@/lib/db/client';
+import { all, get, run, type Db } from '@/lib/db/client';
 import { setAttribute, writeMetrics } from '@/lib/ingest/ingest';
 import { activeScoreVersion, computeAllScores } from '@/lib/scoring/engine';
 import { bhThreshold, mineLessons, nextLessonStatus } from '@/lib/intel/lessons';
@@ -121,6 +121,38 @@ describe('the learning loop: content → performance → lesson → rule → wor
     const editorRules = loadRelevantRules(db, { workflow: 'viral_editor', franchise: 'podcast' });
     expect(editorRules.some((r) => r.text === 'Open on the confession when the footage has one.')).toBe(true);
     expect(loadRelevantRules(db, { workflow: 'caption' }).some((r) => r.ruleId === ruleId)).toBe(false);
+  });
+
+  it('does not count re-labelling the same posts as new supporting evidence', () => {
+    const db = testDb();
+    seedHistory(db);
+    mineLessons(db);
+    expect(JSON.parse(confessionScoreLesson(db)!.metrics_json).supportiveStreak).toBe(1);
+
+    // A different model re-codes every post and a coding pass stamps coded_at —
+    // the same posts, the same metrics. Nothing here is a new observation.
+    run(db, `UPDATE content_attributes SET created_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), confidence = 0.9 WHERE key = 'hook_type'`);
+    run(db, `UPDATE content SET coded_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`);
+    mineLessons(db);
+
+    expect(JSON.parse(confessionScoreLesson(db)!.metrics_json).supportiveStreak).toBe(1);
+    expect(generateRuleProposals(db).proposed).toBe(0);
+  });
+
+  it('does count newly coded posts entering a comparison as new evidence', () => {
+    const db = testDb();
+    seedHistory(db);
+    mineLessons(db);
+    // Older posts, older metrics: the newest observation does not move. Only the
+    // set of posts in the comparison grows.
+    const start = Date.UTC(2026, 0, 1);
+    const newestBefore = get<{ v: string }>(db, 'SELECT MAX(observed_at) AS v FROM content_metrics')!.v;
+    for (let i = -8; i < 0; i++) addPost(db, i, start, i % 2 === 0 ? 'confession' : 'question', i % 2 === 0);
+    expect(get<{ v: string }>(db, 'SELECT MAX(observed_at) AS v FROM content_metrics')!.v).toBe(newestBefore);
+    computeAllScores(db, activeScoreVersion(db), new Date(Date.UTC(2026, 4, 15)));
+    mineLessons(db);
+
+    expect(JSON.parse(confessionScoreLesson(db)!.metrics_json).supportiveStreak).toBe(2);
   });
 
   it('keeps observing or rejecting without creating rules or re-proposing on the same evidence', () => {
