@@ -116,6 +116,14 @@ test('image requests only route to image-capable providers', async () => {
   assert.equal(r.err.allModelsFailed, true);
 });
 
+test('disabled gemini-3.8-flash stays a probe target even when it is not in the route', async () => {
+  setEnv({});
+  const cfg = require('../ai/config');
+  assert.ok(!cfg.getRoute().some(c => c.model === 'gemini-3.8-flash'));
+  const target = cfg.getProbeTargets().find(c => c.model === 'gemini-3.8-flash');
+  assert.ok(target && target.disabled);
+});
+
 test('OpenRouter is not routed without an explicit price ceiling', async () => {
   setEnv({ OPENROUTER_API_KEY: 'test', AI_OPENROUTER_MODEL: 'some/model' });
   const restore = quiet();

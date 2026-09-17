@@ -13,7 +13,7 @@ exports.handler = async (event) => {
   await circuit.load({ force: true });
   const snap = circuit.snapshot();
   const cfg = config.getRouterConfig();
-  const route = config.getRoute().map(c => {
+  const route = config.getProbeTargets().map(c => {
     const entry = snap.circuits[c.key] || null;
     return { provider: c.provider, model: c.model, disabled: c.disabled, supportsImages: c.supportsImages,
       pricePer1M: c.price, state: c.disabled ? 'DISABLED' : (entry ? entry.state : 'HEALTHY'),

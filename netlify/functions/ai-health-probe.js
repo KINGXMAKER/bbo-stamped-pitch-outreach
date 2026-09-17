@@ -32,7 +32,7 @@ exports.handler = async (event) => {
   const genAI = getGeminiClient();
   const results = [];
 
-  for (const candidate of config.getRoute()) {
+  for (const candidate of config.getProbeTargets()) {
     const entry = circuit.get(candidate.key);
     const due = candidate.disabled
       ? now - circuit.lastProbeAt(candidate.key) >= cfg.disabledProbeIntervalMs

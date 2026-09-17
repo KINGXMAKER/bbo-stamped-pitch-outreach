@@ -78,6 +78,18 @@ function getRoute(primaryOverride) {
   return route;
 }
 
+// Everything the health prober watches: the live route plus disabled Gemini models that are no longer
+// configured in the route (e.g. gemini-3.8-flash) — probed for telemetry, never routed.
+function getProbeTargets() {
+  const route = getRoute();
+  const prices = getPrices();
+  const inRoute = new Set(route.map(c => c.model));
+  const extra = getDisabledModels().filter(m => /^gemini-/.test(m) && !inRoute.has(m)).map(model => ({
+    provider: 'gemini', model, key: `gemini:${model}`, supportsImages: true, price: prices[model] || null, disabled: true,
+  }));
+  return [...route, ...extra];
+}
+
 function getRouterConfig() {
   return {
     // Per-slot attempt caps (ms), in routable order. A slot beyond the list is capped only by the deadline
@@ -107,4 +119,4 @@ function getCircuitConfig() {
   };
 }
 
-module.exports = { getRoute, getRouterConfig, getCircuitConfig, getPrices, getDisabledModels, DEFAULT_PRICES };
+module.exports = { getRoute, getProbeTargets, getRouterConfig, getCircuitConfig, getPrices, getDisabledModels, DEFAULT_PRICES };
