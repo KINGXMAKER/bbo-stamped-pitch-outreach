@@ -307,6 +307,9 @@ export function recordBucketLabel(db: Db, contentId: number, bucket: ContentBuck
   setAttribute(db, contentId, 'content_bucket', bucket, 'human', 1);
   run(db, `DELETE FROM content_attributes WHERE content_id = ? AND key = 'interview_format' AND source = 'human'`, contentId);
   if (bucket === CORE && format && (INTERVIEW_FORMATS as readonly string[]).includes(format)) setAttribute(db, contentId, 'interview_format', format, 'human', 1);
+  // A human moving a post out of core also retires the model's format label: a
+  // format on a non-core post is the stray row catalogueAccounting counts.
+  else if (bucket !== CORE) run(db, `DELETE FROM content_attributes WHERE content_id = ? AND key = 'interview_format'`, contentId);
 }
 
 export async function runBucketBenchmark(

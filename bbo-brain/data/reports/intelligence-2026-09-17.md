@@ -1,6 +1,6 @@
 # BBO intelligence review — Core interview content
 
-Generated 2026-09-17 17:57 UTC
+Generated 2026-09-17 18:11 UTC
 
 > **PROVISIONAL — HUMAN LABEL VALIDATION PENDING.** Every finding below rests on model-assigned attribute labels that no human has checked yet.
 > None of it may become a BBO rule until the Coding Validation batch is reviewed.
@@ -11,17 +11,17 @@ All 951 posts, counted once each. "Comparable" is the subset with a peer baselin
 
 | Bucket | Posts | Comparable | Too recent | No baseline | With media | Structurally coded | Analysed |
 |---|---|---|---|---|---|---|---|
-| Core interview content | 714 | 708 | 4 | 2 | 613 | 143 | yes |
-| BBO Stamped | 37 | 36 | 1 | 0 | 33 | 7 | yes |
-| Other (ignored) | 165 | 161 | 0 | 4 | 115 | 12 | no |
+| Core interview content | 713 | 707 | 4 | 2 | 612 | 145 | yes |
+| BBO Stamped | 35 | 34 | 1 | 0 | 31 | 5 | yes |
+| Other (ignored) | 168 | 164 | 0 | 4 | 118 | 15 | no |
 | Not yet bucketed | 35 | 35 | 0 | 0 | 0 | 0 | no |
-| **Total** | **951** | 940 | 5 | 6 | 761 | 162 | |
+| **Total** | **951** | 940 | 5 | 6 | 761 | 165 | |
 
-Inside core interview content, 614 are podcast clips and 97 street interviews, with 3 not yet sub-typed (614 + 97 + 3 = 714). Podcast and street interview are subtypes **inside** this one bucket, not buckets of their own.
+Inside core interview content, 614 are podcast clips and 96 street interviews, with 3 not yet sub-typed (614 + 96 + 3 = 713). Podcast and street interview are subtypes **inside** this one bucket, not buckets of their own.
 
-**This review's scope.** 708 comparable core interview content posts; 139 of them carry structured coding (143 coded in this bucket in total). Excluded: Other (ignored) 161 comparable, BBO Stamped 36 comparable, 35 not yet bucketed, and the 11 posts of any bucket that have no peer baseline yet. Performance is never pooled across buckets.
+**This review's scope.** 707 comparable core interview content posts; 141 of them carry structured coding (145 coded in this bucket in total). Excluded: Other (ignored) 164 comparable, BBO Stamped 34 comparable, 35 not yet bucketed, and the 11 posts of any bucket that have no peer baseline yet. Performance is never pooled across buckets.
 
-**Corpus.** 162 posts structurally coded out of 951 in the catalogue (761 with media, 708 comparable, 0 human-validated). By class: winner 45/40, loser 37/40, average 39/30, unusual 20/20. Coded by: openrouter/qwen/qwen3-vl-32b-instruct 152, openrouter/qwen/qwen3-vl-235b-a22b-instruct 8.
+**Corpus.** 165 posts structurally coded out of 951 in the catalogue (761 with media, 707 comparable, 0 human-validated). By class: winner 45/40, loser 37/40, average 39/30, unusual 20/20. Coded by: openrouter/qwen/qwen3-vl-32b-instruct 155, openrouter/qwen/qwen3-vl-235b-a22b-instruct 8.
 
 Every claim below is an association measured against BBO's own era-normalised baseline — not a causal statement. Effect is the group median divided by the baseline median.
 
@@ -34,20 +34,20 @@ Every claim below is an association measured against BBO's own era-normalised ba
 
 | Group | n | Baseline n | Median | Baseline | Effect | Consistency | p | Confidence | Holds in both halves | Date range |
 |---|---|---|---|---|---|---|---|---|---|---|
-| controversial statement | 40 | 98 | 1.29 | 1.03 | 1.25× | 65% | 0.054 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| surprising fact | 24 | 114 | 1.27 | 1.04 | 1.22× | 63% | 0.020 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| ⚠ direct opinion | 6 | 132 | 1.11 | 1.06 | 1.05× | 67% | 0.861 | INSUFFICIENT_DATA | no | 2022-01-26 → 2026-09-10 |
-| confession | 11 | 127 | 0.96 | 1.10 | 0.88× | 64% | 0.526 | EARLY_SIGNAL | — | 2022-01-26 → 2026-09-10 |
-| curiosity gap | 17 | 121 | 0.96 | 1.13 | 0.85× | 65% | 0.381 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| ⚠ question | 31 | 107 | 0.93 | 1.13 | 0.82× | 58% | 0.053 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| ⚠ story opening | 6 | 132 | 0.49 | 1.09 | 0.45× | 67% | 0.113 | EARLY_SIGNAL | — | 2022-01-26 → 2026-09-10 |
+| surprising fact | 24 | 117 | 1.27 | 1.03 | 1.24× | 67% | 0.014 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| controversial statement | 41 | 100 | 1.26 | 1.03 | 1.23× | 63% | 0.060 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| ⚠ direct opinion | 6 | 135 | 1.11 | 1.05 | 1.06× | 67% | 0.834 | INSUFFICIENT_DATA | no | 2022-01-26 → 2026-09-10 |
+| ⚠ confession | 11 | 130 | 0.96 | 1.07 | 0.90× | 64% | 0.594 | EARLY_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| curiosity gap | 17 | 124 | 0.96 | 1.09 | 0.88× | 65% | 0.482 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| ⚠ question | 33 | 108 | 0.91 | 1.11 | 0.82× | 61% | 0.024 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| ⚠ story opening | 6 | 135 | 0.49 | 1.07 | 0.46× | 67% | 0.123 | EARLY_SIGNAL | — | 2022-01-26 → 2026-09-10 |
 
-⚠ **Era-confounded:** direct opinion, question, story opening — the group and its baseline come from different eras or the direction does not hold in both halves of the data. Direction unproven.
+⚠ **Era-confounded:** direct opinion, confession, question, story opening — the group and its baseline come from different eras or the direction does not hold in both halves of the data. Direction unproven.
 
-- **controversial statement** — supporting: #942 New clip from my show @fboychroniclesfunny .. @omgitssmil… (4.59); #117 Is that bad communication or are men supposed to just fig… (2.68); #220 Yams on the first night ain’t really a bad thing.. led to… (2.44)
-  - contradicting: #597 We continue a conversation from yesterday’s topic about p… (0.42); #673 “I OWE YOU AND YA SIS A DRINK?!” lol classic BBO show cli… (0.43); #676 “YOU LOST ME THERE!” @arinidoll shares her opinion on let… (0.47)
 - **surprising fact** — supporting: #51 Not everybody you say ya friend is ya friend cause how th… (2.70); #103 “Wait... 6 guys is a LIGHT day?! 🤯🎙️” (2.58); #29 The double massage while getting d***ed down… @wetkittyci… (2.56)
   - contradicting: #671 Today @famous_briiii shares her crazy ATLANTA skrip club … (0.45); #72 She saw the red flag and and almost made it a lifestyle �… (0.87); #61 This interview started off wild, and only got wilder lmfa… (0.97)
+- **controversial statement** — supporting: #942 New clip from my show @fboychroniclesfunny .. @omgitssmil… (4.59); #117 Is that bad communication or are men supposed to just fig… (2.68); #220 Yams on the first night ain’t really a bad thing.. led to… (2.44)
+  - contradicting: #597 We continue a conversation from yesterday’s topic about p… (0.42); #673 “I OWE YOU AND YA SIS A DRINK?!” lol classic BBO show cli… (0.43); #690 Today’s topic.. what counts as cheating?  @rekbangaa sits… (0.44)
 - **direct opinion** — supporting: #206 “That’s why certain people explore...”. The truth nobody … (2.25); #190 Cut or uncut?  Is being circumcised a deal breaker to you… (1.83); #11 We’ve all been there—taking a mental note of a weird mome… (1.13)
   - contradicting: #97 So during our last podcast episode in DC, we talked about… (0.90); #135 Nah JOE from YOU is CRAZY 💀💀💀 (0.93); #154 @wallo267 said it best: “People only subscribe to hot.” T… (1.10)
 
@@ -57,44 +57,42 @@ Every claim below is an association measured against BBO's own era-normalised ba
 
 | Group | n | Baseline n | Median | Baseline | Effect | Consistency | p | Confidence | Holds in both halves | Date range |
 |---|---|---|---|---|---|---|---|---|---|---|
-| text first | 32 | 106 | 1.38 | 1.05 | 1.31× | 56% | 0.564 | EARLY_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| ⚠ visual first | 10 | 128 | 1.33 | 1.06 | 1.25× | 60% | 0.268 | EARLY_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| ⚠ guest answer | 44 | 94 | 1.20 | 1.05 | 1.15× | 57% | 0.229 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| host statement | 21 | 117 | 1.07 | 1.17 | 0.91× | 67% | 0.687 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| interviewer question | 31 | 107 | 0.91 | 1.18 | 0.77× | 65% | 0.060 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-
-⚠ **Era-confounded:** visual first, guest answer — the group and its baseline come from different eras or the direction does not hold in both halves of the data. Direction unproven.
+| text first | 32 | 109 | 1.38 | 1.03 | 1.33× | 56% | 0.471 | EARLY_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| visual first | 10 | 131 | 1.33 | 1.05 | 1.26× | 60% | 0.282 | EARLY_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| guest answer | 45 | 96 | 1.19 | 1.03 | 1.15× | 58% | 0.225 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| host statement | 21 | 120 | 1.07 | 1.05 | 1.01× | 52% | 0.824 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| interviewer question | 33 | 108 | 0.89 | 1.17 | 0.76× | 67% | 0.027 | STRONG_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
 
 - **text first** — supporting: #942 New clip from my show @fboychroniclesfunny .. @omgitssmil… (4.59); #29 The double massage while getting d***ed down… @wetkittyci… (2.56); #258 First date at the crib with Moms is CRAZY. 💀Ladies, what… (2.39)
   - contradicting: #360 Just when you’ve thought you’ve heard it all and seen it … (0.23); #677 Shoutout to all the girls who work nightlife cause yall b… (0.26); #637 When do you know it’s time to let go of someone?  @ohhthi… (0.30)
 - **visual first** — supporting: #51 Not everybody you say ya friend is ya friend cause how th… (2.70); #1 Women say effort matters… until the man they’re actually … (1.84); #176 Dating Tip: If the physical chemistry isn’t there, no amo… (1.73)
   - contradicting: #665 Today we get into proper skrippa club etiquette and how i… (0.40); #649 Our latest contestant came through proper as you can see!… (0.50); #44 Let’s be real: Is $80,000 enough to sign an NDA and keep … (0.94)
 - **guest answer** — supporting: #117 Is that bad communication or are men supposed to just fig… (2.68); #103 “Wait... 6 guys is a LIGHT day?! 🤯🎙️” (2.58); #220 Yams on the first night ain’t really a bad thing.. led to… (2.44)
-  - contradicting: #664 Today we sit with @mala_.ve to talk about what got her in… (0.44); #661 Today we sit with Yatti and she shares her craziest “chea… (0.46); #553 Today 6ix9ine BM ROZ speaks on how she swooped in on 6ix9… (0.48)
+  - contradicting: #664 Today we sit with @mala_.ve to talk about what got her in… (0.44); #690 Today’s topic.. what counts as cheating?  @rekbangaa sits… (0.44); #661 Today we sit with Yatti and she shares her craziest “chea… (0.46)
 
 ## 3. How do interviewer-question openings compare with guest-answer openings?
 
 | Group | n | Baseline n | Median | Baseline | Effect | Consistency | p | Confidence | Holds in both halves | Date range |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Interviewer question vs guest answer (head-to-head) | 31 | 44 | 0.91 | 1.20 | 0.76× | 65% | 0.041 | MODERATE_SIGNAL | yes | 2024-05-01 → 2026-09-09 |
+| Interviewer question vs guest answer (head-to-head) | 33 | 45 | 0.89 | 1.19 | 0.75× | 67% | 0.023 | STRONG_SIGNAL | yes | 2024-03-31 → 2026-09-09 |
 
-- **Interviewer question vs guest answer (head-to-head)** — supporting: #682 Today we sit down with rising New York artist @itsgennyge… (0.31); #646 “I’ll break into your house!” Lol @ant.will.made.it has m… (0.37); #623 Today we sit with @ohhthistiana_ as she breaks down what … (0.38)
+- **Interviewer question vs guest answer (head-to-head)** — supporting: #708 So during our @fatboy episode we ask who was the 1st cele… (0.31); #682 Today we sit down with rising New York artist @itsgennyge… (0.31); #646 “I’ll break into your house!” Lol @ant.will.made.it has m… (0.37)
   - contradicting: #218 Eating and farting is a wild job description if I ever he… (4.15); #209 Look, the streets have been waiting for a format this raw… (2.70); #77 Nah I def wasn’t familiar with your game @desirae.perry.7… (2.68)
 
 ## 4. Which topics generate disproportionate shares?
 
 | Group | n | Baseline n | Median | Baseline | Effect | Consistency | p | Confidence | Holds in both halves | Date range |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Sex | 55 | 448 | 2.33 | 0.98 | 2.37× | 85% | 0.000 | STRONG_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| ⚠ Communication | 6 | 497 | 1.63 | 1.06 | 1.53× | 67% | 0.203 | EARLY_SIGNAL | — | 2022-01-26 → 2026-09-10 |
-| ⚠ Cheating | 28 | 475 | 1.52 | 1.06 | 1.44× | 64% | 0.181 | EARLY_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| ⚠ Gender roles | 55 | 448 | 1.45 | 1.02 | 1.42× | 73% | 0.002 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| ⚠ Relationships | 143 | 360 | 1.16 | 1.02 | 1.14× | 58% | 0.111 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| ⚠ Social media | 11 | 492 | 1.18 | 1.06 | 1.11× | 55% | 0.715 | EARLY_SIGNAL | — | 2022-01-26 → 2026-09-10 |
-| ⚠ Dating | 91 | 412 | 1.13 | 1.05 | 1.08× | 56% | 0.911 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| Pop culture & celebrities | 6 | 497 | 1.02 | 1.06 | 0.96× | 50% | 0.919 | INSUFFICIENT_DATA | — | 2022-01-26 → 2026-09-10 |
+| Sex | 54 | 448 | 2.35 | 0.98 | 2.39× | 87% | 0.000 | STRONG_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| ⚠ Communication | 6 | 496 | 1.63 | 1.06 | 1.53× | 67% | 0.215 | EARLY_SIGNAL | — | 2022-01-26 → 2026-09-10 |
+| ⚠ Cheating | 27 | 475 | 1.57 | 1.06 | 1.48× | 67% | 0.116 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| ⚠ Gender roles | 56 | 446 | 1.42 | 1.02 | 1.39× | 71% | 0.004 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| ⚠ Relationships | 144 | 358 | 1.16 | 1.03 | 1.13× | 58% | 0.177 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| ⚠ Dating | 91 | 411 | 1.13 | 1.06 | 1.07× | 56% | 0.931 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| ⚠ Social media | 12 | 490 | 1.12 | 1.06 | 1.05× | 50% | 0.833 | EARLY_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| Pop culture & celebrities | 6 | 496 | 1.02 | 1.06 | 0.96× | 50% | 0.914 | INSUFFICIENT_DATA | — | 2022-01-26 → 2026-09-10 |
 
-⚠ **Era-confounded:** Communication, Cheating, Gender roles, Relationships, Social media, Dating — the group and its baseline come from different eras or the direction does not hold in both halves of the data. Direction unproven.
+⚠ **Era-confounded:** Communication, Cheating, Gender roles, Relationships, Dating, Social media — the group and its baseline come from different eras or the direction does not hold in both halves of the data. Direction unproven.
 
 - **Sex** — supporting: #51 Not everybody you say ya friend is ya friend cause how th… (10.00); #206 “That’s why certain people explore...”. The truth nobody … (10.00); #695 Today Steph shares a crazy bedroom story.. never heard of… (10.00)
   - contradicting: #609 Today we get into a CRAZY 1-Night stand story.. enjoy y’a… (0.10); #665 Today we get into proper skrippa club etiquette and how i… (0.10); #199 Today we’re locked in with the one and only @thetriximont… (0.19)
@@ -109,21 +107,21 @@ Every claim below is an association measured against BBO's own era-normalised ba
 
 | Group | n | Baseline n | Median | Baseline | Effect | Consistency | p | Confidence | Holds in both halves | Date range |
 |---|---|---|---|---|---|---|---|---|---|---|
-| ⚠ Gender roles | 56 | 652 | 1.29 | 0.88 | 1.47× | 68% | 0.002 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| Clout & fame | 58 | 650 | 1.10 | 0.88 | 1.25× | 66% | 0.068 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| Sex | 66 | 642 | 1.05 | 0.88 | 1.19× | 64% | 0.105 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| ⚠ Relationships | 157 | 551 | 1.01 | 0.88 | 1.15× | 57% | 0.162 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| ⚠ Friendships | 14 | 694 | 1.04 | 0.91 | 1.14× | 50% | 0.586 | EARLY_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| Dating | 136 | 572 | 1.01 | 0.88 | 1.14× | 56% | 0.050 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| ⚠ Cheating | 36 | 672 | 0.95 | 0.91 | 1.05× | 50% | 0.677 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| ⚠ Social media | 14 | 694 | 0.94 | 0.91 | 1.03× | 50% | 0.885 | EARLY_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| ⚠ Gender roles | 57 | 650 | 1.29 | 0.88 | 1.48× | 68% | 0.002 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| Clout & fame | 59 | 648 | 1.09 | 0.88 | 1.24× | 64% | 0.115 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| Sex | 65 | 642 | 1.08 | 0.88 | 1.23× | 65% | 0.082 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| ⚠ Relationships | 159 | 548 | 1.02 | 0.88 | 1.16× | 58% | 0.165 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| ⚠ Friendships | 14 | 693 | 1.04 | 0.91 | 1.14× | 50% | 0.597 | EARLY_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| Dating | 136 | 571 | 1.01 | 0.88 | 1.14× | 56% | 0.052 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| Cheating | 35 | 672 | 1.02 | 0.91 | 1.12× | 51% | 0.565 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| ⚠ Social media | 15 | 692 | 1.00 | 0.91 | 1.10× | 53% | 0.687 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
 
-⚠ **Era-confounded:** Gender roles, Relationships, Friendships, Cheating, Social media — the group and its baseline come from different eras or the direction does not hold in both halves of the data. Direction unproven.
+⚠ **Era-confounded:** Gender roles, Relationships, Friendships, Social media — the group and its baseline come from different eras or the direction does not hold in both halves of the data. Direction unproven.
 
 - **Gender roles** — supporting: #218 Eating and farting is a wild job description if I ever he… (10.00); #942 New clip from my show @fboychroniclesfunny .. @omgitssmil… (10.00); #185 Bad s*x = He likes men? Is she onto something or reaching… (5.39)
   - contradicting: #637 When do you know it’s time to let go of someone?  @ohhthi… (0.10); #671 Today @famous_briiii shares her crazy ATLANTA skrip club … (0.10); #590 Once a cheater are they always a cheater?  What yall think? (0.15)
 - **Clout & fame** — supporting: #125 Did Nicki copy Lil’ Kim… or just take the blueprint to an… (5.84); #913 Hometown Syndrome, as creatives and entrepreneurs we feel… (5.83); #871 This probably one of the wildest stories ever lol.. surpr… (5.79)
-  - contradicting: #360 Just when you’ve thought you’ve heard it all and seen it … (0.10); #602 Today we sit with @dtay_blackie who shares the story on h… (0.10); #734 Today we sit down with the one and only @majorgalore for … (0.10)
+  - contradicting: #360 Just when you’ve thought you’ve heard it all and seen it … (0.10); #602 Today we sit with @dtay_blackie who shares the story on h… (0.10); #708 So during our @fatboy episode we ask who was the 1st cele… (0.10)
 - **Sex** — supporting: #813 “I want to get in a headstand!” Today we talk stuff in th… (10.00); #942 New clip from my show @fboychroniclesfunny .. @omgitssmil… (10.00); #185 Bad s*x = He likes men? Is she onto something or reaching… (5.39)
   - contradicting: #743 “Men over performing in the bedroom is a turnoff.” Thats … (0.10); #199 Today we’re locked in with the one and only @thetriximont… (0.11); #598 Today we sit with @roz.verde as she shares her surgery ex… (0.17)
 
@@ -139,11 +137,11 @@ Both sides of each pair are measured on era-normalised peer ratios.
 
 | Group | n | Baseline n | Median | Baseline | Effect | Consistency | p | Confidence | Holds in both halves | Date range |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 16-30s | 199 | 407 | 1.02 | 0.98 | 1.04× | 53% | 0.225 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| ⚠ 31-45s | 259 | 347 | 1.01 | 0.98 | 1.03× | 52% | 0.929 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| ⚠ >60s | 29 | 577 | 0.96 | 1.00 | 0.96× | 55% | 0.930 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
-| 46-60s | 101 | 505 | 0.96 | 1.01 | 0.96× | 54% | 0.342 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| <=15s | 18 | 588 | 0.90 | 1.00 | 0.89× | 61% | 0.463 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| 16-30s | 199 | 406 | 1.02 | 0.98 | 1.04× | 53% | 0.242 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| ⚠ 31-45s | 259 | 346 | 1.01 | 0.98 | 1.03× | 52% | 0.883 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| ⚠ >60s | 28 | 577 | 0.96 | 1.00 | 0.96× | 54% | 0.700 | MODERATE_SIGNAL | no | 2022-01-26 → 2026-09-10 |
+| 46-60s | 101 | 504 | 0.96 | 1.01 | 0.95× | 54% | 0.328 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| <=15s | 18 | 587 | 0.90 | 1.00 | 0.89× | 61% | 0.419 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
 
 ⚠ **Era-confounded:** 31-45s, >60s — the group and its baseline come from different eras or the direction does not hold in both halves of the data. Direction unproven.
 
@@ -151,7 +149,7 @@ Both sides of each pair are measured on era-normalised peer ratios.
   - contradicting: #677 Shoutout to all the girls who work nightlife cause yall b… (0.26); #637 When do you know it’s time to let go of someone?  @ohhthi… (0.30); #845 Today we sitdown @chinesekitty and she shares stories abo… (0.32)
 - **31-45s** — supporting: #739 Today @majorgalore breaks down her viral clip about 3sum.… (3.96); #396 During @eness_215 interview on Vlad he talks about @fred_… (2.79); #209 Look, the streets have been waiting for a format this raw… (2.70)
   - contradicting: #360 Just when you’ve thought you’ve heard it all and seen it … (0.23); #934 Upcoming episode of @thebadbitchesonlyshow where we have … (0.31); #808 We usually let the cap slide on the BBO Show.. but we had… (0.33)
-- **>60s** — supporting: #847 From nightlife to a record deal, @itshoneybxby shares her… (0.33); #362 Behind the scenes from our last episode.. enjoy y’all (0.40); #441 Today we do an on the spot interview with rising Boston a… (0.43)
+- **>60s** — supporting: #847 From nightlife to a record deal, @itshoneybxby shares her… (0.33); #441 Today we do an on the spot interview with rising Boston a… (0.43); #661 Today we sit with Yatti and she shares her craziest “chea… (0.46)
   - contradicting: #871 This probably one of the wildest stories ever lol.. surpr… (3.27); #447 IF THE YAMS THIS GOOD… I DONT WANT IT! 😂😂😂 (3.09); #870 Rising NJ Artist @benniebates sits down with us for a can… (2.23)
 
 ## 8. Which attributes repeatedly appear among breakouts?
@@ -160,7 +158,7 @@ Both sides of each pair are measured on era-normalised peer ratios.
 
 ## 9. Which attributes repeatedly appear among losers?
 
-32 attribute values appear in at least 5 losers; see the frequency table.
+33 attribute values appear in at least 5 losers; see the frequency table.
 
 ## 10. Which patterns still have insufficient evidence?
 
@@ -172,14 +170,14 @@ Both sides of each pair are measured on era-normalised peer ratios.
 
 | Group | n | Baseline n | Median | Baseline | Effect | Consistency | p | Confidence | Holds in both halves | Date range |
 |---|---|---|---|---|---|---|---|---|---|---|
-| R-015: Do not repeatedly open clips with interviewer questions when the guest… (consistent with the rule) | 29 | 74 | 0.91 | 1.20 | 0.76× | 66% | 0.054 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-09 |
+| R-015: Do not repeatedly open clips with interviewer questions when the guest… (consistent with the rule) | 31 | 75 | 0.89 | 1.19 | 0.75× | 68% | 0.026 | STRONG_SIGNAL | yes | 2022-01-26 → 2026-09-09 |
 
-- **R-015: Do not repeatedly open clips with interviewer questions when the guest… (consistent with the rule)** — supporting: #682 Today we sit down with rising New York artist @itsgennyge… (0.31); #646 “I’ll break into your house!” Lol @ant.will.made.it has m… (0.37); #623 Today we sit with @ohhthistiana_ as she breaks down what … (0.38)
+- **R-015: Do not repeatedly open clips with interviewer questions when the guest… (consistent with the rule)** — supporting: #708 So during our @fatboy episode we ask who was the 1st cele… (0.31); #682 Today we sit down with rising New York artist @itsgennyge… (0.31); #646 “I’ll break into your house!” Lol @ant.will.made.it has m… (0.37)
   - contradicting: #218 Eating and farting is a wild job description if I ever he… (4.15); #209 Look, the streets have been waiting for a format this raw… (2.70); #77 Nah I def wasn’t familiar with your game @desirae.perry.7… (2.68)
 
 5 of 15 active rules are machine-testable; the others are editorial principles this data cannot confirm or refute.
 
-**Insufficient evidence.** R-005 — era-confounded, cannot judge (n=5 vs 129, effect 0.32×, median dates 698 days apart, halves agree: —); R-007 — era-confounded, cannot judge (n=12 vs 38, effect 0.93×, median dates 30 days apart, halves agree: false); R-008 — no meaningful difference (n=581 vs 127, effect 1.04×, median dates 82 days apart, halves agree: true); R-014 — era-confounded, cannot judge (n=31 vs 371, effect 0.71×, median dates 575 days apart, halves agree: —)
+**Insufficient evidence.** R-005 — era-confounded, cannot judge (n=5 vs 132, effect 0.33×, median dates 693 days apart, halves agree: —); R-007 — era-confounded, cannot judge (n=12 vs 38, effect 0.93×, median dates 32 days apart, halves agree: false); R-008 — no meaningful difference (n=580 vs 127, effect 1.04×, median dates 82 days apart, halves agree: true); R-014 — era-confounded, cannot judge (n=31 vs 370, effect 0.71×, median dates 575 days apart, halves agree: —)
 
 ## 12. Which existing BBO rules are being challenged?
 
@@ -189,17 +187,17 @@ No open challenge in the rule engine (a challenge needs repeated contrary eviden
 
 | Group | n | Baseline n | Median | Baseline | Effect | Consistency | p | Confidence | Holds in both halves | Date range |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Interviewer question vs guest answer (head-to-head) | 31 | 44 | 0.91 | 1.20 | 0.76× | 65% | 0.041 | MODERATE_SIGNAL | yes | 2024-05-01 → 2026-09-09 |
-| interviewer question | 31 | 107 | 0.91 | 1.18 | 0.77× | 65% | 0.060 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| controversial statement | 40 | 98 | 1.29 | 1.03 | 1.25× | 65% | 0.054 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
-| surprising fact | 24 | 114 | 1.27 | 1.04 | 1.22× | 63% | 0.020 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| Interviewer question vs guest answer (head-to-head) | 33 | 45 | 0.89 | 1.19 | 0.75× | 67% | 0.023 | STRONG_SIGNAL | yes | 2024-03-31 → 2026-09-09 |
+| interviewer question | 33 | 108 | 0.89 | 1.17 | 0.76× | 67% | 0.027 | STRONG_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| surprising fact | 24 | 117 | 1.27 | 1.03 | 1.24× | 67% | 0.014 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
+| controversial statement | 41 | 100 | 1.26 | 1.03 | 1.23× | 63% | 0.060 | MODERATE_SIGNAL | yes | 2022-01-26 → 2026-09-10 |
 
-- **Interviewer question vs guest answer (head-to-head)** — supporting: #682 Today we sit down with rising New York artist @itsgennyge… (0.31); #646 “I’ll break into your house!” Lol @ant.will.made.it has m… (0.37); #623 Today we sit with @ohhthistiana_ as she breaks down what … (0.38)
+- **Interviewer question vs guest answer (head-to-head)** — supporting: #708 So during our @fatboy episode we ask who was the 1st cele… (0.31); #682 Today we sit down with rising New York artist @itsgennyge… (0.31); #646 “I’ll break into your house!” Lol @ant.will.made.it has m… (0.37)
   - contradicting: #218 Eating and farting is a wild job description if I ever he… (4.15); #209 Look, the streets have been waiting for a format this raw… (2.70); #77 Nah I def wasn’t familiar with your game @desirae.perry.7… (2.68)
-- **interviewer question** — supporting: #682 Today we sit down with rising New York artist @itsgennyge… (0.31); #646 “I’ll break into your house!” Lol @ant.will.made.it has m… (0.37); #623 Today we sit with @ohhthistiana_ as she breaks down what … (0.38)
+- **interviewer question** — supporting: #708 So during our @fatboy episode we ask who was the 1st cele… (0.31); #682 Today we sit down with rising New York artist @itsgennyge… (0.31); #646 “I’ll break into your house!” Lol @ant.will.made.it has m… (0.37)
   - contradicting: #218 Eating and farting is a wild job description if I ever he… (4.15); #209 Look, the streets have been waiting for a format this raw… (2.70); #77 Nah I def wasn’t familiar with your game @desirae.perry.7… (2.68)
-- **controversial statement** — supporting: #942 New clip from my show @fboychroniclesfunny .. @omgitssmil… (4.59); #117 Is that bad communication or are men supposed to just fig… (2.68); #220 Yams on the first night ain’t really a bad thing.. led to… (2.44)
-  - contradicting: #597 We continue a conversation from yesterday’s topic about p… (0.42); #673 “I OWE YOU AND YA SIS A DRINK?!” lol classic BBO show cli… (0.43); #676 “YOU LOST ME THERE!” @arinidoll shares her opinion on let… (0.47)
+- **surprising fact** — supporting: #51 Not everybody you say ya friend is ya friend cause how th… (2.70); #103 “Wait... 6 guys is a LIGHT day?! 🤯🎙️” (2.58); #29 The double massage while getting d***ed down… @wetkittyci… (2.56)
+  - contradicting: #671 Today @famous_briiii shares her crazy ATLANTA skrip club … (0.45); #72 She saw the red flag and and almost made it a lifestyle �… (0.87); #61 This interview started off wild, and only got wilder lmfa… (0.97)
 
 The findings above are the strongest associations worth converting into controlled tests (same topic and guest, one variable changed). 8 experiment(s) are already proposed or running.
 
@@ -211,35 +209,35 @@ The findings above are the strongest associations worth converting into controll
 
 | Attribute | Value | In group | Group share | Rest share | Lift | Examples |
 |---|---|---|---|---|---|---|
-| editing style | meme card | 5 | 11% | 5% | 2.09× | #258, #173 |
-| tension type | exposure | 6 | 15% | 8% | 1.94× | #51, #120 |
-| hook type | controversial statement | 18 | 40% | 24% | 1.69× | #942, #117 |
-| emotional trigger | shock | 31 | 69% | 41% | 1.69× | #942, #209 |
-| opening type | text first | 14 | 31% | 19% | 1.61× | #942, #29 |
-| share trigger type | shocking | 36 | 80% | 54% | 1.49× | #942, #209 |
-| hook type | surprising fact | 10 | 22% | 15% | 1.48× | #51, #103 |
-| reaction timing | none | 15 | 33% | 23% | 1.42× | #942, #51 |
-| tension type | gender conflict | 23 | 56% | 43% | 1.30× | #942, #218 |
-| comment trigger type | take a side | 42 | 95% | 77% | 1.24× | #942, #218 |
-| duration bucket | 16-30s | 46 | 37% | 32% | 1.16× | #218, #813 |
-| editing style | static graphic | 12 | 27% | 23% | 1.14× | #209, #51 |
+| editing style | meme card | 5 | 11% | 5% | 2.13× | #258, #173 |
+| tension type | exposure | 6 | 15% | 7% | 2.01× | #51, #120 |
+| emotional trigger | shock | 31 | 69% | 41% | 1.70× | #942, #209 |
+| hook type | controversial statement | 18 | 40% | 24% | 1.67× | #942, #117 |
+| opening type | text first | 14 | 31% | 19% | 1.66× | #942, #29 |
+| hook type | surprising fact | 10 | 22% | 15% | 1.52× | #51, #103 |
+| reaction timing | none | 15 | 33% | 23% | 1.45× | #942, #51 |
+| share trigger type | shocking | 36 | 80% | 55% | 1.45× | #942, #209 |
+| tension type | gender conflict | 23 | 56% | 43% | 1.31× | #942, #218 |
+| comment trigger type | take a side | 42 | 95% | 78% | 1.23× | #942, #218 |
+| editing style | static graphic | 12 | 27% | 23% | 1.16× | #209, #51 |
+| duration bucket | 16-30s | 46 | 37% | 32% | 1.15× | #218, #813 |
 
 ### Attributes over-represented among losers and below-average posts
 
 | Attribute | Value | In group | Group share | Rest share | Lift | Examples |
 |---|---|---|---|---|---|---|
-| tension type | none | 5 | 15% | 0% | ∞ | #640, #610 |
-| emotional trigger | curiosity | 13 | 39% | 10% | 4.14× | #225, #649 |
-| comment trigger type | personal experience | 10 | 31% | 11% | 2.95× | #649, #598 |
-| hook type | question | 14 | 42% | 16% | 2.62× | #225, #662 |
-| opening type | interviewer question | 14 | 42% | 16% | 2.62× | #640, #199 |
-| tension type | disagreement | 5 | 15% | 7% | 2.19× | #688, #590 |
-| share trigger type | relatable | 15 | 45% | 24% | 1.91× | #649, #662 |
-| hook type | curiosity gap | 6 | 18% | 10% | 1.74× | #640, #238 |
-| editing style | podcast panel cut | 23 | 68% | 50% | 1.34× | #225, #640 |
-| tension type | confession stakes | 8 | 24% | 19% | 1.29× | #609, #598 |
+| tension type | none | 5 | 14% | 0% | ∞ | #640, #610 |
+| emotional trigger | curiosity | 14 | 39% | 10% | 4.08× | #225, #649 |
+| hook type | question | 16 | 44% | 16% | 2.75× | #225, #662 |
+| opening type | interviewer question | 16 | 44% | 16% | 2.75× | #640, #697 |
+| comment trigger type | personal experience | 10 | 29% | 11% | 2.70× | #649, #598 |
+| tension type | disagreement | 5 | 14% | 7% | 2.00× | #688, #590 |
+| share trigger type | relatable | 15 | 42% | 24% | 1.75× | #649, #662 |
+| hook type | curiosity gap | 6 | 17% | 10% | 1.59× | #640, #238 |
+| editing style | podcast panel cut | 25 | 69% | 50% | 1.38× | #225, #640 |
+| tension type | confession stakes | 9 | 25% | 19% | 1.33× | #609, #598 |
 | duration bucket | <=15s | 7 | 3% | 3% | 1.17× | #63, #464 |
-| duration bucket | 46-60s | 39 | 18% | 16% | 1.15× | #897, #524 |
+| duration bucket | 46-60s | 39 | 18% | 16% | 1.16× | #897, #524 |
 
 ### Experiments proposed or running
 
