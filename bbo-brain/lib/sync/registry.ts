@@ -242,7 +242,9 @@ export const JOBS: Record<string, JobDef> = {
         budgetUsd: Number(ctx.params.budgetUsd ?? 0.5),
         log: ctx.log,
       });
-      const [report] = benchmarkReport(ctx.db, [r.benchmarkRunId]);
+      // Always measure against a frozen reference when one exists, so a later re-code cannot move the yardstick.
+      const referenceRunId = Number(ctx.params.referenceRunId) || (all<{ id: number }>(ctx.db, `SELECT id FROM benchmark_runs WHERE provider = 'reference' ORDER BY id DESC LIMIT 1`)[0]?.id ?? undefined);
+      const [report] = benchmarkReport(ctx.db, [r.benchmarkRunId], { referenceRunId });
       return {
         recordsSeen: ids.length,
         recordsWritten: r.ok,

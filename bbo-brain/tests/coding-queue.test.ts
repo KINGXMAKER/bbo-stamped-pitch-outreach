@@ -45,8 +45,11 @@ function seedCatalogue(db: Db): Db {
 }
 
 /** Marks media as already fetched so the post is a candidate for coding. */
-function giveMedia(db: Db, contentIds: number[], fetchedAt = NOW.toISOString()) {
-  for (const id of contentIds) run(db, 'UPDATE content SET thumb_path = ?, media_fetched_at = ? WHERE id = ?', `/tmp/fixture-${id}.jpg`, fetchedAt, id);
+function giveMedia(db: Db, contentIds: number[], fetchedAt = NOW.toISOString(), opts: { transcript?: boolean } = {}) {
+  for (const id of contentIds) {
+    run(db, 'UPDATE content SET thumb_path = ?, media_fetched_at = ? WHERE id = ?', `/tmp/fixture-${id}.jpg`, fetchedAt, id);
+    if (opts.transcript !== false) run(db, `INSERT OR IGNORE INTO transcripts (content_id, source, model, text) VALUES (?, 'whisper_cpp', 'test', 'words')`, id);
+  }
 }
 
 function codeIt(db: Db, contentId: number, values: Record<string, string>) {
@@ -137,6 +140,17 @@ describe('media/coding priority queue', () => {
     const coding = buildQueue(db, { limit: 5, stage: 'coding', now: NOW });
     expect(coding.map((q) => q.contentId).sort()).toEqual(first.map((q) => q.contentId).sort());
     expect(coding.every((q) => q.needsCoding)).toBe(true);
+  });
+
+  it('does not queue a post for coding when there is nothing to read', () => {
+    const db = seedCatalogue(testDb());
+    const [withWords, thumbOnly] = loadFacts(db).slice(0, 2).map((f) => f.contentId);
+    giveMedia(db, [withWords]);
+    giveMedia(db, [thumbOnly], NOW.toISOString(), { transcript: false });
+    const ids = buildQueue(db, { limit: 50, stage: 'coding', now: NOW }).map((q) => q.contentId);
+
+    expect(ids).toContain(withWords);
+    expect(ids).not.toContain(thumbOnly);
   });
 
   it('counts only today for the daily throughput cap', () => {

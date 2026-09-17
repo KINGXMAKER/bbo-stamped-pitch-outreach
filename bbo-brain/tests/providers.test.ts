@@ -225,6 +225,49 @@ describe('provider routing and fallback', () => {
     expect(chain).not.toContain('nvidia');
   });
 
+  it('moves to another host when one stops the answer mid-generation', async () => {
+    process.env.AI_CODING_PROVIDER = 'openrouter';
+    process.env.AI_CODING_MODEL = 'qwen/qwen3-235b-a22b-2507';
+    const db = testDb();
+    const bodies: Array<Record<string, unknown>> = [];
+    setProviderFetch(
+      mockFetch((url, body) => {
+        if (!url.includes('openrouter')) return { status: 500, text: 'unused' };
+        bodies.push(body);
+        if (!body.provider) return { status: 200, json: { provider: 'Alibaba', choices: [{ message: { content: '{"verdict":"cut off mid' }, finish_reason: 'error' }] } };
+        return { status: 200, json: { provider: 'DeepInfra', choices: [{ message: { content: '{"verdict":"other host"}' }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 5, cost: 0.0042 } } };
+      })
+    );
+
+    const result = await ask(db);
+
+    expect(result.data.verdict).toBe('other host');
+    expect(bodies[1].provider).toEqual({ ignore: ['Alibaba'] });
+    expect(lastRun(db).retry_count).toBe(0); // no wasted JSON repair on a host cut-off
+    expect(lastRun(db).estimated_cost_usd).toBeCloseTo(0.0042, 6); // the provider's reported cost, not our estimate
+  });
+
+  it('gives up on a model whose only host refuses, and tries the next model', async () => {
+    process.env.AI_CODING_PROVIDER = 'openrouter';
+    process.env.AI_CODING_MODEL = 'qwen/qwen3-vl-32b-instruct';
+    const db = testDb();
+    setProviderFetch(
+      mockFetch((url, body) => {
+        if (url.includes('generativelanguage')) return geminiOk('{"verdict":"gemini"}');
+        if (body.model === 'qwen/qwen3-vl-32b-instruct' && !body.provider) return { status: 200, json: { provider: 'Alibaba', choices: [{ message: { content: '{"verdict":"cut' }, finish_reason: 'error' }] } };
+        if (body.model === 'qwen/qwen3-vl-32b-instruct') return { status: 404, text: 'No endpoints found matching your data policy' };
+        return openAiOk('{"verdict":"next model"}');
+      })
+    );
+
+    const result = await ask(db);
+    const vlCalls = calls.filter((c) => c.model === 'qwen/qwen3-vl-32b-instruct').length;
+
+    expect(vlCalls).toBe(2); // original host, then one attempt elsewhere — never a repair loop
+    expect(result.data.verdict).not.toBe('cut');
+    expect(lastRun(db).fallback_reason).toContain('404');
+  });
+
   it('does not fall back at all when fallback is switched off', async () => {
     process.env.AI_ALLOW_FALLBACK = 'false';
     process.env.AI_CODING_PROVIDER = 'nvidia';
