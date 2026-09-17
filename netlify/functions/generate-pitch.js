@@ -71,6 +71,7 @@ The server inserts your "email_page_observation" into this sentence of the found
 - Write ONLY the clause after "and": lower-case start, no leading "I checked your page out", no period at the end.
 - 12–35 words. A specific, genuine compliment about their actual feed (a dish, a drink, an event, the space) as a short clause, then what's missing — framed by the Primary Gap. Plain founder voice, e.g. "the food shots are A1, but the lifestyle component is missing".
 - Never insulting, never invent facts, no BBO pitch, no link, no business-name stuffing.
+- The very next sentence is already "We should show people actually enjoying your place." — so do NOT say "people enjoying", "enjoying the space" or "lifestyle energy of people" in the clause. Name what's missing briefly instead (e.g. "the lifestyle component is missing", "it's mostly flyers", "there's no crowd in the shots").
 
 DM STRUCTURE (mandatory):
 1. Opener, used as the very first words: "Hey, you came across my Instagram feed" — continue the sentence naturally into the specific thing you noticed (e.g. "Hey, you came across my Instagram feed and I noticed..." or "Hey, you came across my Instagram feed and your [specific thing] caught my attention."). Warm and human, never salesy. Never "Hi,", never "I came across your Instagram", never "Your page came across my feed", never "I found you on Instagram".
@@ -398,7 +399,7 @@ Return ONLY this JSON structure (no markdown, no backticks):
   ],
   "dm_version": "Instagram DM body — follow the DM STRUCTURE exactly. Start with 'Hey, you came across my Instagram feed' flowing naturally into the specific thing you noticed about their business, then the locked 'I run BBO Stamped...' line, then the gap in first person ('as I browsed your page I noticed...'), then one line on what BBO Stamped brings with a quick parenthetical of content types (think photos, skits, recaps, voiceovers, etc.). Do NOT include the CTA link here (that is dm_part2). 80-120 words, hard cap 140. Max 2 short paragraphs. Conversational, never a mini email.",
   "dm_part2": "Instagram DM Part 2 — fixed closing CTA linking to the BBO Stamped page.",
-  "email_page_observation": "ONLY the clause completing \"I checked your page out and …\" (12-35 words, lower-case start, no final period): a specific compliment about their feed, then what's missing per the Primary Gap. Example: the food shots are A1, but the lifestyle component is missing",
+  "email_page_observation": "ONLY the clause completing \"I checked your page out and …\" (12-35 words, lower-case start, no final period): a specific compliment about their feed, then what's missing per the Primary Gap, never mentioning people enjoying the place (the next sentence says that). Example: the food shots are A1, but the lifestyle component is missing",
   "call_talking_points": ["4-5 talking points for a phone pitch"],
   "follow_up": "3-5 day follow up DM — references the first message, adds urgency, keeps it short (under 90 words). Ends with the same fixed closing line: 'Please checkout our website for a further breakdown on what we can do for your business:\\nhttps://bbouniverse.com/pages/bbo-stamped'",
   "internal_notes": "Brief internal note on why this pitch approach was chosen"
