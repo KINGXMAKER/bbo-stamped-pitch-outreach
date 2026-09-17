@@ -140,3 +140,9 @@ test('attempt logs never contain API keys', async () => {
   const logged = JSON.stringify(r.trace.attempts);
   assert.doesNotMatch(logged, /AIzaSyA1234567890abcdefghijklmnop|sk-or-v1-secretvalue/);
 });
+
+test('daily budget uses persisted spend passed by the caller', async () => {
+  const r = await run({ 'gemini-3.5-flash-lite': OK }, { env: { AI_DAILY_PITCH_BUDGET_USD: '1' }, opts: { dailySpentUsd: 0.999 } });
+  assert.equal(r.calls.length, 0);
+  assert.match(r.trace.attempts[0].fallbackReason, /^daily_budget/);
+});

@@ -5,6 +5,8 @@
 const config = require('./ai/config');
 const circuit = require('./ai/circuit');
 const { initAiRequest } = require('./ai/request-context');
+const { getSupabaseClient } = require('./shared');
+const { getDailySpendUsd } = require('./ai/spend');
 
 exports.handler = async (event) => {
   const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
@@ -12,6 +14,8 @@ exports.handler = async (event) => {
   initAiRequest(event);
   await circuit.load({ force: true });
   const snap = circuit.snapshot();
+  let persistedUsd = null;
+  try { persistedUsd = await getDailySpendUsd(getSupabaseClient(), { fresh: true }); } catch (e) { persistedUsd = null; }
   const cfg = config.getRouterConfig();
   const route = config.getProbeTargets().map(c => {
     const entry = snap.circuits[c.key] || null;
@@ -28,7 +32,9 @@ exports.handler = async (event) => {
       route,
       limits: { attemptWindowsMs: cfg.attemptWindowsMs, minAttemptMs: cfg.minAttemptMs, sameModelRetries: cfg.sameModelRetries,
         maxCostPerPitchUsd: cfg.maxCostPerPitchUsd, dailyBudgetUsd: cfg.dailyBudgetUsd, freeTier: cfg.freeTier },
-      spendToday: snap.spend,
+      // Authoritative: sum of persisted pitch_generations.estimated_cost_usd for the UTC day (paid-rate
+      // estimate; the free tier bills $0). Screenshot scans are not generations and are not included.
+      spendToday: { date: snap.spend.date, usd: persistedUsd, source: persistedUsd === null ? 'unavailable' : 'pitch_generations' },
     }, null, 2),
   };
 };

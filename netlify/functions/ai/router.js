@@ -115,7 +115,9 @@ async function generate(genAI, contentArg, modelConfigExtra, deadlineMs, opts) {
       record(c, { status: 'skipped', fallbackReason: `cost_ceiling(${budget.maxUsd})`, estCostUsd: +worstCaseUsd.toFixed(6), latencyMs: 0 });
       continue;
     }
-    if (worstCaseUsd > 0 && circuit.spentTodayUsd() + worstCaseUsd > cfg.dailyBudgetUsd) {
+    // Daily spend comes from persisted generations (opts.dailySpentUsd, see ai/spend.js) plus this request.
+    const spentToday = (typeof opts.dailySpentUsd === 'number' ? opts.dailySpentUsd : circuit.spentTodayUsd()) + budget.spentUsd;
+    if (worstCaseUsd > 0 && spentToday + worstCaseUsd > cfg.dailyBudgetUsd) {
       record(c, { status: 'skipped', fallbackReason: `daily_budget(${cfg.dailyBudgetUsd})`, latencyMs: 0 });
       continue;
     }
