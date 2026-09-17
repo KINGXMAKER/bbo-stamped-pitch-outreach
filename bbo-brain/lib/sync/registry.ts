@@ -11,6 +11,7 @@ import { analysisQueue, analyzeContent, enrichContent } from '@/lib/intel/analys
 import { mineLessons } from '@/lib/intel/lessons';
 import { benchmarkReport, benchmarkSample, runCodingBenchmark } from '@/lib/intel/benchmark';
 import { buildIntelligenceReport, renderIntelligenceReport } from '@/lib/intel/report';
+import { createValidationBatch } from '@/lib/intel/validation';
 import { autoAssign, evaluateExperiment, suggestExperimentsFromLessons } from '@/lib/intel/experiments';
 import { generateOpportunities } from '@/lib/intel/opportunities';
 import { buildMonthlyReview, buildWeeklyReview } from '@/lib/intel/reviews';
@@ -251,6 +252,15 @@ export const JOBS: Record<string, JobDef> = {
         partial: r.schemaFailed + r.errored > 0 && r.ok > 0,
         summary: `${r.ok} ok · ${r.schemaFailed} schema-failed · ${r.errored} errored · agreement ${report.overallAgreement === null ? 'n/a' : `${Math.round(report.overallAgreement * 100)}%`} · ${report.taxonomyViolations} taxonomy violations · median ${report.medianLatencyMs}ms · $${report.costUsd.toFixed(4)}`,
       };
+    },
+  },
+  'validation-batch': {
+    label: 'Freeze a validation batch',
+    description: 'Pick a stratified set of coded posts (outcome, franchise, topic, hook type; model disagreements first) for human review.',
+    phase: 'learning',
+    run: async (ctx) => {
+      const batch = createValidationBatch(ctx.db, Number(ctx.params.size ?? 25));
+      return { recordsSeen: batch.size, recordsWritten: batch.ids.length, summary: `${batch.ids.length} posts frozen for human review` };
     },
   },
   'intelligence-report': {

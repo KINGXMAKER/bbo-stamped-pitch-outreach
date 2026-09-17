@@ -172,9 +172,14 @@ would reason over stale data.
 
 `scripts/launchd/com.bbo.brain.daily.plist` is a template. Installing it would
 add exactly one file, `~/Library/LaunchAgents/com.bbo.brain.daily.plist`, with a
-single job: at 07:30 local time run `npm run job -- daily` then
-`npm run job -- weekly-review` in this directory, appending to `data/daily.log`.
+single job: at 07:30 local time run `npm run job -- daily` in this directory, and
+on Mondays also `npm run job -- weekly-review`, appending to `data/daily.log`.
 It adds no login item, no network listener, and no other system change.
+
+Expected daily AI spend with the current selection: provider health checks
+(≈$0.0002), coding only for posts that are new and fall under
+`AI_CODING_CORPUS_LIMIT` (≈$0.0006 each), deep analysis for posts crossing the
+triggers, and all of it capped at `AI_DAILY_BUDGET_USD`.
 
 ```bash
 cp scripts/launchd/com.bbo.brain.daily.plist ~/Library/LaunchAgents/

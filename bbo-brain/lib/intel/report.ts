@@ -1,9 +1,11 @@
-import { all, get, type Db } from '@/lib/db/client';
+import { all, get, parseJson, type Db } from '@/lib/db/client';
 import { STAT_THRESHOLDS } from './stats';
 import { comparable, loadFacts, METRIC_DEFS, metricValue, type ContentFact, type MetricKey } from './dataset';
 import { evaluatePattern, loadLabels, valueLabel, valuesFor, type PatternEvaluation } from './patterns';
 import { corpusStatus } from '@/lib/sync/media-queue';
 import { coverageStats } from './validation';
+import { benchmarkReport, pairAgreement } from './benchmark';
+import { brainConfig } from '@/lib/config';
 
 /**
  * The intelligence review: fourteen fixed questions answered from calculated
@@ -34,6 +36,15 @@ export type Finding = {
   /** Which model coded the group's posts — a pattern carried by one model is a possible artifact. */
   modelMix: Record<string, number>;
   modelConfound: boolean;
+  /** Days between the median publish date of the group and of its baseline. */
+  eraGapDays: number | null;
+  /** The comparison mixes eras or does not hold in both halves of the data: direction unproven. */
+  eraConfounded: boolean;
+};
+
+const medianDate = (facts: ContentFact[]): number | null => {
+  const t = facts.map((f) => Date.parse(f.publishedAt)).filter(Number.isFinite).sort((a, b) => a - b);
+  return t.length ? t[Math.floor(t.length / 2)] : null;
 };
 
 export type Answer = { number: number; question: string; findings: Finding[]; note: string | null; insufficient: string | null };
@@ -84,9 +95,19 @@ function toFinding(db: Db, e: PatternEvaluation, claim: string): Finding {
   };
   // Flag only when the corpus really is mixed and the group is not.
   const modelConfound = Object.keys(restMix).length > 1 && Object.keys(groupMix).length > 0 && share(groupMix) >= 0.85 && share(restMix) < 0.7;
+  const g = medianDate(e.groupFacts);
+  const b = medianDate(e.restFacts);
+  const eraGapDays = g !== null && b !== null ? Math.round(Math.abs(g - b) / 86_400_000) : null;
   return {
     modelMix: groupMix,
     modelConfound,
+    eraGapDays,
+    // Same safeguard the mining loop applies: BBO's audience and reach changed
+    // across years, so a group from one era compared with a baseline from
+    // another measures the era, not the attribute.
+    // Metrics are era-normalised peer ratios, so a direction that holds in both
+    // halves of the timeline survives an era gap; one that does not is unproven.
+    eraConfounded: c.halvesAgree === false || (eraGapDays !== null && eraGapDays > 365 && c.halvesAgree !== true),
     claim,
     metric: e.pattern.metric,
     metricLabel: METRIC_DEFS[e.pattern.metric].label,
@@ -127,7 +148,7 @@ function rankValues(db: Db, facts: ContentFact[], key: string, metric: MetricKey
 }
 
 /** Attribute values that appear far more often in a label group than in everything else. */
-function overRepresented(facts: ContentFact[], labelSet: string[], keys: string[], minCount = 3): Array<{ key: string; value: string; inGroup: number; groupShare: number; restShare: number; lift: number; examples: Example[] }> {
+function overRepresented(facts: ContentFact[], labelSet: string[], keys: string[], minCount = 5): Array<{ key: string; value: string; inGroup: number; groupShare: number; restShare: number; lift: number; examples: Example[] }> {
   const group = facts.filter((f) => f.label && labelSet.includes(f.label));
   const rest = facts.filter((f) => f.label && !labelSet.includes(f.label));
   const out: Array<{ key: string; value: string; inGroup: number; groupShare: number; restShare: number; lift: number; examples: Example[] }> = [];
@@ -174,7 +195,26 @@ export type IntelligenceReport = {
   rules: { supported: Array<{ code: string; text: string; lessons: number }>; challenged: Array<{ code: string; text: string; reason: string }> };
   experiments: Array<{ code: string; name: string; status: string; hypothesis: string | null }>;
   nextMoves: Array<{ title: string; rationale: string; score: number | null }>;
+  labelReliability: string | null;
+  untrustedFields: string[];
 };
+
+/** What the benchmark says about the model that produced the corpus labels. */
+function describeLabelReliability(db: Db): string | null {
+  const model = brainConfig().tasks.coding.model;
+  if (!model) return null;
+  const runs = all<{ id: number }>(db, `SELECT id FROM benchmark_runs WHERE model = ? AND provider != 'reference' AND finished_at IS NOT NULL ORDER BY id`, model).map((x) => x.id);
+  const reference = all<{ id: number }>(db, `SELECT id FROM benchmark_runs WHERE provider = 'reference' ORDER BY id DESC LIMIT 1`)[0]?.id;
+  if (!runs.length) return null;
+  const parts: string[] = [];
+  const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`);
+  if (runs.length >= 2) parts.push(`${model} agrees with its own rerun on ${pct(pairAgreement(db, runs[0], runs[1]).rate)} of labels`);
+  if (reference) {
+    const [row] = benchmarkReport(db, [runs[0]], { referenceRunId: reference });
+    if (row) parts.push(`and with the earlier coding it replaced on ${pct(row.overallAgreement)} (valid structured output ${pct(row.validRate)}, ${row.taxonomyViolations} taxonomy violations in ${row.posts})`);
+  }
+  return parts.length ? `${parts.join(' ')} — agreement between models is a consistency signal, not ground truth; human review decides.` : null;
+}
 
 export function buildIntelligenceReport(db: Db): IntelligenceReport {
   modelCache = null;
@@ -239,15 +279,15 @@ export function buildIntelligenceReport(db: Db): IntelligenceReport {
     number: 8,
     question: 'Which attributes repeatedly appear among breakouts?',
     findings: [],
-    note: breakoutAttrs.length ? `${breakoutAttrs.length} attribute values appear in at least 3 winners; see the frequency table.` : null,
-    insufficient: breakoutAttrs.length ? null : 'No attribute value appears in 3+ coded winners yet.',
+    note: breakoutAttrs.length ? `${breakoutAttrs.length} attribute values appear in at least 5 winners; see the frequency table.` : null,
+    insufficient: breakoutAttrs.length ? null : 'No attribute value appears in 5+ coded winners yet.',
   });
   answers.push({
     number: 9,
     question: 'Which attributes repeatedly appear among losers?',
     findings: [],
-    note: loserAttrs.length ? `${loserAttrs.length} attribute values appear in at least 3 losers; see the frequency table.` : null,
-    insufficient: loserAttrs.length ? null : 'No attribute value appears in 3+ coded losers yet.',
+    note: loserAttrs.length ? `${loserAttrs.length} attribute values appear in at least 5 losers; see the frequency table.` : null,
+    insufficient: loserAttrs.length ? null : 'No attribute value appears in 5+ coded losers yet.',
   });
 
   // 10 — what we deliberately refuse to conclude, and why.
@@ -277,15 +317,58 @@ export function buildIntelligenceReport(db: Db): IntelligenceReport {
     `SELECT r.code, rv.text, c.summary AS reason FROM rule_challenges c JOIN rules r ON r.id = c.rule_id
      JOIN rule_versions rv ON rv.id = c.rule_version_id WHERE c.status = 'open' ORDER BY c.id DESC`
   );
-  answers.push({ number: 11, question: 'Which existing BBO rules are supported?', findings: [], note: `${supportedRules.filter((r) => r.lessons > 0).length} of ${supportedRules.length} active rules have at least one supporting mined lesson.`, insufficient: null });
-  answers.push({ number: 12, question: 'Which existing BBO rules are being challenged?', findings: [], note: challenged.length ? `${challenged.length} open challenge(s).` : 'No rule is currently contradicted by the data.', insufficient: null });
+  // Only rules with a machine-checkable pattern can be tested; the rest are editorial principles.
+  const testable = all<{ code: string; text: string; pattern_json: string }>(
+    db,
+    `SELECT r.code, rv.text, r.pattern_json FROM rules r JOIN rule_versions rv ON rv.id = r.current_version_id WHERE r.status = 'active' AND r.pattern_json IS NOT NULL ORDER BY r.code`
+  );
+  const ruleFindings = testable.map((rule) => {
+    const raw = parseJson<{ key: string; group: string; compare?: string; metric: MetricKey; expected: 'higher' | 'lower' }>(rule.pattern_json, { key: '', group: '', metric: 'performance_score', expected: 'higher' });
+    const e = evaluatePattern(facts, { key: raw.key, group: raw.group, compare: raw.compare, metric: raw.metric });
+    const effect = e.comparison.effect;
+    const enough = e.comparison.nGroup >= STAT_THRESHOLDS.minN && e.comparison.nRest >= STAT_THRESHOLDS.minN;
+    const agrees = effect !== null && (raw.expected === 'higher' ? effect >= STAT_THRESHOLDS.meaningfulUp : effect <= STAT_THRESHOLDS.meaningfulDown);
+    const opposes = effect !== null && (raw.expected === 'higher' ? effect <= STAT_THRESHOLDS.meaningfulDown : effect >= STAT_THRESHOLDS.meaningfulUp);
+    const probe = toFinding(db, e, rule.code);
+    const verdict = !enough ? 'insufficient' : probe.eraConfounded ? 'era-confounded, cannot judge' : agrees ? 'consistent with the rule' : opposes ? 'against the rule' : 'no meaningful difference';
+    return { rule, verdict, finding: { ...probe, claim: `${rule.code}: ${rule.text.slice(0, 70)}${rule.text.length > 70 ? '…' : ''} (${verdict})` } };
+  });
+  answers.push({
+    number: 11,
+    question: 'Which existing BBO rules are supported?',
+    findings: ruleFindings.filter((r) => r.verdict === 'consistent with the rule').map((r) => r.finding),
+    note: `${testable.length} of ${supportedRules.length} active rules are machine-testable; the others are editorial principles this data cannot confirm or refute.`,
+    insufficient:
+      ruleFindings
+        .filter((r) => ['insufficient', 'no meaningful difference', 'era-confounded, cannot judge'].includes(r.verdict))
+        .map((r) => `${r.rule.code} — ${r.verdict} (n=${r.finding.nGroup} vs ${r.finding.nRest}, effect ${r.finding.effect?.toFixed(2) ?? '—'}×${r.finding.eraGapDays !== null ? `, median dates ${r.finding.eraGapDays} days apart` : ''}, halves agree: ${r.finding.halvesAgree ?? '—'})`)
+        .join('; ') || null,
+  });
+  answers.push({
+    number: 12,
+    question: 'Which existing BBO rules are being challenged?',
+    findings: ruleFindings.filter((r) => r.verdict === 'against the rule').map((r) => r.finding),
+    note: challenged.length ? `${challenged.length} open challenge(s) in the rule engine.` : 'No open challenge in the rule engine (a challenge needs repeated contrary evidence, not one pass).',
+    insufficient: null,
+  });
 
   const experiments = all<{ code: string; name: string; status: string; hypothesis: string | null }>(db, `SELECT code, name, status, hypothesis FROM experiments WHERE status IN ('proposed','running') ORDER BY id DESC LIMIT 8`);
-  answers.push({ number: 13, question: 'What 3–5 deliberate experiments should BBO run next?', findings: [], note: `${experiments.length} experiment(s) proposed or running.`, insufficient: experiments.length ? null : 'No experiment has been suggested by the mining loop yet.' });
+  // Associations from an outcome-sampled corpus are hypotheses; an experiment is how they become lessons.
+  const testableFindings = [...answers.filter((a) => a.number <= 3 || a.number === 7).flatMap((a) => a.findings)]
+    .filter((f) => !f.eraConfounded && ['MODERATE_SIGNAL', 'STRONG_SIGNAL'].includes(f.confidence) && f.effect !== null && (f.effect >= 1.2 || f.effect <= 0.8) && (f.pValue ?? 1) <= 0.1)
+    .sort((a, b) => Math.abs(Math.log(b.effect ?? 1)) - Math.abs(Math.log(a.effect ?? 1)))
+    .slice(0, 5);
+  answers.push({
+    number: 13,
+    question: 'What 3–5 deliberate experiments should BBO run next?',
+    findings: testableFindings,
+    note: `The findings above are the strongest associations worth converting into controlled tests (same topic and guest, one variable changed). ${experiments.length} experiment(s) are already proposed or running.`,
+    insufficient: testableFindings.length ? null : 'No association is strong enough yet to justify a deliberate test.',
+  });
 
   const nextMoves = all<{ title: string; rationale: string; score: number | null }>(
     db,
-    `SELECT title, why AS rationale, priority AS score FROM content_opportunities WHERE status = 'open' ORDER BY priority DESC LIMIT 8`
+    `SELECT title, why AS rationale, MAX(priority) AS score FROM content_opportunities WHERE status = 'open' GROUP BY title ORDER BY score DESC LIMIT 8`
   );
   answers.push({ number: 14, question: 'Based on current evidence, what should BBO make next?', findings: [], note: nextMoves.length ? `${nextMoves.length} open opportunities, each tied to evidence.` : null, insufficient: nextMoves.length ? null : 'No open opportunities — run the opportunities job after coding more posts.' });
 
@@ -306,6 +389,8 @@ export function buildIntelligenceReport(db: Db): IntelligenceReport {
     rules: { supported: supportedRules, challenged },
     experiments,
     nextMoves,
+    labelReliability: describeLabelReliability(db),
+    untrustedFields: brainConfig().untrustedCodingFields,
   };
 }
 
@@ -324,16 +409,25 @@ export function renderIntelligenceReport(r: IntelligenceReport): string {
     ''
   );
   lines.push('Every claim below is an association measured against BBO\'s own era-normalised baseline — not a causal statement. Effect is the group median divided by the baseline median.', '');
+  lines.push(
+    '**Read this with two caveats.**',
+    '',
+    `1. *The coded corpus was sampled on the outcome.* Winners, losers, average controls and unusual posts were selected to fixed quotas, so extremes are over-represented relative to the catalogue. Within such a sample the direction of an association is informative, but median ratios for coded attributes are distorted — treat them as hypotheses to test, not effect sizes. Topic comparisons span the whole catalogue; duration is only known where media was fetched, which followed the same outcome-based priority, so it shares this caveat.`,
+    `2. *Coded attributes are model labels, ${r.corpus.humanValidated === 0 ? 'none of them human-validated yet' : `${r.corpus.humanValidated} of ${r.corpus.coded} posts human-reviewed`}.* ${r.labelReliability ?? 'No benchmark data is available for the coding model.'} Fields listed in AI_CODING_UNTRUSTED_FIELDS (${r.untrustedFields.join(', ') || 'none'}) are not written by the model, so comparisons on them rest on heuristics and audits.`,
+    ''
+  );
 
   for (const a of r.answers) {
     lines.push(`## ${a.number}. ${a.question}`, '');
     if (a.findings.length) {
-      lines.push('| Group | n | Baseline n | Median | Baseline | Effect | Consistency | p | Confidence | Date range |', '|---|---|---|---|---|---|---|---|---|---|');
+      lines.push('| Group | n | Baseline n | Median | Baseline | Effect | Consistency | p | Confidence | Holds in both halves | Date range |', '|---|---|---|---|---|---|---|---|---|---|---|');
       for (const f of a.findings.slice(0, 8)) {
         lines.push(
-          `| ${f.claim} | ${f.nGroup} | ${f.nRest} | ${f.medianGroup?.toFixed(2) ?? '—'} | ${f.baselineMedian?.toFixed(2) ?? '—'} | ${x(f.effect)} | ${pct(f.consistency)} | ${f.pValue === null ? '—' : f.pValue.toFixed(3)} | ${f.confidence} | ${day(f.dateRange?.from)} → ${day(f.dateRange?.to)} |`
+          `| ${f.eraConfounded ? '⚠ ' : ''}${f.claim} | ${f.nGroup} | ${f.nRest} | ${f.medianGroup?.toFixed(2) ?? '—'} | ${f.baselineMedian?.toFixed(2) ?? '—'} | ${x(f.effect)} | ${pct(f.consistency)} | ${f.pValue === null ? '—' : f.pValue.toFixed(3)} | ${f.confidence} | ${f.halvesAgree === null ? '—' : f.halvesAgree ? 'yes' : 'no'} | ${day(f.dateRange?.from)} → ${day(f.dateRange?.to)} |`
         );
       }
+      const eraFlagged = a.findings.slice(0, 8).filter((f) => f.eraConfounded).map((f) => f.claim);
+      if (eraFlagged.length) lines.push('', `⚠ **Era-confounded:** ${eraFlagged.join(', ')} — the group and its baseline come from different eras or the direction does not hold in both halves of the data. Direction unproven.`);
       lines.push('');
       const confounded = a.findings.filter((f) => f.modelConfound).map((f) => f.claim);
       if (confounded.length) lines.push(`**Possible coding-model artifact:** ${confounded.join(', ')} — the group was coded almost entirely by one model while the baseline was not. Treat as unconfirmed.`, '');
@@ -361,11 +455,6 @@ export function renderIntelligenceReport(r: IntelligenceReport): string {
   freqTable(r.overRepresentedBreakouts, 'Attributes over-represented among breakouts and winners');
   freqTable(r.overRepresentedLosers, 'Attributes over-represented among losers and below-average posts');
 
-  if (r.rules.supported.length) {
-    lines.push('### Active rules and their support', '', '| Rule | Supporting lessons | Text |', '|---|---|---|');
-    for (const rule of r.rules.supported) lines.push(`| ${rule.code} | ${rule.lessons} | ${rule.text.slice(0, 120)} |`);
-    lines.push('');
-  }
   if (r.rules.challenged.length) {
     lines.push('### Open challenges', '');
     for (const c of r.rules.challenged) lines.push(`- **${c.code}** — ${c.reason}`);

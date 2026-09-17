@@ -4,8 +4,9 @@ import { setAttribute, writeMetrics } from '@/lib/ingest/ingest';
 import { activeScoreVersion, computeAllScores } from '@/lib/scoring/engine';
 import { buildQueue, corpusStatus, processedToday, tierFor } from '@/lib/sync/media-queue';
 import { loadFacts } from '@/lib/intel/dataset';
-import { accuracyByModel, codingAccuracy, coverageStats, recordReview, validationSample } from '@/lib/intel/validation';
+import { accuracyByModel, codingAccuracy, coverageStats, createValidationBatch, currentValidationBatch, recordReview, validationSample } from '@/lib/intel/validation';
 import { benchmarkReport, pairAgreement } from '@/lib/intel/benchmark';
+import { buildIntelligenceReport, renderIntelligenceReport } from '@/lib/intel/report';
 import { ATTRIBUTE_DEFINITIONS } from '@/lib/seed/reference';
 import { makePost, testDb } from './helpers';
 
@@ -308,6 +309,21 @@ describe('human validation of AI coding', () => {
     });
   });
 
+  it('freezes a batch that has an end, counting rejections as reviewed', () => {
+    const db = seedCatalogue(testDb());
+    seedCoded(db);
+    const batch = createValidationBatch(db, 6);
+    expect(batch.ids).toHaveLength(6);
+    expect(currentValidationBatch(db)!.reviewed).toBe(0);
+
+    recordReview(db, { contentId: batch.ids[0], status: 'APPROVED' });
+    recordReview(db, { contentId: batch.ids[1], status: 'REJECTED' });
+
+    const after = currentValidationBatch(db)!;
+    expect(after.batch.ids).toEqual(batch.ids); // reviewing does not reshuffle the batch
+    expect(after.reviewed).toBe(2);
+  });
+
   it('puts a rejected coding back in the queue', () => {
     const db = seedCatalogue(testDb());
     const [id] = seedCoded(db);
@@ -389,3 +405,40 @@ describe('coding benchmark accounting', () => {
     expect(pair.byField.hook_type).toBeCloseTo(2 / 3, 6);
   });
 });
+
+describe('intelligence review', () => {
+  it('answers all fourteen questions and refuses to conclude on thin data', () => {
+    const db = seedCatalogue(testDb());
+    const ids = loadFacts(db).slice(0, 4).map((f) => f.contentId);
+    giveMedia(db, ids);
+    for (const id of ids) codeIt(db, id, { hook_type: 'confession', opening_type: 'interviewer_question' });
+
+    const report = buildIntelligenceReport(db);
+    const markdown = renderIntelligenceReport(report);
+
+    expect(report.answers.map((a) => a.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+    const q3 = report.answers.find((a) => a.number === 3)!;
+    expect(q3.findings).toHaveLength(0);
+    expect(q3.insufficient).toContain('Not enough coded posts');
+    expect(markdown).toContain('sampled on the outcome');
+    expect(markdown).toContain('not a causal statement');
+  });
+
+  it('never presents an era-confounded comparison as support', () => {
+    const db = testDb();
+    // Every hashtag dump from 2023, every clean caption from 2026: the metric gap is the era.
+    for (let i = 0; i < 24; i++) {
+      const old = i < 12;
+      const { contentId, postId } = makePost(db, { publishedAt: new Date(Date.UTC(old ? 2023 : 2026, 2, 1 + i)).toISOString(), durationS: 30 });
+      run(db, `INSERT INTO content_attributes (content_id, key, value_text, source) VALUES (?, 'hashtag_bucket', ?, 'measured')`, contentId, old ? '5+' : '0');
+      writeMetrics(db, postId, { reach: 1000, shares: old ? 2 : 20, comments: 5, saves: 5, likes: 50 }, new Date(Date.UTC(old ? 2023 : 2026, 3, 1 + i)).toISOString(), 'test');
+    }
+    computeAllScores(db, activeScoreVersion(db), new Date(Date.UTC(2026, 5, 1)));
+
+    const report = buildIntelligenceReport(db);
+    const q11 = report.answers.find((a) => a.number === 11)!;
+
+    expect(q11.findings.some((f) => f.claim.startsWith('R-014'))).toBe(false);
+  });
+});
+

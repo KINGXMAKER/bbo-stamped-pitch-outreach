@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TEMPLATE — not installed. Runs the BBO BRAIN daily loop at 07:30 local time.
+  TEMPLATE — not installed. Runs the BBO BRAIN daily loop at 07:30 local time, and the
+  weekly review on Mondays only (one synthesis call a week, not seven).
+  The daily loop's non-AI steps run even if every AI provider is down or the AI budget
+  is spent; AI coding stops at AI_CODING_CORPUS_LIMIT.
   Install (only when you decide to):
     cp scripts/launchd/com.bbo.brain.daily.plist ~/Library/LaunchAgents/
     launchctl load ~/Library/LaunchAgents/com.bbo.brain.daily.plist
@@ -16,7 +19,7 @@
   <array>
     <string>/bin/zsh</string>
     <string>-lc</string>
-    <string>cd /Users/ulysses/bbo-stamped-pitch/bbo-brain &amp;&amp; npm run -s job -- daily &gt;&gt; data/daily.log 2&gt;&amp;1 &amp;&amp; npm run -s job -- weekly-review &gt;&gt; data/daily.log 2&gt;&amp;1</string>
+    <string>cd /Users/ulysses/bbo-stamped-pitch/bbo-brain &amp;&amp; npm run -s job -- daily &gt;&gt; data/daily.log 2&gt;&amp;1; if [ "$(date +%u)" = "1" ]; then npm run -s job -- weekly-review &gt;&gt; data/daily.log 2&gt;&amp;1; fi</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict>

@@ -1,4 +1,5 @@
 import { all, get, json, nowIso, run, tx, type Db } from '@/lib/db/client';
+import { getSetting, setSetting } from '@/lib/seed';
 import { setAttribute } from '@/lib/ingest/ingest';
 import { corpusClass, type CorpusClass } from '@/lib/sync/media-queue';
 import { loadFacts, type ContentFact } from './dataset';
@@ -92,24 +93,32 @@ export function validationSample(db: Db, size = 25): CodedRow[] {
   const picked: CodedRow[] = [];
   const franchiseCount = new Map<string, number>();
   const topicCount = new Map<string, number>();
+  const hookCount = new Map<string, number>();
+  const hooks = new Map(all<{ content_id: number; value_text: string }>(db, `SELECT content_id, value_text FROM content_attribute_current WHERE key = 'hook_type'`).map((r) => [r.content_id, r.value_text]));
   const franchiseCap = Math.max(2, Math.ceil(size * 0.35));
   const topicCap = Math.max(2, Math.ceil(size * 0.3));
+  const hookCap = Math.max(2, Math.ceil(size * 0.3));
 
-  const pass = (relaxed: boolean) => {
+  const pass = (relaxed: boolean, allowUnscored = true) => {
     for (const row of rows) {
       if (picked.length >= size) return;
       if (picked.some((p) => p.contentId === row.contentId)) continue;
       if (!relaxed && quota[row.corpusClass] <= 0) continue;
+      if (!allowUnscored && row.corpusClass === 'other') continue;
       const f = row.franchise ?? 'Unclassified';
       if (!relaxed && (franchiseCount.get(f) ?? 0) >= franchiseCap) continue;
       if (!relaxed && row.topics.some((t) => (topicCount.get(t) ?? 0) >= topicCap)) continue;
+      const hook = hooks.get(row.contentId) ?? '—';
+      if (!relaxed && (hookCount.get(hook) ?? 0) >= hookCap) continue;
       picked.push(row);
       quota[row.corpusClass]--;
+      hookCount.set(hook, (hookCount.get(hook) ?? 0) + 1);
       franchiseCount.set(f, (franchiseCount.get(f) ?? 0) + 1);
       for (const t of row.topics) topicCount.set(t, (topicCount.get(t) ?? 0) + 1);
     }
   };
   pass(false);
+  pass(true, false); // scored posts first — an unscored post cannot tell us about winners vs losers
   pass(true);
   return picked;
 }
@@ -231,4 +240,28 @@ export function coverageStats(db: Db) {
     topicsCoded: one('SELECT COUNT(DISTINCT content_id) n FROM content_topics'),
     topicsAi: one(`SELECT COUNT(DISTINCT content_id) n FROM content_topics WHERE source = 'ai'`),
   };
+}
+
+export type ValidationBatch = { ids: number[]; createdAt: string; size: number };
+
+/**
+ * Freezes a stratified sample as the batch a human works through. A rolling
+ * sample would swap in a new post every time one is reviewed; a fixed batch
+ * has an end, so "25 reviewed" means something.
+ */
+export function createValidationBatch(db: Db, size = 25): ValidationBatch {
+  const batch: ValidationBatch = { ids: validationSample(db, size).map((r) => r.contentId), createdAt: nowIso(), size };
+  setSetting(db, 'validation_batch', batch);
+  return batch;
+}
+
+export function currentValidationBatch(db: Db): { batch: ValidationBatch; rows: CodedRow[]; reviewed: number } | null {
+  const batch = getSetting<ValidationBatch | undefined>(db, 'validation_batch');
+  if (!batch?.ids?.length) return null;
+  const wanted = new Set(batch.ids);
+  const byId = new Map(codedRows(db).filter((r) => wanted.has(r.contentId)).map((r) => [r.contentId, r]));
+  const rows = batch.ids.map((id) => byId.get(id)).filter((r): r is CodedRow => Boolean(r));
+  // A rejected post leaves the coded set (it is re-queued) but still counts as reviewed.
+  const reviewed = all<{ id: number }>(db, `SELECT id FROM content WHERE coding_validation_status != 'UNREVIEWED' AND id IN (${batch.ids.map(() => '?').join(',')})`, ...batch.ids).length;
+  return { batch, rows, reviewed };
 }

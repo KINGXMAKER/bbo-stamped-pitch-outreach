@@ -159,26 +159,41 @@ null under v1.
 
 ## 10. Current selection (benchmarked 2026-09-16)
 
-Same 25 stratified posts, same prompt, same source material for every candidate.
+Same 25 stratified posts, same source material, every row measured against the
+same frozen reference (the coding that existed before the corpus was re-coded).
 
-| Model | Valid | Taxonomy violations | Missing fields | Agreement with existing coding | Self-consistency | Median latency | $ / 100 posts |
-|---|---|---|---|---|---|---|---|
-| NVIDIA nemotron-3.5-lightning-30b | 96% | 23 | 11 | 32% | — | 35.5 s | free tier |
-| NVIDIA mistral-nemotron | 84% | 5 | 13 | 48% | — | 21.3 s | free tier |
-| OpenRouter qwen3-235b-a22b-2507 (text) | 100% | 16 | 0 | 47% | — | 14.7 s | 0.039 |
-| OpenRouter qwen3-30b-a3b-instruct-2507 (text) | 80% | 11 | 11 | 45% | — | 9.6 s | 0.032 |
-| **OpenRouter qwen3-vl-32b-instruct (frames)** | **100%** | **1** | **0** | **54%** | **86%** | 10.5 s | 0.057 |
-| OpenRouter gemini-2.5-flash-lite (frames) | 84% | 0 | 16 | 60% | — | 3.7 s | 0.072 |
-| OpenRouter qwen3-vl-235b-a22b-instruct (frames) | see benchmark run 8 | | | | | | |
+| Model | Valid | Taxonomy violations | Missing fields | Agreement (excl. franchise) | Franchise agreement | Self-consistency | Median latency | $ / 100 posts |
+|---|---|---|---|---|---|---|---|---|
+| NVIDIA nemotron-3.5-lightning-30b | 96% | 23 | 11 | 32% | 1/14 | — | 35.5 s | free tier |
+| NVIDIA mistral-nemotron | 84% | 5 | 13 | 48% | 1/2 | — | 21.3 s | free tier |
+| OpenRouter qwen3-235b-a22b-2507 (text) | 100% | 16 | 0 | 47% | 3/17 | — | 14.7 s | 0.039 |
+| OpenRouter qwen3-30b-a3b-instruct-2507 (text) | 80% | 11 | 11 | 45% | 0/11 | — | 9.6 s | 0.032 |
+| **OpenRouter qwen3-vl-32b-instruct (frames)** | **100%** | **1** | **0** | **54%** | 2/18 | **86%** | 10.5 s | 0.057 |
+| OpenRouter gemini-2.5-flash-lite (frames) | 84% | 0 | 16 | 60% | 8/14 | — | 3.7 s | 0.072 |
+| OpenRouter qwen3-vl-235b-a22b-instruct (frames) | 100% | 3 | 2 | 48% | 7/17 | — | 14.5 s | 0.200 |
 
-Reading it: Gemini Flash-Lite — the same family that produced the existing
-labels — agrees with them only 60% on a fresh run, so these fields are genuinely
-ambiguous and "agreement with existing coding" is a consistency signal, not
-ground truth. Qwen3-VL-32B is the only candidate that is fully schema-valid,
-near-perfect on the controlled vocabulary, self-consistent on a rerun and able
-to see the hook frames; it codes the corpus. Human review (`/validation`) is
-what will say which reading is right.
+Runs 1–6 used prompt v1; runs 7–8 used v2 (which only adds the yes/no attribute
+definitions). The yes/no attributes cannot be scored against this reference
+because the reference never had them.
 
-- **coding:** `openrouter / qwen/qwen3-vl-32b-instruct` → Gemini direct (2.5 Flash-Lite, 2.5 Flash). NVIDIA is kept out of the coding chain.
-- **analysis and escalation:** `openrouter / qwen/qwen3-vl-235b-a22b-instruct` → Gemini direct.
+Reading it:
+
+- Gemini Flash-Lite — the family that produced the reference — agrees with it only
+  60% on a fresh run, so these categories are genuinely ambiguous and agreement is
+  a consistency signal, not ground truth. Human review decides.
+- Qwen3-VL-32B is the only candidate that is fully schema-valid, near-perfect on the
+  controlled vocabulary, self-consistent on a rerun (86%) and able to see hook frames.
+  It codes the corpus.
+- **Every model is poor at franchise.** The prompt lists franchise slugs without
+  descriptions and the models guess from names (Qwen relabelled podcast clips as
+  Group Chat). `franchise` is in `AI_CODING_UNTRUSTED_FIELDS`, so no model writes it;
+  heuristics and audits decide it until a described-franchise prompt passes a benchmark.
+- Qwen3-VL-32B is served only by Alibaba, which stops generating on explicit content
+  (`finish_reason: error`). Qwen3-VL-235B has other hosts and is the second coding
+  model, so explicit posts stay in the same model family.
+
+Routing:
+
+- **coding:** `openrouter / qwen/qwen3-vl-32b-instruct` → `qwen/qwen3-vl-235b-a22b-instruct` → Gemini direct (2.5 Flash-Lite, 2.5 Flash). NVIDIA is kept out of the coding chain.
+- **analysis and escalation:** `openrouter / qwen/qwen3-vl-235b-a22b-instruct` → Gemini direct. It is not measurably more accurate than the 32B (48% vs 54% against the reference) — its role in escalation is an independent second reading (64% agreement with the 32B), with disagreements sent to human review.
 - **gatekeeper, synthesis:** Gemini 2.5 Flash direct → OpenRouter.
