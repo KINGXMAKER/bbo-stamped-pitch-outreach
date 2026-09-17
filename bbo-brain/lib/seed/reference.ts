@@ -62,9 +62,63 @@ type AttrDef = {
   description?: string;
 };
 
+/**
+ * The four content buckets BBO BRAIN analyses — deliberately few. Priority
+ * decides where analysis, benchmarking and experiments are spent:
+ * CORE_INTERVIEW_CONTENT >>> BBO_STAMPED >>> BADDIE_OF_THE_MONTH >>> OTHER_IGNORE.
+ * Buckets are never mixed in one performance comparison: a venue promo and a
+ * podcast clip want different viewer behaviour.
+ */
+export const CONTENT_BUCKETS = ['CORE_INTERVIEW_CONTENT', 'BBO_STAMPED', 'BADDIE_OF_THE_MONTH', 'OTHER_IGNORE'] as const;
+export type ContentBucket = (typeof CONTENT_BUCKETS)[number];
+export const INTERVIEW_FORMATS = ['podcast', 'street_interview'] as const;
+
+export const BUCKET_DEFINITIONS: Record<ContentBucket, { label: string; priority: number; analysed: boolean; description: string }> = {
+  CORE_INTERVIEW_CONTENT: {
+    label: 'Core interview content',
+    priority: 1,
+    analysed: true,
+    description: 'Short clips of people talking on camera in an interview or conversation: sit-down podcast clips (podcast set, mics, panel, guest conversation) and street interview clips (mic-on-the-street questions to passers-by).',
+  },
+  BBO_STAMPED: {
+    label: 'BBO Stamped',
+    priority: 2,
+    analysed: true,
+    description: 'Business and venue content: venue/business photos, carousels, reviews, voiceovers, venue interviews, recap videos, food and drink footage, promotional skits, activations, business promotion and ad-oriented posts.',
+  },
+  BADDIE_OF_THE_MONTH: {
+    label: 'Baddie of the Month',
+    priority: 3,
+    analysed: false,
+    description: 'Baddie of the Month carousels and posts spotlighting a woman as that month\'s feature.',
+  },
+  OTHER_IGNORE: {
+    label: 'Other (ignored)',
+    priority: 4,
+    analysed: false,
+    description: 'Everything else: BBO Group Chat "your friend texts you" carousels, Clock It quote posts, announcements, promos for episodes or events, behind-the-scenes, memes and miscellaneous posts.',
+  },
+};
+
+/** Legacy franchise evidence that maps unambiguously onto a bucket. Everything else is left to the classifier. */
+export const LEGACY_FRANCHISE_BUCKET: Record<string, { bucket: ContentBucket; format?: (typeof INTERVIEW_FORMATS)[number] }> = {
+  podcast: { bucket: 'CORE_INTERVIEW_CONTENT', format: 'podcast' },
+  'street-interview': { bucket: 'CORE_INTERVIEW_CONTENT', format: 'street_interview' },
+  'bbo-stamped': { bucket: 'BBO_STAMPED' },
+  'baddies-of-the-month': { bucket: 'BADDIE_OF_THE_MONTH' },
+  'bbo-group-chat': { bucket: 'OTHER_IGNORE' },
+  'clock-it': { bucket: 'OTHER_IGNORE' },
+  announcements: { bucket: 'OTHER_IGNORE' },
+  'bbo-news': { bucket: 'OTHER_IGNORE' },
+  faceoff: { bucket: 'OTHER_IGNORE' },
+};
+
 export const ATTRIBUTE_DEFINITIONS: AttrDef[] = [
-  // Structure — franchise lives on content.franchise_id, mirrored here so its provenance is tracked
-  { key: 'franchise', label: 'Franchise', type: 'enum', group: 'structure', values: FRANCHISES.map((f) => f.slug) },
+  // Structure — the content bucket is the analysis scope, not a pattern to mine inside itself.
+  { key: 'content_bucket', label: 'Content bucket', type: 'enum', group: 'structure', values: [...CONTENT_BUCKETS], comparable: false },
+  { key: 'interview_format', label: 'Interview format', type: 'enum', group: 'structure', values: [...INTERVIEW_FORMATS] },
+  // Legacy — franchise lives on content.franchise_id; no model writes it (see AI_CODING_UNTRUSTED_FIELDS).
+  { key: 'franchise', label: 'Franchise (legacy)', type: 'enum', group: 'structure', values: FRANCHISES.map((f) => f.slug), comparable: false },
   { key: 'format', label: 'Format', type: 'enum', group: 'structure', values: ['reel', 'carousel', 'image', 'video', 'story', 'short'] },
   // Hook & opening
   { key: 'opening_hook', label: 'Opening hook', type: 'text', group: 'hook', comparable: false },

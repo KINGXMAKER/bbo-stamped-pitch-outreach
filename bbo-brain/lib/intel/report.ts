@@ -1,5 +1,6 @@
 import { all, get, parseJson, type Db } from '@/lib/db/client';
 import { STAT_THRESHOLDS } from './stats';
+import { BUCKET_DEFINITIONS, type ContentBucket } from '@/lib/seed/reference';
 import { comparable, loadFacts, METRIC_DEFS, metricValue, type ContentFact, type MetricKey } from './dataset';
 import { evaluatePattern, loadLabels, valueLabel, valuesFor, type PatternEvaluation } from './patterns';
 import { corpusStatus } from '@/lib/sync/media-queue';
@@ -189,6 +190,7 @@ function overRepresented(facts: ContentFact[], labelSet: string[], keys: string[
 export type IntelligenceReport = {
   generatedAt: string;
   corpus: { total: number; coded: number; comparable: number; mediaAnalysed: number; humanValidated: number; classes: Record<string, { coded: number; target: number }>; codedBy: Record<string, number> };
+  scope: { bucket: ContentBucket; label: string; inScope: number; codedInScope: number; unbucketed: number; otherBuckets: Record<string, number> };
   answers: Answer[];
   overRepresentedBreakouts: ReturnType<typeof overRepresented>;
   overRepresentedLosers: ReturnType<typeof overRepresented>;
@@ -216,9 +218,13 @@ function describeLabelReliability(db: Db): string | null {
   return parts.length ? `${parts.join(' ')} — agreement between models is a consistency signal, not ground truth; human review decides.` : null;
 }
 
-export function buildIntelligenceReport(db: Db): IntelligenceReport {
+export function buildIntelligenceReport(db: Db, opts: { bucket?: ContentBucket } = {}): IntelligenceReport {
   modelCache = null;
-  const facts = comparable(loadFacts(db));
+  const bucket = opts.bucket ?? 'CORE_INTERVIEW_CONTENT';
+  const everything = comparable(loadFacts(db));
+  // One bucket per review. Venue promos and interview clips want different viewer
+  // behaviour, so their performance is never pooled into one conclusion.
+  const facts = everything.filter((f) => f.attrs.content_bucket === bucket);
   const coverage = coverageStats(db);
   const corpus = corpusStatus(db);
   const labels = loadLabels(db);
@@ -372,7 +378,20 @@ export function buildIntelligenceReport(db: Db): IntelligenceReport {
   );
   answers.push({ number: 14, question: 'Based on current evidence, what should BBO make next?', findings: [], note: nextMoves.length ? `${nextMoves.length} open opportunities, each tied to evidence.` : null, insufficient: nextMoves.length ? null : 'No open opportunities — run the opportunities job after coding more posts.' });
 
+  const bucketCounts = everything.reduce<Record<string, number>>((acc, f) => {
+    const b = f.attrs.content_bucket ?? 'unbucketed';
+    return { ...acc, [b]: (acc[b] ?? 0) + 1 };
+  }, {});
+  const coded = new Set(all<{ id: number }>(db, 'SELECT id FROM content WHERE coded_at IS NOT NULL').map((x) => x.id));
   return {
+    scope: {
+      bucket,
+      label: BUCKET_DEFINITIONS[bucket].label,
+      inScope: facts.length,
+      codedInScope: facts.filter((f) => coded.has(f.contentId)).length,
+      unbucketed: bucketCounts.unbucketed ?? 0,
+      otherBuckets: Object.fromEntries(Object.entries(bucketCounts).filter(([k]) => k !== bucket && k !== 'unbucketed')),
+    },
     generatedAt: new Date().toISOString(),
     corpus: {
       total: coverage.total,
@@ -401,7 +420,13 @@ const day = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : '—')
 /** Markdown for the operator: every number that backs a claim, printed next to it. */
 export function renderIntelligenceReport(r: IntelligenceReport): string {
   const lines: string[] = [];
-  lines.push('# BBO intelligence review', '', `Generated ${r.generatedAt.slice(0, 16).replace('T', ' ')} UTC`, '');
+  lines.push(`# BBO intelligence review — ${r.scope.label}`, '', `Generated ${r.generatedAt.slice(0, 16).replace('T', ' ')} UTC`, '');
+  lines.push(
+    `**Scope.** ${r.scope.inScope} comparable posts are ${r.scope.label.toLowerCase()} (${r.scope.codedInScope} with structured coding). ` +
+      `Excluded: ${Object.entries(r.scope.otherBuckets).map(([k, n]) => `${BUCKET_DEFINITIONS[k as ContentBucket]?.label ?? k} ${n}`).join(', ') || 'no other buckets'}` +
+      `${r.scope.unbucketed ? `, and ${r.scope.unbucketed} posts not yet assigned to a bucket` : ''}. Performance is never pooled across buckets.`,
+    ''
+  );
   lines.push(
     `**Corpus.** ${r.corpus.coded} posts structurally coded out of ${r.corpus.total} in the catalogue (${r.corpus.mediaAnalysed} with media, ${r.corpus.comparable} comparable, ${r.corpus.humanValidated} human-validated). ` +
       `By class: ${Object.entries(r.corpus.classes).map(([k, v]) => `${k} ${v.coded}/${v.target}`).join(', ')}. ` +

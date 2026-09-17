@@ -62,7 +62,9 @@ const top = (facts: ContentFact[], n = 3) =>
   [...facts].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, n).map((f) => ({ contentId: f.contentId, title: f.title, score: f.score }));
 
 export function computeOpportunities(db: Db, now = new Date()): Opportunity[] {
-  const facts = comparable(loadFacts(db));
+  // What to make next is about core interview content — the content BBO most wants to improve.
+  // Stamped, Baddie of the Month and other posts never compete with it for a recommendation.
+  const facts = comparable(loadFacts(db)).filter((f) => f.attrs.content_bucket === 'CORE_INTERVIEW_CONTENT');
   if (facts.length < 10) return [];
   const labels = loadLabels(db);
   const out: Opportunity[] = [];

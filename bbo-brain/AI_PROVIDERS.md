@@ -184,7 +184,8 @@ Reading it:
 - Qwen3-VL-32B is the only candidate that is fully schema-valid, near-perfect on the
   controlled vocabulary, self-consistent on a rerun (86%) and able to see hook frames.
   It codes the corpus.
-- **Every model is poor at franchise.** The prompt lists franchise slugs without
+- **Franchise is retired as an analysis dimension** (2026-09-17) in favour of four content buckets with a dedicated, gated classifier — see [DATA_DEPTH.md](DATA_DEPTH.md#0-content-buckets).
+- **Every model was poor at franchise.** The prompt lists franchise slugs without
   descriptions and the models guess from names (Qwen relabelled podcast clips as
   Group Chat). `franchise` is in `AI_CODING_UNTRUSTED_FIELDS`, so no model writes it;
   heuristics and audits decide it until a described-franchise prompt passes a benchmark.

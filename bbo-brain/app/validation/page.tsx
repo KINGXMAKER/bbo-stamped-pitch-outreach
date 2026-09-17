@@ -65,9 +65,14 @@ export default async function Validation({ searchParams }: { searchParams: Promi
           </>
         }
         actions={
-          <Link href="/coverage" className="btn btn-sm">
-            Data coverage →
-          </Link>
+          <>
+            <Link href="/validation/buckets" className="btn btn-sm btn-gold">
+              Label content buckets →
+            </Link>
+            <Link href="/coverage" className="btn btn-sm">
+              Data coverage →
+            </Link>
+          </>
         }
       />
 

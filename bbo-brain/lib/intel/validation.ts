@@ -16,6 +16,8 @@ export type ValidationStatus = 'UNREVIEWED' | 'APPROVED' | 'EDITED' | 'REJECTED'
 
 /** Attributes a reviewer actually judges (controlled vocabularies + the key booleans). */
 export const REVIEW_KEYS = [
+  'content_bucket',
+  'interview_format',
   'hook_type',
   'opening_type',
   'opening_speaker_role',
@@ -80,7 +82,11 @@ export function validationSample(db: Db, size = 25): CodedRow[] {
   // Posts where two models substantially disagreed are the most informative
   // reviews available, so they go first; the stratified quotas fill the rest.
   const disputed = new Set(all<{ content_id: number }>(db, `SELECT DISTINCT content_id FROM coding_escalations WHERE outcome = 'human_review'`).map((r) => r.content_id));
-  const rows = codedRows(db, { status: 'UNREVIEWED' }).sort((a, b) => Number(disputed.has(b.contentId)) - Number(disputed.has(a.contentId)));
+  // Only buckets BBO analyses are worth a human's review time.
+  const ignored = new Set(all<{ content_id: number }>(db, `SELECT content_id FROM content_attribute_current WHERE key = 'content_bucket' AND value_text IN ('BADDIE_OF_THE_MONTH','OTHER_IGNORE')`).map((r) => r.content_id));
+  const rows = codedRows(db, { status: 'UNREVIEWED' })
+    .filter((r) => !ignored.has(r.contentId))
+    .sort((a, b) => Number(disputed.has(b.contentId)) - Number(disputed.has(a.contentId)));
   const quota: Record<CorpusClass, number> = {
     winner: Math.round(size * 0.35),
     loser: Math.round(size * 0.3),

@@ -12,6 +12,8 @@ import { mineLessons } from '@/lib/intel/lessons';
 import { benchmarkReport, benchmarkSample, runCodingBenchmark } from '@/lib/intel/benchmark';
 import { buildIntelligenceReport, renderIntelligenceReport } from '@/lib/intel/report';
 import { createValidationBatch } from '@/lib/intel/validation';
+import { BUCKET_PROMPT_VERSION, backfillLegacyBuckets, bucketBenchmarkReport, bucketBenchmarkSample, bucketGate, classifyBucket, runBucketBenchmark } from '@/lib/intel/buckets';
+import { providerNamed } from '@/lib/ai/providers/registry';
 import { autoAssign, evaluateExperiment, suggestExperimentsFromLessons } from '@/lib/intel/experiments';
 import { generateOpportunities } from '@/lib/intel/opportunities';
 import { buildMonthlyReview, buildWeeklyReview } from '@/lib/intel/reviews';
@@ -254,6 +256,50 @@ export const JOBS: Record<string, JobDef> = {
       };
     },
   },
+  'content-buckets': {
+    label: 'Content buckets',
+    description: 'Map legacy evidence onto the four content buckets, then — only once the classifier has passed a human-scored benchmark — classify the rest.',
+    phase: 'analysis',
+    run: async (ctx) => {
+      const legacy = backfillLegacyBuckets(ctx.db);
+      const cfg = brainConfig();
+      const gate = bucketGate(ctx.db);
+      if (!gate.passed && ctx.params.force !== true) {
+        return { recordsSeen: legacy.written, recordsWritten: legacy.written, summary: `${legacy.written} bucketed from legacy evidence · AI classification held: ${gate.reason}` };
+      }
+      const provider = providerNamed(cfg.bucketProvider as 'gemini' | 'openrouter' | 'nvidia');
+      if (!provider) return { recordsSeen: 0, recordsWritten: legacy.written, summary: `bucket provider ${cfg.bucketProvider} is not configured` };
+      const limit = Math.max(1, Number(ctx.params.limit ?? 200));
+      // Human and legacy labels stand; an AI label from the current prompt version is not redone.
+      const ids = all<{ id: number }>(
+        ctx.db,
+        `SELECT c.id FROM content c WHERE c.is_demo = 0
+           AND NOT EXISTS (SELECT 1 FROM content_attributes a WHERE a.content_id = c.id AND a.key = 'content_bucket' AND a.source IN ('human','heuristic','audit_v2'))
+           AND NOT EXISTS (SELECT 1 FROM content_attributes a JOIN ai_runs r ON r.id = a.ai_run_id WHERE a.content_id = c.id AND a.key = 'content_bucket' AND a.source = 'ai' AND json_extract(r.input_json, '$.promptVersion') = ?)
+         ORDER BY c.id DESC LIMIT ?`,
+        BUCKET_PROMPT_VERSION,
+        limit
+      ).map((r) => r.id);
+      const pin = { provider, model: cfg.bucketModel };
+      const out = await aiBatch(ctx, ids, async (id, budget) => ((await classifyBucket(ctx.db, id, { pin, budget, write: true })) ? { status: 'enriched' } : { status: 'skipped', reason: 'no post' }), Math.max(1, Number(ctx.params.concurrency ?? cfg.aiConcurrency)), 'content_bucket');
+      return { ...out, recordsWritten: out.recordsWritten + legacy.written, summary: `${legacy.written} from legacy evidence · AI: ${out.summary} · gate: ${gate.passed ? gate.reason : 'forced'}` };
+    },
+  },
+  'benchmark-buckets': {
+    label: 'Benchmark the bucket classifier',
+    description: 'Classify a stratified sample with a candidate model into benchmark tables only; scored against human bucket labels.',
+    phase: 'analysis',
+    run: async (ctx) => {
+      const provider = String(ctx.params.provider ?? '');
+      const model = String(ctx.params.model ?? '');
+      if (!provider || !model) return { recordsSeen: 0, recordsWritten: 0, summary: 'Pass {"provider":"openrouter|gemini|nvidia","model":"<slug>"}' };
+      const ids = Array.isArray(ctx.params.contentIds) ? (ctx.params.contentIds as number[]) : bucketBenchmarkSample(ctx.db, Number(ctx.params.size ?? 40));
+      const r = await runBucketBenchmark(ctx.db, { provider: provider as 'gemini' | 'openrouter' | 'nvidia', model, label: String(ctx.params.label ?? `${provider}:${model}`) }, ids, { budgetUsd: Number(ctx.params.budgetUsd ?? 0.25) });
+      const [row] = bucketBenchmarkReport(ctx.db, [r.benchmarkRunId]);
+      const scored = row.humanLabelled ? `accuracy ${Math.round((row.accuracy ?? 0) * 100)}% on ${row.humanLabelled} human labels` : 'awaiting human labels';
+      return { recordsSeen: ids.length, recordsWritten: r.ok, partial: r.failed > 0 && r.ok > 0, summary: `${r.ok} ok · ${r.failed} failed · ${scored} · median ${row.medianLatencyMs}ms · $${row.costPer100Usd.toFixed(3)}/100` };
+    },
+  },
   'validation-batch': {
     label: 'Freeze a validation batch',
     description: 'Pick a stratified set of coded posts (outcome, franchise, topic, hook type; model disagreements first) for human review.',
@@ -349,7 +395,7 @@ export const JOBS: Record<string, JobDef> = {
 };
 
 /** The daily loop, in dependency order. Each step is its own recorded job. */
-export const DAILY_PIPELINE = ['instagram-content', 'instagram-metrics', 'instagram-account', 'media-transcripts', 'score', 'provider-health', 'ai-enrich', 'analyze', 'mine-lessons', 'rule-proposals', 'rule-challenges', 'experiments', 'opportunities', 'graph', 'search'];
+export const DAILY_PIPELINE = ['instagram-content', 'instagram-metrics', 'instagram-account', 'content-buckets', 'media-transcripts', 'score', 'provider-health', 'ai-enrich', 'analyze', 'mine-lessons', 'rule-proposals', 'rule-challenges', 'experiments', 'opportunities', 'graph', 'search'];
 
 export async function runNamedJob(db: Db, kind: string, params: Record<string, unknown> = {}): Promise<JobRecord> {
   seedReference(db);

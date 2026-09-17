@@ -66,6 +66,13 @@ export function brainConfig() {
     // franchise: Qwen3-VL-32B agreed 11–17% with the reference (2026-09-16).
     untrustedCodingFields: list('AI_CODING_UNTRUSTED_FIELDS', ['franchise']),
 
+    // Content-bucket classifier and its rollout gate (scored against human labels only).
+    bucketProvider: env('AI_BUCKET_PROVIDER') ?? env('AI_CODING_PROVIDER') ?? 'openrouter',
+    bucketModel: env('AI_BUCKET_MODEL') ?? env('AI_CODING_MODEL') ?? 'qwen/qwen3-vl-32b-instruct',
+    bucketGateMinLabels: int('BUCKET_GATE_MIN_LABELS', 30),
+    bucketGateMinAccuracy: num('BUCKET_GATE_MIN_ACCURACY', 0.85),
+    bucketGateMinCoreRecall: num('BUCKET_GATE_MIN_CORE_RECALL', 0.9),
+
     // Providers. Keys decide what exists; the per-task settings decide what is
     // preferred. A task never silently upgrades to a pricier model: fallback
     // order is explicit and every hop is recorded on the run.

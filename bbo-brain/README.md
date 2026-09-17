@@ -71,6 +71,7 @@ Throughput is capped by `MEDIA_ANALYSIS_DAILY_LIMIT`, `MEDIA_ANALYSIS_CONCURRENC
 | Content Intelligence | `/intelligence` | Analysis queue, analyses, attribute coverage |
 | Data Coverage | `/coverage` | How much of the catalogue BBO BRAIN actually understands |
 | Coding Validation | `/validation` | Human review of AI coding, and the AI's measured accuracy |
+| Label content buckets | `/validation/buckets` | Human bucket labels that score the bucket classifier before it touches the catalogue |
 | Performance | `/performance` | Normalized scoring, trends, franchises, score versions |
 | People / Guests | `/people` | How content featuring each person performs |
 | Topics | `/topics` | Share drivers, comments-but-weak-retention, saturation, dormant winners |
@@ -111,7 +112,7 @@ Known limitations are listed plainly on the Integrations page and in `COMPOSIO_I
 ## Development
 
 ```bash
-npm test            # vitest — 162 tests
+npm test            # vitest — 171 tests
 npm run typecheck
 npm run lint
 ```

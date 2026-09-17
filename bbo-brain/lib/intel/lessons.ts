@@ -227,6 +227,9 @@ export function evidenceVersion(e: PatternEvaluation, latestObserved: Map<number
   return `${newest}|n:${ids.length}|${digest}`;
 }
 
+/** Buckets whose performance is mined, in priority order. Baddie of the Month and other posts are not. */
+export const MINED_BUCKETS: string[] = ['CORE_INTERVIEW_CONTENT', 'BBO_STAMPED'];
+
 export type MiningResult = { testsRun: number; created: number; updated: number; imported: number; candidates: number };
 
 /**
@@ -247,28 +250,33 @@ export function mineLessons(db: Db, options: { asOf?: string } = {}): MiningResu
     `SELECT key, attr_group, value_type FROM attribute_definitions WHERE is_comparable = 1 AND value_type IN ('enum','boolean')`
   );
   const patterns: Array<{ pattern: Pattern; category: string }> = [];
-  const countValues = (key: string) => {
-    const counts = new Map<string, number>();
-    for (const f of facts) {
-      const vals = key === 'topic' ? f.topics.map((t) => t.slug) : key === 'person' ? f.people.filter((p) => p.role === 'guest').map((p) => String(p.id)) : f.attrs[key] !== undefined ? [f.attrs[key]] : [];
-      for (const v of vals) counts.set(v, (counts.get(v) ?? 0) + 1);
+  // Every comparison runs inside one content bucket: a venue promo and a podcast
+  // clip want different viewer behaviour, so their performance is never pooled.
+  for (const bucket of MINED_BUCKETS) {
+    const scoped = facts.filter((f) => f.attrs.content_bucket === bucket);
+    if (scoped.length < STAT_THRESHOLDS.minN * 2) continue;
+    const countValues = (key: string) => {
+      const counts = new Map<string, number>();
+      for (const f of scoped) {
+        const vals = key === 'topic' ? f.topics.map((t) => t.slug) : key === 'person' ? f.people.filter((p) => p.role === 'guest').map((p) => String(p.id)) : f.attrs[key] !== undefined ? [f.attrs[key]] : [];
+        for (const v of vals) counts.set(v, (counts.get(v) ?? 0) + 1);
+      }
+      return counts;
+    };
+    for (const def of defs) {
+      const counts = countValues(def.key);
+      if (counts.size < 2) continue;
+      for (const [value, n] of counts) {
+        if (n < STAT_THRESHOLDS.minN) continue;
+        if (def.value_type === 'boolean' && value === 'false') continue; // the 'true' comparison already covers it
+        for (const metric of MINING_METRICS) patterns.push({ pattern: { key: def.key, group: value, metric, bucket }, category: CATEGORY_BY_GROUP[def.attr_group] ?? 'other' });
+      }
     }
-    return counts;
-  };
-
-  for (const def of defs) {
-    const counts = countValues(def.key);
-    if (counts.size < 2) continue;
-    for (const [value, n] of counts) {
-      if (n < STAT_THRESHOLDS.minN) continue;
-      if (def.value_type === 'boolean' && value === 'false') continue; // the 'true' comparison already covers it
-      for (const metric of MINING_METRICS) patterns.push({ pattern: { key: def.key, group: value, metric }, category: CATEGORY_BY_GROUP[def.attr_group] ?? 'other' });
-    }
-  }
-  for (const key of ['topic', 'person'] as const) {
-    for (const [value, n] of countValues(key)) {
-      if (n < STAT_THRESHOLDS.minN) continue;
-      for (const metric of MINING_METRICS) patterns.push({ pattern: { key, group: value, metric }, category: key === 'topic' ? 'topic' : 'guest' });
+    for (const key of ['topic', 'person'] as const) {
+      for (const [value, n] of countValues(key)) {
+        if (n < STAT_THRESHOLDS.minN) continue;
+        for (const metric of MINING_METRICS) patterns.push({ pattern: { key, group: value, metric, bucket }, category: key === 'topic' ? 'topic' : 'guest' });
+      }
     }
   }
 

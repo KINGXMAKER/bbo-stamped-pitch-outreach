@@ -1,3 +1,4 @@
+import { BUCKET_DEFINITIONS } from '@/lib/seed/reference';
 import { all, type Db } from '@/lib/db/client';
 import { compareGroups, type GroupComparison, type Observation } from './stats';
 import { METRIC_DEFS, metricValue, type ContentFact, type MetricKey } from './dataset';
@@ -7,16 +8,22 @@ import { METRIC_DEFS, metricValue, type ContentFact, type MetricKey } from './da
  * (optionally within a franchise) differs on <metric> from <compare | the rest>".
  * Lessons, rules, challenges and experiments all evaluate through here.
  */
+const BUCKET_LABEL: Record<string, string> = Object.fromEntries(Object.entries(BUCKET_DEFINITIONS).map(([k, v]) => [k, v.label.toLowerCase()]));
+
 export type Pattern = {
   key: string; // attribute key, or 'topic' / 'person'
   group: string;
   compare?: string;
   metric: MetricKey;
   franchise?: string;
+  /** Content bucket the comparison runs inside. Buckets are never mixed in one comparison. */
+  bucket?: string;
 };
 
 export function canonicalPattern(p: Pattern): string {
-  return JSON.stringify({ key: p.key, group: p.group, compare: p.compare ?? null, metric: p.metric, franchise: p.franchise ?? null });
+  const base = { key: p.key, group: p.group, compare: p.compare ?? null, metric: p.metric, franchise: p.franchise ?? null };
+  // Unscoped patterns keep their original identity, so existing lessons still match.
+  return JSON.stringify(p.bucket ? { ...base, bucket: p.bucket } : base);
 }
 
 export function parsePattern(raw: string | null | undefined): Pattern | null {
@@ -31,6 +38,7 @@ export function parsePattern(raw: string | null | undefined): Pattern | null {
       compare: typeof p.compare === 'string' ? p.compare : undefined,
       metric: p.metric as MetricKey,
       franchise: typeof p.franchise === 'string' ? p.franchise : undefined,
+      bucket: typeof p.bucket === 'string' ? p.bucket : undefined,
     };
   } catch {
     return null;
@@ -55,7 +63,8 @@ export type PatternEvaluation = {
 };
 
 export function evaluatePattern(facts: ContentFact[], pattern: Pattern, options: { asOf?: string } = {}): PatternEvaluation {
-  const pool = pattern.franchise ? facts.filter((f) => f.franchise === pattern.franchise) : facts;
+  const scoped = pattern.bucket ? facts.filter((f) => f.attrs.content_bucket === pattern.bucket) : facts;
+  const pool = pattern.franchise ? scoped.filter((f) => f.franchise === pattern.franchise) : scoped;
   const multi = pattern.key === 'topic' || pattern.key === 'person';
   const groupFacts: ContentFact[] = [];
   const restFacts: ContentFact[] = [];
@@ -104,7 +113,7 @@ export function describePattern(labels: Labels, p: Pattern): string {
         ? `content featuring ${valueLabel(labels, p.key, p.group)}`
         : `${labels.attr.get(p.key) ?? p.key}: ${valueLabel(labels, p.key, p.group)}`;
   const against = p.compare ? `vs ${valueLabel(labels, p.key, p.compare)}` : 'vs everything else';
-  const scope = p.franchise ? ` within ${valueLabel(labels, 'franchise', p.franchise)}` : '';
+  const scope = `${p.bucket ? ` within ${BUCKET_LABEL[p.bucket] ?? p.bucket}` : ''}${p.franchise ? ` within ${valueLabel(labels, 'franchise', p.franchise)}` : ''}`;
   return `${subject} ${against}${scope} — ${METRIC_DEFS[p.metric].label}`;
 }
 
@@ -120,7 +129,7 @@ export function lessonSentence(labels: Labels, e: PatternEvaluation): string {
         ? `Content featuring ${valueLabel(labels, p.key, p.group)}`
         : `Posts with ${(labels.attr.get(p.key) ?? p.key).toLowerCase()} = ${valueLabel(labels, p.key, p.group)}`;
   const against = p.compare ? `posts with ${valueLabel(labels, p.key, p.compare)}` : 'other posts';
-  const scope = p.franchise ? ` in ${valueLabel(labels, 'franchise', p.franchise)}` : '';
+  const scope = `${p.bucket ? ` in ${BUCKET_LABEL[p.bucket] ?? p.bucket}` : ''}${p.franchise ? ` in ${valueLabel(labels, 'franchise', p.franchise)}` : ''}`;
   const range = e.dateRange ? ` (${e.dateRange.from.slice(0, 10)} → ${e.dateRange.to.slice(0, 10)})` : '';
   const metric = METRIC_DEFS[p.metric].label;
   if (c.verdict === 'no_difference') {
