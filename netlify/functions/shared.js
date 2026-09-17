@@ -39,14 +39,14 @@ function getGeminiClient() {
 }
 
 function getModelName() {
-  return process.env.GEMINI_MODEL_PRIMARY || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  return process.env.GEMINI_MODEL_PRIMARY || process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 }
 
 // Ordered list of models to try: primary first, then fallbacks. De-duped.
 // An optional primaryOverride is prepended (the regular chain becomes its fallback).
 function getModelChain(primaryOverride) {
   const primary = getModelName();
-  const fallbacks = (process.env.GEMINI_MODEL_FALLBACKS || 'gemini-2.5-flash-lite,gemini-2.0-flash')
+  const fallbacks = (process.env.GEMINI_MODEL_FALLBACKS || 'gemini-3.5-flash-lite,gemini-3.6-flash')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean);
@@ -106,6 +106,19 @@ function isQuotaError(err) {
   return getStatusCode(err) === '429' || /quota|rate.?limit|too many requests|resource_exhausted/i.test(m);
 }
 
+// When every model fails we still have to report ONE error. The LAST model's error is the wrong
+// pick: the tail of the chain is its least reliable rung, so its failure routinely masks the real
+// wall hit further up — usually 429 quota exhaustion. Rank failures by how actionable the cause is
+// and report the winner. Ranking reuses the status-code predicates above, never a digit scan.
+const FAILURE_RANK = { quota: 3, unavailable: 2, transient: 1, other: 0 };
+
+function classifyFailure(err) {
+  if (isQuotaError(err)) return 'quota';              // 429 — quota spent, wait for the reset
+  if (isModelUnavailable(err)) return 'unavailable';  // 404 — model retired, the chain needs updating
+  if (isTransientError(err)) return 'transient';      // 5xx / timeout — worth retrying
+  return 'other';
+}
+
 // Cross-provider fallback: NVIDIA NIM (OpenAI-compatible, free tier).
 // Text-only — fires when every Gemini model in the chain has failed.
 async function generateWithNvidia(prompt, systemInstruction, timeoutMs) {
@@ -157,6 +170,15 @@ async function generateContentResilient(genAI, contentArg, modelConfigExtra, dea
   const deadline = Date.now() + (deadlineMs || 25000);
   const MAX_ATTEMPTS = 3;
   let lastErr;
+  // Highest-ranked failure seen anywhere in the chain — this is what gets reported if all fail.
+  let topErr, topKind = null, topModel = null;
+  const noteFailure = (err, modelName) => {
+    lastErr = err;
+    const kind = classifyFailure(err);
+    if (!topKind || FAILURE_RANK[kind] > FAILURE_RANK[topKind]) {
+      topErr = err; topKind = kind; topModel = modelName || null;
+    }
+  };
 
   const config = { ...(modelConfigExtra || {}) };
   if (opts.json) {
@@ -168,14 +190,22 @@ async function generateContentResilient(genAI, contentArg, modelConfigExtra, dea
     config.generationConfig = { ...(config.generationConfig || {}), maxOutputTokens: maxOutTokens };
   }
 
-  // gemini-2.5-* are reasoning models that "think" before answering — ON by default, and the
-  // single biggest cause of slow pitch generation. Disable it (thinkingBudget 0) for a copywriting
-  // task where speed matters far more than chain-of-thought. Env-tunable; only applied to 2.5
-  // models (older models reject the field). Built per-model inside the loop below.
+  // Thinking models reason before answering — ON by default, and the single biggest cause of slow
+  // pitch generation. Keep it minimal for a copywriting task where speed matters far more than
+  // chain-of-thought. The two families take DIFFERENT fields, and sending the wrong one is fatal:
+  // gemini-3.5-flash-lite answers 400 to thinkingBudget, which isHardError treats as a hard stop for
+  // the whole chain (verified against the live API 2026-09-16).
+  //   gemini-3.x → thinkingLevel (default "low"; GEMINI_THINKING_LEVEL=high if deeper reasoning is needed)
+  //   gemini-2.5 → thinkingBudget (default 0)
+  // Anything else gets no thinkingConfig (older models reject the field).
+  const thinkingLevel = process.env.GEMINI_THINKING_LEVEL || 'low';
   const thinkingBudget = parseInt(process.env.GEMINI_THINKING_BUDGET || '0', 10);
   const modelConfigFor = (modelName) => {
-    if (/2\.5/.test(modelName) && Number.isFinite(thinkingBudget)) {
-      return { ...config, generationConfig: { ...(config.generationConfig || {}), thinkingConfig: { thinkingBudget } } };
+    let thinkingConfig = null;
+    if (/^gemini-3/.test(modelName)) thinkingConfig = { thinkingLevel };
+    else if (/2\.5/.test(modelName) && Number.isFinite(thinkingBudget)) thinkingConfig = { thinkingBudget };
+    if (thinkingConfig) {
+      return { ...config, generationConfig: { ...(config.generationConfig || {}), thinkingConfig } };
     }
     return config;
   };
@@ -204,7 +234,7 @@ async function generateContentResilient(genAI, contentArg, modelConfigExtra, dea
         return { text: result.response.text(), modelUsed: modelName };
       } catch (err) {
         const elapsed = Date.now() - attemptStart;
-        lastErr = err;
+        noteFailure(err, modelName);
 
         if (isHardError(err)) {
           console.error(`[gemini] ✗ hard error on ${modelName} after ${elapsed}ms — not retrying: ${err.message}`);
@@ -245,13 +275,23 @@ async function generateContentResilient(genAI, contentArg, modelConfigExtra, dea
       return await generateWithNvidia(contentArg, systemInstruction, remaining);
     } catch (nvErr) {
       console.error('[nvidia] fallback failed:', nvErr.message);
-      lastErr = nvErr;
+      noteFailure(nvErr, 'nvidia');
     }
   }
 
-  const e = new Error(`All Gemini models failed. Last error: ${lastErr ? lastErr.message : 'unknown'}`);
+  // Embedding the ACTIONABLE error's message (not the last one's) also means getStatusCode on this
+  // wrapper extracts the code that matters — a caller reading the bracketed status sees the 429 that
+  // actually blocked the run, not a 503/404 from the last rung.
+  const reported = topErr || lastErr;
+  const e = new Error(
+    `All Gemini models failed (tried ${models.join(', ')}). ` +
+    `Most actionable failure — ${topKind || 'unknown'}${topModel ? ` on ${topModel}` : ''}: ` +
+    `${reported ? reported.message : 'unknown'}`
+  );
   e.allModelsFailed = true;
-  e.lastError = lastErr;
+  e.failureKind = topKind;       // 'quota' | 'unavailable' | 'transient' | 'other'
+  e.actionableError = reported;
+  e.lastError = lastErr;         // literal last rung, kept for debugging
   throw e;
 }
 

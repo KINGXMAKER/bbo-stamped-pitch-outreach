@@ -1,4 +1,4 @@
-const { getGeminiClient, getSupabaseClient, getMatchingExamples, generateText, isHardError } = require('./shared');
+const { getGeminiClient, getSupabaseClient, getMatchingExamples, generateText, isHardError, isQuotaError, isTransientError, isModelUnavailable } = require('./shared');
 
 // Long, plain-language gap explanations used on the normal (non-condensed) path.
 // Four consolidated gaps — never insulting, always framed as an opportunity.
@@ -114,14 +114,23 @@ function friendlyErrorMessage(err) {
   if (/API key|api_key|invalid argument.*key|permission/i.test(msg)) {
     return 'Pitch generation is misconfigured (invalid or missing Gemini API key). Contact the site admin.';
   }
-  if (/429|too many requests|quota|resource_exhausted/i.test(msg)) {
+  // Classify by extracted status code via the shared predicates — never by scanning the message for
+  // digits. A bare /429/ or /50[023]/ match false-positives on unrelated numbers in the text (a
+  // retryDelay of "2.199104009s", a "maxOutputTokens: 3500"), which mislabels the banner. When the
+  // whole chain failed, shared.js already picked the most actionable rung: trust its failureKind.
+  const kind = (err && err.failureKind) || null;
+  if (kind === 'quota' || isQuotaError(err)) {
     return 'Gemini API quota was hit. Wait a moment and tap Try Again — quotas usually reset within a minute.';
   }
-  if (/50[023]|overload|unavailable|high demand/i.test(msg)) {
-    return 'Gemini is temporarily busy. Your inputs are saved — tap Try Again for a faster draft.';
+  if (kind === 'unavailable' || isModelUnavailable(err)) {
+    return 'Pitch generation is misconfigured (the configured Gemini models are no longer available). Contact the site admin.';
   }
+  // Timeouts/aborts are transient too, but "took too long" is the more accurate banner — check first.
   if (/aborted|abort|deadline|timeout|timed out/i.test(msg)) {
     return 'Generation took too long. Your inputs are saved — tap Try Again for a faster draft.';
+  }
+  if (kind === 'transient' || isTransientError(err)) {
+    return 'Gemini is temporarily busy. Your inputs are saved — tap Try Again for a faster draft.';
   }
   return 'Pitch generation could not complete. Your inputs are saved — tap Try Again.';
 }
