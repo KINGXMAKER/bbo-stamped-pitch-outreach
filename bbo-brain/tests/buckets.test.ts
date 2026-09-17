@@ -4,7 +4,8 @@ import { setProviderFetch } from '@/lib/ai/providers/registry';
 import { setGenerator } from '@/lib/ai/run';
 import { setAttribute, writeMetrics } from '@/lib/ingest/ingest';
 import { activeScoreVersion, computeAllScores } from '@/lib/scoring/engine';
-import { backfillLegacyBuckets, BUCKET_PROMPT_VERSION, BucketSchema, bucketBenchmarkReport, bucketGate, humanBucketLabels, recordBucketLabel, recordPromptDesignSample } from '@/lib/intel/buckets';
+import { backfillLegacyBuckets, BUCKET_PROMPT_VERSION, BucketSchema, bucketBenchmarkReport, bucketGate, classifyBucket, humanBucketLabels, recordBucketLabel, recordPromptDesignSample } from '@/lib/intel/buckets';
+import { providerNamed } from '@/lib/ai/providers/registry';
 import { mineLessons } from '@/lib/intel/lessons';
 import { buildIntelligenceReport } from '@/lib/intel/report';
 import { runPipeline } from '@/lib/sync/registry';
@@ -14,7 +15,7 @@ import { makePost, testDb } from './helpers';
 // Synthetic fixture — never shown as BBO data. No real provider is called.
 const NOW = new Date('2026-09-16T12:00:00.000Z');
 const DAY = 86_400_000;
-const ENV_KEYS = ['GEMINI_API_KEY', 'OPENROUTER_API_KEY', 'NVIDIA_API_KEY', 'AI_BUCKET_PROVIDER', 'AI_BUCKET_MODEL', 'BUCKET_GATE_MIN_LABELS'];
+const ENV_KEYS = ['AI_RETRY_BACKOFF_MS', 'GEMINI_API_KEY', 'OPENROUTER_API_KEY', 'NVIDIA_API_KEY', 'AI_BUCKET_PROVIDER', 'AI_BUCKET_MODEL', 'BUCKET_GATE_MIN_LABELS'];
 const saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
@@ -253,4 +254,28 @@ describe('priority and scope', () => {
     expect(report.scope.otherBuckets).toEqual({ BBO_STAMPED: 3, OTHER_IGNORE: 3 });
     expect(report.scope.unbucketed).toBe(1);
   });
+
+  it('never files a caption-only video as non-core, but accepts core and non-video answers', async () => {
+    process.env.AI_RETRY_BACKOFF_MS = '0';
+    const db = testDb();
+    const bare = post(db, 1);
+    const withMedia = post(db, 2, { media: true });
+    const coreBare = post(db, 3);
+    const carousel = post(db, 4);
+    run(db, `UPDATE platform_posts SET media_type = 'CAROUSEL_ALBUM' WHERE content_id = ?`, carousel);
+    const answer: Record<number, string> = { [bare]: 'OTHER_IGNORE', [withMedia]: 'OTHER_IGNORE', [coreBare]: 'CORE_INTERVIEW_CONTENT', [carousel]: 'OTHER_IGNORE' };
+    const bucket = (id: number) => get<{ v: string }>(db, `SELECT value_text v FROM content_attribute_current WHERE content_id = ? AND key = 'content_bucket'`, id)?.v ?? null;
+
+    for (const id of [bare, withMedia, coreBare, carousel]) {
+      setProviderFetch((async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify({ content_bucket: answer[id], interview_format: null, confidence: 'high', reason: 'test' }) }, finish_reason: 'stop' }] }), text: async () => '' }) as Response) as typeof fetch);
+      // Providers capture the transport when built, so build the pin after swapping it.
+      await classifyBucket(db, id, { pin: { provider: providerNamed('openrouter')!, model: 'candidate/model' }, write: true });
+    }
+
+    expect(bucket(bare)).toBeNull(); // caption-only video said Other: held, stays in the queue
+    expect(bucket(withMedia)).toBe('OTHER_IGNORE');
+    expect(bucket(coreBare)).toBe('CORE_INTERVIEW_CONTENT');
+    expect(bucket(carousel)).toBe('OTHER_IGNORE');
+  });
 });
+

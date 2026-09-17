@@ -283,8 +283,27 @@ export const JOBS: Record<string, JobDef> = {
         limit
       ).map((r) => r.id);
       const pin = { provider, model: cfg.bucketModel };
-      const out = await aiBatch(ctx, ids, async (id, budget) => ((await classifyBucket(ctx.db, id, { pin, budget, write: true })) ? { status: 'enriched' } : { status: 'skipped', reason: 'no post' }), Math.max(1, Number(ctx.params.concurrency ?? cfg.aiConcurrency)), 'content_bucket');
-      return { ...out, recordsWritten: out.recordsWritten + legacy.written, summary: `${legacy.written} from legacy evidence · AI: ${out.summary} · gate: ${gate.passed ? gate.reason : 'forced'}` };
+      let held = 0;
+      const out = await aiBatch(
+        ctx,
+        ids,
+        async (id, budget) => {
+          const r = await classifyBucket(ctx.db, id, { pin, budget, write: true });
+          if (!r) return { status: 'skipped', reason: 'no post' };
+          if (r.held) {
+            held++;
+            return { status: 'skipped', reason: 'caption-only video not filed as non-core' };
+          }
+          return { status: 'enriched' };
+        },
+        Math.max(1, Number(ctx.params.concurrency ?? cfg.aiConcurrency)),
+        'content_bucket'
+      );
+      return {
+        ...out,
+        recordsWritten: out.recordsWritten + legacy.written,
+        summary: `${legacy.written} from legacy evidence · AI: ${out.summary} · ${held} caption-only videos left unbucketed · gate: ${gate.passed ? gate.reason : 'forced'}`,
+      };
     },
   },
   'benchmark-buckets': {
@@ -300,7 +319,10 @@ export const JOBS: Record<string, JobDef> = {
         ? all<{ params_json: string }>(ctx.db, `SELECT params_json FROM benchmark_runs WHERE task_class = 'content_bucket'`).flatMap((r) => (JSON.parse(r.params_json) as { contentIds?: number[] }).contentIds ?? [])
         : [];
       const ids = Array.isArray(ctx.params.contentIds) ? (ctx.params.contentIds as number[]) : bucketBenchmarkSample(ctx.db, Number(ctx.params.size ?? 40), used);
-      const r = await runBucketBenchmark(ctx.db, { provider: provider as 'gemini' | 'openrouter' | 'nvidia', model, label: String(ctx.params.label ?? `${provider}:${model}`) }, ids, { budgetUsd: Number(ctx.params.budgetUsd ?? 0.25) });
+      const r = await runBucketBenchmark(ctx.db, { provider: provider as 'gemini' | 'openrouter' | 'nvidia', model, label: String(ctx.params.label ?? `${provider}:${model}`) }, ids, {
+        budgetUsd: Number(ctx.params.budgetUsd ?? 0.25),
+        promptVersion: typeof ctx.params.promptVersion === 'string' ? ctx.params.promptVersion : undefined,
+      });
       const [row] = bucketBenchmarkReport(ctx.db, [r.benchmarkRunId]);
       const scored = row.humanLabelled ? `accuracy ${Math.round((row.accuracy ?? 0) * 100)}% on ${row.humanLabelled} human labels` : 'awaiting human labels';
       return { recordsSeen: ids.length, recordsWritten: r.ok, partial: r.failed > 0 && r.ok > 0, summary: `${r.ok} ok · ${r.failed} failed · ${scored} · median ${row.medianLatencyMs}ms · $${row.costPer100Usd.toFixed(3)}/100` };
@@ -401,7 +423,7 @@ export const JOBS: Record<string, JobDef> = {
 };
 
 /** The daily loop, in dependency order. Each step is its own recorded job. */
-export const DAILY_PIPELINE = ['instagram-content', 'instagram-metrics', 'instagram-account', 'content-buckets', 'media-transcripts', 'score', 'provider-health', 'ai-enrich', 'analyze', 'mine-lessons', 'rule-proposals', 'rule-challenges', 'experiments', 'opportunities', 'graph', 'search'];
+export const DAILY_PIPELINE = ['instagram-content', 'instagram-metrics', 'instagram-account', 'media-transcripts', 'content-buckets', 'score', 'provider-health', 'ai-enrich', 'analyze', 'mine-lessons', 'rule-proposals', 'rule-challenges', 'experiments', 'opportunities', 'graph', 'search'];
 
 export async function runNamedJob(db: Db, kind: string, params: Record<string, unknown> = {}): Promise<JobRecord> {
   seedReference(db);

@@ -112,7 +112,7 @@ Known limitations are listed plainly on the Integrations page and in `COMPOSIO_I
 ## Development
 
 ```bash
-npm test            # vitest — 173 tests
+npm test            # vitest — 174 tests
 npm run typecheck
 npm run lint
 ```

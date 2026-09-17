@@ -136,17 +136,20 @@ export async function syncMediaAndTranscripts(
 
   markIntegration(ctx.db, 'whisper_local', canTranscribe ? { status: 'connected' } : { status: 'not_connected', error: `whisper-cli or model not found (${cfg.whisperCli})` });
 
-  const onlyContentId = Number(ctx.params.contentId) || null;
+  // Named posts bypass the priority queue — e.g. fetching media for a labelled benchmark sample.
+  const named = [...(Number(ctx.params.contentId) ? [Number(ctx.params.contentId)] : []), ...(Array.isArray(ctx.params.contentIds) ? (ctx.params.contentIds as unknown[]).map(Number) : [])].filter(Number.isInteger);
   let queue: QueueItem[];
-  if (onlyContentId) {
-    const row = get<{ content_id: number; external_id: string; title: string; published_at: string }>(
-      ctx.db,
-      `SELECT c.id AS content_id, pp.external_id, c.title, pp.published_at FROM content c JOIN platform_posts pp ON pp.id = c.primary_post_id WHERE c.id = ?`,
-      onlyContentId
-    );
-    queue = row
-      ? [{ contentId: row.content_id, externalId: row.external_id, title: row.title, tier: 1, reason: 'requested directly', corpusClass: 'other', label: null, score: null, publishedAt: row.published_at, franchise: null, needsMedia: true, needsCoding: true }]
-      : [];
+  if (named.length) {
+    queue = named.flatMap((id) => {
+      const row = get<{ content_id: number; external_id: string; title: string; published_at: string }>(
+        ctx.db,
+        `SELECT c.id AS content_id, pp.external_id, c.title, pp.published_at FROM content c JOIN platform_posts pp ON pp.id = c.primary_post_id WHERE c.id = ?`,
+        id
+      );
+      return row
+        ? [{ contentId: row.content_id, externalId: row.external_id, title: row.title, tier: 1 as const, reason: 'requested directly', corpusClass: 'other' as const, label: null, score: null, publishedAt: row.published_at, franchise: null, needsMedia: true, needsCoding: true }]
+        : [];
+    });
   } else {
     queue = limit > 0 ? buildQueue(ctx.db, { limit, stage: 'media', ignoreTargets: ctx.params.ignoreTargets === true }) : [];
   }

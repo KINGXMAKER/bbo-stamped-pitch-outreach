@@ -49,6 +49,13 @@ Assigning buckets:
 3. **Humans** (`/validation/buckets`): stratified samples covering every bucket, with
    model guesses hidden while labelling.
 
+**Media first.** Measured on 30 held-out labels with the prompt unchanged: from the
+caption alone Qwen3-VL-32B found 64% of core clips (77% accuracy); with the transcript and
+first frame it found 100% (90% accuracy). So the daily loop fetches media *before*
+bucketing, and a video that still has no transcript or frame is never filed as
+OTHER_IGNORE or Stamped by the model — it stays unbucketed and in the work queue.
+A core answer on such a video is accepted.
+
 **Rollout gate.** The bucket decides what BBO BRAIN analyses at all — a classifier that
 drops core clips into OTHER_IGNORE would silently hide the content that matters most.
 AI bucket labels reach the catalogue only when the configured model, **on the current
