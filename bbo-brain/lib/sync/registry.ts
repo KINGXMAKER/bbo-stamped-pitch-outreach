@@ -360,7 +360,7 @@ export const JOBS: Record<string, JobDef> = {
       return {
         recordsSeen: report.overall.compared,
         recordsWritten: report.reviewed,
-        summary: `${report.reviewed} posts reviewed · overall agreement ${report.overall.rate === null ? 'n/a' : `${Math.round(report.overall.rate * 100)}%`} · ${report.unreliable.length} field(s) excluded from mining · ${file.replace(process.cwd() + '/', '')}`,
+        summary: `${report.reviewed} posts reviewed · overall agreement ${report.overall.rate === null ? 'n/a' : `${Math.round(report.overall.rate * 100)}%`} on verified fields · ${report.unreliable.length} field(s) failing review, ${report.unverified.length} not verified — both held from mining · ${file.replace(process.cwd() + '/', '')}`,
       };
     },
   },

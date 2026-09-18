@@ -3,7 +3,7 @@ import path from 'node:path';
 import { all, get, json, nowIso, parseJson, run, tx, type Db } from '@/lib/db/client';
 import { getSetting } from '@/lib/seed';
 import { comparable, loadFacts } from '@/lib/intel/dataset';
-import { currentValidationBatch } from '@/lib/intel/validation';
+import { currentValidationBatch, fieldsHeldFromMining, TOPICS_FIELD } from '@/lib/intel/validation';
 import { canonicalPattern, describePattern, evaluatePattern, loadLabels, parsePattern, valueLabel, type Pattern } from '@/lib/intel/patterns';
 import { setLessonStatus } from '@/lib/intel/lessons';
 import { CONFIDENCE_ORDER, type ConfidenceLabel } from '@/lib/intel/stats';
@@ -62,10 +62,13 @@ export function generateRuleProposals(db: Db): ProposalRunResult {
     `SELECT * FROM lessons WHERE status = 'SUPPORTED' AND (pattern_json IS NULL OR json_extract(pattern_json, '$.bucket') IS NOT NULL)`
   );
   const activeRules = all<{ id: number; pattern_json: string | null }>(db, `SELECT id, pattern_json FROM rules WHERE status = 'active' AND pattern_json IS NOT NULL`);
+  // A lesson mined before its field was held (unchecked or shown wrong) is not evidence for a rule either.
+  const held = new Set(fieldsHeldFromMining(db));
 
   for (const lesson of lessons) {
     const pattern = lessonPattern(lesson);
     if (!pattern || lesson.direction === 'mixed' || !lesson.direction) continue;
+    if (held.has(pattern.key === 'topic' ? TOPICS_FIELD : pattern.key)) continue;
     result.considered++;
     const meta = parseJson<{ supportiveStreak?: number; brainCheck?: { effect?: number; nGroup?: number; supportiveStreak?: number } }>(lesson.metrics_json, {});
     const streak = lesson.origin === 'imported_audit' ? (meta.brainCheck ? 1 : 0) : (meta.supportiveStreak ?? 0);

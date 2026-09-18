@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { unreliableCodedFields } from './validation';
+import { fieldsHeldFromMining, TOPICS_FIELD } from './validation';
 import { all, get, json, nowIso, parseJson, run, tx, type Db } from '@/lib/db/client';
 import { comparable, loadFacts, type ContentFact, type MetricKey } from './dataset';
 import {
@@ -71,7 +71,16 @@ function linkEvidence(db: Db, lessonId: number, e: PatternEvaluation): void {
   for (const x of contradicting.slice(0, 6)) run(db, `INSERT INTO lesson_content VALUES (?, ?, 'contradicting') ON CONFLICT DO NOTHING`, lessonId, x.f.contentId);
 }
 
-function evidenceJson(e: PatternEvaluation, testsRun: number, streak: number, dataVersion = '') {
+/**
+ * A supportive streak counts evaluations at least this far apart. Evidence can
+ * change several times a day (a metrics sync, one newly coded post), but a
+ * finding that "held up" three times in one afternoon has been tested once.
+ * Six days lets one weekly run follow another even if one fires a little early.
+ */
+export const STREAK_MIN_GAP_DAYS = 6;
+const STREAK_MIN_GAP_MS = STREAK_MIN_GAP_DAYS * 86_400_000;
+
+function evidenceJson(e: PatternEvaluation, testsRun: number, streak: number, dataVersion = '', streakAt?: string) {
   const c = e.comparison;
   return {
     nGroup: c.nGroup,
@@ -87,6 +96,8 @@ function evidenceJson(e: PatternEvaluation, testsRun: number, streak: number, da
     dateRange: e.dateRange,
     testsRunThisPass: testsRun,
     supportiveStreak: streak,
+    /** When the streak last grew. It grows again only STREAK_MIN_GAP_DAYS later. */
+    streakAt,
     /** Latest metric observation the evaluation saw. The streak only grows when this changes. */
     dataVersion,
     evaluatedAt: nowIso(),
@@ -131,7 +142,7 @@ export function upsertPatternLesson(
         e.pattern.compare ? `${e.pattern.key} = ${e.pattern.compare}` : 'all other comparable posts',
         c.nGroup,
         c.effect,
-        json(evidenceJson(e, testsRun, rank(c.confidence) >= rank('MODERATE_SIGNAL') ? 1 : 0, dataVersion)),
+        json(evidenceJson(e, testsRun, rank(c.confidence) >= rank('MODERATE_SIGNAL') ? 1 : 0, dataVersion, nowIso())),
         'Correlation from stored metrics — not proof of cause.',
         nowIso()
       );
@@ -151,11 +162,17 @@ export function upsertPatternLesson(
   }
 
   const status = nextLessonStatus(existing.status, existing.direction, e);
-  const prev = parseJson<{ supportiveStreak?: number; dataVersion?: string }>(existing.metrics_json, {});
+  const prev = parseJson<{ supportiveStreak?: number; dataVersion?: string; streakAt?: string; evaluatedAt?: string }>(existing.metrics_json, {});
   const supportive = (status === 'SUPPORTED' || status === 'PROMOTED_TO_RULE') && c.verdict === existing.direction;
-  // Re-running on the same data is not repeated evidence: only new observations extend the streak.
+  // Re-running on the same data is not repeated evidence, and neither is re-running
+  // the same week: the streak grows only on new observations, a week apart.
   const newData = prev.dataVersion !== dataVersion;
-  const streak = supportive ? (newData ? (prev.supportiveStreak ?? 0) + 1 : Math.max(prev.supportiveStreak ?? 1, 1)) : 0;
+  const prevStreak = prev.supportiveStreak ?? 0;
+  const lastGrowth = prev.streakAt ?? prev.evaluatedAt;
+  const spaced = prevStreak === 0 || !lastGrowth || Date.now() - Date.parse(lastGrowth) >= STREAK_MIN_GAP_MS;
+  const grows = supportive && newData && spaced;
+  const streak = !supportive ? 0 : grows ? prevStreak + 1 : Math.max(prevStreak, 1);
+  const streakAt = grows ? nowIso() : (prev.streakAt ?? prev.evaluatedAt ?? nowIso());
   const confidence = c.verdict === 'insufficient' ? existing.confidence_label : c.confidence;
 
   return tx(db, () => {
@@ -168,7 +185,7 @@ export function upsertPatternLesson(
       confidence,
       c.nGroup,
       c.effect,
-      json(evidenceJson(e, testsRun, streak, dataVersion)),
+      json(evidenceJson(e, testsRun, streak, dataVersion, streakAt)),
       nowIso(),
       nowIso(),
       existing.id
@@ -215,7 +232,8 @@ function latestObservations(db: Db): Map<number, string> {
  * and how fresh their metrics were. A lesson's supportive streak only grows when
  * this changes, so re-running mining — or re-labelling the same posts with a
  * different model — is never counted as new supporting evidence. New posts
- * entering the comparison, or a newer metric sync, are.
+ * entering the comparison, or a newer metric sync, are — once per
+ * STREAK_MIN_GAP_DAYS, so a busy afternoon of re-runs cannot build a streak.
  */
 export function evidenceVersion(e: PatternEvaluation, latestObserved: Map<number, string>): string {
   const ids = [...new Set([...e.groupFacts, ...e.restFacts].map((f) => f.contentId))].sort((a, b) => a - b);
@@ -247,8 +265,9 @@ export function mineLessons(db: Db, options: { asOf?: string } = {}): MiningResu
   if (facts.length < STAT_THRESHOLDS.minN * 2) return result;
 
   // A field human review has shown the model gets wrong more often than not is
-  // not evidence: it is excluded from mining until the model improves on it.
-  const unreliable = new Set(unreliableCodedFields(db));
+  // not evidence, and neither is one review never checked: both stay out of
+  // mining until the model improves on it or a human verifies it.
+  const unreliable = new Set(fieldsHeldFromMining(db));
   const defs = all<{ key: string; attr_group: string; value_type: string }>(
     db,
     `SELECT key, attr_group, value_type FROM attribute_definitions WHERE is_comparable = 1 AND value_type IN ('enum','boolean')`
@@ -277,6 +296,7 @@ export function mineLessons(db: Db, options: { asOf?: string } = {}): MiningResu
       }
     }
     for (const key of ['topic', 'person'] as const) {
+      if (key === 'topic' && unreliable.has(TOPICS_FIELD)) continue;
       for (const [value, n] of countValues(key)) {
         if (n < STAT_THRESHOLDS.minN) continue;
         for (const metric of MINING_METRICS) patterns.push({ pattern: { key, group: value, metric, bucket }, category: key === 'topic' ? 'topic' : 'guest' });

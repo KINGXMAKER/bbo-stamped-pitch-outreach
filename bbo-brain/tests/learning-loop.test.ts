@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { all, get, run, type Db } from '@/lib/db/client';
 import { setAttribute, writeMetrics } from '@/lib/ingest/ingest';
 import { activeScoreVersion, computeAllScores } from '@/lib/scoring/engine';
@@ -6,6 +6,7 @@ import { bhThreshold, mineLessons, nextLessonStatus } from '@/lib/intel/lessons'
 import type { PatternEvaluation } from '@/lib/intel/patterns';
 import { beliefChanges, decideChallenge, decideProposal, detectRuleChallenges, generateRuleProposals } from '@/lib/rules/engine';
 import { loadRelevantRules } from '@/lib/rules/load';
+import { recordUnverifiedFields } from '@/lib/intel/validation';
 import { makePost, testDb } from './helpers';
 
 // Synthetic test fixture — never shown as BBO data.
@@ -34,6 +35,16 @@ function seedHistory(db: Db) {
   for (let i = 0; i < 40; i++) addPost(db, i, start, i % 2 === 0 ? 'confession' : 'question', i % 2 === 0);
   computeAllScores(db, activeScoreVersion(db), new Date(Date.UTC(2026, 4, 15)));
 }
+
+/** Moves the clock on a week: a supportive streak only grows on evaluations a week apart. */
+function aWeekLater() {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(Date.now() + 7 * DAY);
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 /** A later metric snapshot: new evidence arriving, as a daily sync would bring. */
 function newObservation(db: Db) {
@@ -102,6 +113,7 @@ describe('the learning loop: content → performance → lesson → rule → wor
     expect(generateRuleProposals(db).proposed).toBe(0);
 
     newObservation(db);
+    aWeekLater();
     mineLessons(db);
     expect(JSON.parse(confessionScoreLesson(db)!.metrics_json).supportiveStreak).toBe(2);
     expect(generateRuleProposals(db).proposed).toBeGreaterThan(0);
@@ -122,6 +134,35 @@ describe('the learning loop: content → performance → lesson → rule → wor
     const editorRules = loadRelevantRules(db, { workflow: 'viral_editor', franchise: 'podcast' });
     expect(editorRules.some((r) => r.text === 'Open on the confession when the footage has one.')).toBe(true);
     expect(loadRelevantRules(db, { workflow: 'caption' }).some((r) => r.ruleId === ruleId)).toBe(false);
+  });
+
+  it('never proposes a rule from a field the reviewer did not verify, even with repeated evidence', () => {
+    const db = testDb();
+    seedHistory(db);
+    mineLessons(db);
+    newObservation(db);
+    aWeekLater();
+    mineLessons(db);
+    expect(JSON.parse(confessionScoreLesson(db)!.metrics_json).supportiveStreak).toBe(2);
+
+    recordUnverifiedFields(db, ['hook_type']); // approvals never covered hook type
+    expect(generateRuleProposals(db).proposed).toBe(0);
+    expect(get(db, 'SELECT 1 FROM rule_proposals WHERE lesson_id = ?', confessionScoreLesson(db)!.id)).toBeUndefined();
+  });
+
+  it('does not grow a streak from several evaluations in one week, even when the data moved', () => {
+    const db = testDb();
+    seedHistory(db);
+    mineLessons(db);
+    // A metrics sync between two same-day runs: the evidence changed, but the
+    // finding has still only been tested once.
+    newObservation(db);
+    mineLessons(db);
+    newObservation(db);
+    mineLessons(db);
+
+    expect(JSON.parse(confessionScoreLesson(db)!.metrics_json).supportiveStreak).toBe(1);
+    expect(generateRuleProposals(db).proposed).toBe(0);
   });
 
   it('does not count re-labelling the same posts as new supporting evidence', () => {
@@ -151,6 +192,7 @@ describe('the learning loop: content → performance → lesson → rule → wor
     for (let i = -8; i < 0; i++) addPost(db, i, start, i % 2 === 0 ? 'confession' : 'question', i % 2 === 0);
     expect(get<{ v: string }>(db, 'SELECT MAX(observed_at) AS v FROM content_metrics')!.v).toBe(newestBefore);
     computeAllScores(db, activeScoreVersion(db), new Date(Date.UTC(2026, 4, 15)));
+    aWeekLater();
     mineLessons(db);
 
     expect(JSON.parse(confessionScoreLesson(db)!.metrics_json).supportiveStreak).toBe(2);
@@ -161,6 +203,7 @@ describe('the learning loop: content → performance → lesson → rule → wor
     seedHistory(db);
     mineLessons(db);
     newObservation(db);
+    aWeekLater();
     mineLessons(db);
     generateRuleProposals(db);
     const pending = all<{ id: number; lesson_id: number }>(db, `SELECT id, lesson_id FROM rule_proposals WHERE status = 'pending'`);
@@ -190,6 +233,7 @@ describe('the learning loop: content → performance → lesson → rule → wor
     seedHistory(db);
     mineLessons(db);
     newObservation(db);
+    aWeekLater();
     mineLessons(db);
     generateRuleProposals(db);
     const lesson = confessionScoreLesson(db)!;

@@ -111,7 +111,11 @@ export default async function Validation({ searchParams }: { searchParams: Promi
             <Stat label="Overall agreement" value={report.overall.rate === null ? '—' : `${Math.round(report.overall.rate * 100)}%`} sub={`${report.overall.agreed}/${report.overall.compared} labels`} tone="pink" />
             <Stat label="Hook type" value={`${Math.round((report.fields.find((f) => f.key === 'hook_type')?.rate ?? 0) * 100)}%`} sub={`${report.fields.find((f) => f.key === 'hook_type')?.compared ?? 0} compared`} />
             <Stat label="Opening type" value={`${Math.round((report.fields.find((f) => f.key === 'opening_type')?.rate ?? 0) * 100)}%`} sub={`${report.fields.find((f) => f.key === 'opening_type')?.compared ?? 0} compared`} />
-            <Stat label="Topics" value={report.topics.rate === null ? '—' : `${Math.round(report.topics.rate * 100)}%`} sub={`${report.topics.compared} posts`} />
+            <Stat
+              label="Topics"
+              value={report.unverified.includes('topics') ? 'Not verified' : report.topics.rate === null ? '—' : `${Math.round(report.topics.rate * 100)}%`}
+              sub={report.unverified.includes('topics') ? 'held from mining' : `${report.topics.compared} posts`}
+            />
           </div>
           <div className="split" style={{ marginTop: '1rem' }}>
             <div className="table-wrap">
@@ -169,6 +173,12 @@ export default async function Validation({ searchParams }: { searchParams: Promi
                   <>No field is below 60% agreement on 10+ reviews, so none is excluded from lesson mining.</>
                 )}
               </div>
+              {report.unverified.length ? (
+                <div className="callout xs">
+                  <strong className="white">Not verified by you:</strong> {report.unverified.map((k) => k.replace(/_/g, ' ')).join(', ')}. Your approvals didn&apos;t cover these, so
+                  they&apos;re left out of the agreement figures and held out of lesson mining until they&apos;re checked.
+                </div>
+              ) : null}
             </aside>
           </div>
         </Section>
