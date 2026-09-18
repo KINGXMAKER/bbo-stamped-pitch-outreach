@@ -85,8 +85,15 @@ export const RETIRED_BUCKETS: Record<string, ContentBucket> = { BADDIE_OF_THE_MO
  * questions, so they are left out of guest comparisons and guest gender mix.
  */
 export const BBO_HOSTS = [
-  { handle: 'kingmakerslurrty', name: 'King Maker', gender: 'male', note: 'Host and creator of BBO.' },
-  { handle: 'mstrillionairet', name: 'Trill', gender: 'female', note: 'Host; runs most of the street interviews.' },
+  {
+    handle: 'kingmakerslurrty',
+    name: 'King Maker',
+    gender: 'male',
+    note: 'Host and creator of BBO; hosts the podcast and does street interviews. Also posts as @bossmanslurrty, @realslurrty and @slurrtytv.',
+    // Other accounts of the same person: one identity, not four people.
+    aliases: ['bossmanslurrty', 'realslurrty', 'slurrtytv'],
+  },
+  { handle: 'mstrillionairet', name: 'Trill', gender: 'female', note: 'Host; does street interviews from late November 2025 on.', aliases: [] },
 ] as const;
 
 /**
