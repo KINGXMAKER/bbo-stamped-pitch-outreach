@@ -162,13 +162,29 @@ function seedHosts(db: Db): void {
       run(db, `INSERT INTO people (slug, canonical_name, type, instagram_handle) VALUES (?, ?, 'host', ?)`, h.handle, `@${h.handle}`, h.handle).lastId;
     run(
       db,
-      `UPDATE people SET type = 'host', gender = ?, instagram_handle = COALESCE(instagram_handle, ?), notes = COALESCE(notes, ?) WHERE id = ?`,
+      `UPDATE people SET type = 'host', gender = ?, instagram_handle = COALESCE(instagram_handle, ?), notes = ? WHERE id = ?`,
       h.gender,
       h.handle,
       h.note,
       id
     );
     addAlias(db, 'person', id, `@${h.handle}`);
+    // A host's other accounts are the same person: their tags move onto the host and the duplicate goes.
+    for (const alias of h.aliases) {
+      const dup = get<{ id: number }>(db, 'SELECT id FROM people WHERE (instagram_handle = ? OR canonical_name = ?) AND id != ?', alias, `@${alias}`, id);
+      if (dup) {
+        run(
+          db,
+          `INSERT OR IGNORE INTO content_people (content_id, person_id, role, source, confidence)
+           SELECT content_id, ?, role, source, confidence FROM content_people WHERE person_id = ?`,
+          id,
+          dup.id
+        );
+        run(db, `UPDATE entity_aliases SET entity_id = ? WHERE entity_type = 'person' AND entity_id = ?`, String(id), String(dup.id));
+        run(db, 'DELETE FROM people WHERE id = ?', dup.id);
+      }
+      addAlias(db, 'person', id, `@${alias}`);
+    }
     run(
       db,
       `INSERT OR IGNORE INTO content_people (content_id, person_id, role, source, confidence)

@@ -88,6 +88,19 @@ describe('BBO hosts', () => {
     expect(get<{ role: string }>(db, 'SELECT role FROM content_people WHERE content_id = ?', other)?.role).toBe('host');
   });
 
+  it("folds a host's other accounts into one host, tags and all", () => {
+    const db = testDb();
+    const dup = createPerson(db, '@bossmanslurrty', 'caption_mention');
+    const { contentId } = makePost(db);
+    linkPerson(db, contentId, dup, 'guest', 'heuristic', 0.7);
+
+    seedReference(db, process.cwd());
+
+    expect(get(db, 'SELECT 1 FROM people WHERE id = ?', dup)).toBeUndefined();
+    expect(get<{ person_id: number; role: string }>(db, 'SELECT person_id, role FROM content_people WHERE content_id = ?', contentId)).toEqual({ person_id: hostId(db).id, role: 'host' });
+    expect(resolveEntity(db, 'person', '@bossmanslurrty')).toMatchObject({ kind: 'matched', entityId: String(hostId(db).id) });
+  });
+
   it('folds a "host" opening into "interviewer" — one person, one label', () => {
     const parsed = AnalysisSchema.parse({ confidence: 'high', attributes: { opening_speaker_role: 'host' } });
     expect(parsed.attributes.opening_speaker_role).toBe('interviewer');
