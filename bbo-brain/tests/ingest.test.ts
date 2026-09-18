@@ -82,8 +82,9 @@ describe('caption heuristics wiring', () => {
     ]);
     expect(get<{ slug: string }>(db, 'SELECT t.slug FROM content_topics ct JOIN topics t ON t.id = ct.topic_id WHERE ct.content_id = ? AND ct.is_primary = 1', contentId)?.slug).toBeTruthy();
     // Re-running is idempotent.
+    const peopleBefore = get<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM people')!.n;
     applyCaptionHeuristics(db, contentId);
-    expect(get<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM people')!.n).toBe(2);
+    expect(get<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM people')!.n).toBe(peopleBefore);
   });
 
   it('lets a human attribute outrank heuristics, and franchise follows it', () => {

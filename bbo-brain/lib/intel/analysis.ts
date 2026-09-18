@@ -8,7 +8,7 @@ import { looseConfidence, looseList, looseText, looseTextNullable } from '@/lib/
 import { activeSkill } from '@/lib/ai/skills';
 import { brainConfig } from '@/lib/config';
 import { getSetting } from '@/lib/seed';
-import { ATTRIBUTE_DEFINITIONS } from '@/lib/seed/reference';
+import { ATTRIBUTE_DEFINITIONS, ATTRIBUTE_VALUE_ALIASES, BBO_HOSTS } from '@/lib/seed/reference';
 import { resolveEntity } from '@/lib/entities/resolve';
 import { setAttribute } from '@/lib/ingest/ingest';
 import { loadRelevantRules, rulesPromptBlock } from '@/lib/rules/load';
@@ -71,9 +71,12 @@ export function analysisQueue(db: Db): { ready: TriggerHit[]; waitingForMedia: T
 
 // ── Output schema ────────────────────────────────────────────────────────
 const allowed = (key: string) => new Set(ATTRIBUTE_DEFINITIONS.find((a) => a.key === key)?.values ?? []);
-/** Unknown enum values become null instead of forcing a repair round-trip. */
+/** Unknown enum values become null instead of forcing a repair round-trip; retired values map to their replacement. */
 const enumOf = (key: string) =>
-  z.preprocess((v) => (typeof v === 'string' && allowed(key).has(v) ? v : null), z.string().nullable());
+  z.preprocess((v) => {
+    const value = typeof v === 'string' ? (ATTRIBUTE_VALUE_ALIASES[key]?.[v] ?? v) : v;
+    return typeof value === 'string' && allowed(key).has(value) ? value : null;
+  }, z.string().nullable());
 const moment = z.preprocess(
   (v) => (typeof v === 'string' ? { quote: v } : v ?? {}),
   z.object({ timestamp: looseTextNullable().default(null), quote: looseText().default(''), why: looseText().default('') })
@@ -153,6 +156,11 @@ export const AnalysisSchema = z.object({
 });
 export type Analysis = z.infer<typeof AnalysisSchema>;
 
+/** Who BBO's hosts are, in both prompts: a host is never a guest. */
+const HOSTS_BLOCK = `BBO'S HOSTS — never guests
+${BBO_HOSTS.map((h) => `- ${h.name} (@${h.handle}, ${h.gender}): ${h.note}`).join('\n')}
+When a host speaks, opening_speaker_role is "interviewer". Hosts are never counted in guest_gender_mix.`;
+
 const ANALYSIS_TEMPLATE = `You are BBO BRAIN's content analyst. You explain why ONE published BBO post performed the way it did.
 
 HARD RULES
@@ -162,6 +170,8 @@ HARD RULES
 - If something could not be observed (no transcript, frames only, comments unavailable), say so in evidence_notes and lower confidence.
 - A winner explanation answers "what made this outperform?"; a loser explanation answers "what likely caused viewers to leave or not act?".
 - Attribute values must come from the allowed lists below; use null when not observable.
+
+${HOSTS_BLOCK}
 
 ALLOWED ATTRIBUTE VALUES
 {{attribute_values}}
@@ -409,6 +419,8 @@ export const EnrichmentSchema = AnalysisSchema.pick({
 
 const ENRICH_TEMPLATE = `You code ONE BBO post's content attributes from its transcript, hook frames and caption so BBO can compare posts. You do not judge performance.
 Use only what the evidence shows. Determine topics from the transcript/frames, not the caption alone. Use null when an attribute is not observable.
+
+${HOSTS_BLOCK}
 
 ALLOWED ATTRIBUTE VALUES
 {{attribute_values}}

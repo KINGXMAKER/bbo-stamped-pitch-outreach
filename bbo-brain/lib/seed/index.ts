@@ -4,6 +4,7 @@ import { syncSkillsFromFiles } from '@/lib/ai/skills';
 import { DEFAULT_FORMULA_V1, DEFAULT_THRESHOLDS_V1 } from '@/lib/scoring/formula';
 import {
   ATTRIBUTE_DEFINITIONS,
+  BBO_HOSTS,
   BRAND_ALIASES,
   DEFAULT_TRIGGERS,
   FRANCHISES,
@@ -145,9 +146,37 @@ export function seedReference(db: Db, root = process.cwd()): void {
         rule.code
       );
     }
+
+    seedHosts(db);
   });
 
   syncSkillsFromFiles(db, root);
+}
+
+/** BBO's hosts are hosts wherever a caption tagged them — never guests in a guest comparison. */
+function seedHosts(db: Db): void {
+  for (const h of BBO_HOSTS) {
+    const existing = get<{ id: number }>(db, 'SELECT id FROM people WHERE instagram_handle = ? OR canonical_name = ?', h.handle, `@${h.handle}`);
+    const id =
+      existing?.id ??
+      run(db, `INSERT INTO people (slug, canonical_name, type, instagram_handle) VALUES (?, ?, 'host', ?)`, h.handle, `@${h.handle}`, h.handle).lastId;
+    run(
+      db,
+      `UPDATE people SET type = 'host', gender = ?, instagram_handle = COALESCE(instagram_handle, ?), notes = COALESCE(notes, ?) WHERE id = ?`,
+      h.gender,
+      h.handle,
+      h.note,
+      id
+    );
+    addAlias(db, 'person', id, `@${h.handle}`);
+    run(
+      db,
+      `INSERT OR IGNORE INTO content_people (content_id, person_id, role, source, confidence)
+       SELECT content_id, person_id, 'host', source, confidence FROM content_people WHERE person_id = ? AND role = 'guest'`,
+      id
+    );
+    run(db, `DELETE FROM content_people WHERE person_id = ? AND role = 'guest'`, id);
+  }
 }
 
 export function getSetting<T>(db: Db, key: string): T {

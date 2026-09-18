@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { get } from '@/lib/db/client';
+import { get, run } from '@/lib/db/client';
+import { linkPerson } from '@/lib/ingest/ingest';
+import { AnalysisSchema } from '@/lib/intel/analysis';
+import { seedReference } from '@/lib/seed';
 import { normalizeName, similarity, squash } from '@/lib/entities/normalize';
 import { createPerson, decideCandidate, resolveEntity } from '@/lib/entities/resolve';
 import { makePost, testDb } from './helpers';
@@ -60,5 +63,33 @@ describe('resolveEntity', () => {
   it('returns unknown for genuinely new names', () => {
     const db = testDb();
     expect(resolveEntity(db, 'person', '@somebodynew').kind).toBe('unknown');
+  });
+});
+
+describe('BBO hosts', () => {
+  const hostId = (db: ReturnType<typeof testDb>) => get<{ id: number; type: string }>(db, `SELECT id, type FROM people WHERE instagram_handle = 'kingmakerslurrty'`)!;
+
+  it('seeds the hosts as hosts, never guests', () => {
+    const db = testDb();
+    expect(hostId(db).type).toBe('host');
+    expect(get<{ type: string }>(db, `SELECT type FROM people WHERE instagram_handle = 'mstrillionairet'`)?.type).toBe('host');
+  });
+
+  it('links a tagged host as host, and turns an old guest tag into a host tag', () => {
+    const db = testDb();
+    const { contentId } = makePost(db);
+    linkPerson(db, contentId, hostId(db).id, 'guest', 'heuristic', 0.7);
+    expect(get<{ role: string }>(db, 'SELECT role FROM content_people WHERE content_id = ?', contentId)?.role).toBe('host');
+
+    // A guest tag written before the host was known is corrected on the next seed.
+    const other = makePost(db).contentId;
+    run(db, `INSERT INTO content_people (content_id, person_id, role, source, confidence) VALUES (?, ?, 'guest', 'heuristic', 0.7)`, other, hostId(db).id);
+    seedReference(db, process.cwd());
+    expect(get<{ role: string }>(db, 'SELECT role FROM content_people WHERE content_id = ?', other)?.role).toBe('host');
+  });
+
+  it('folds a "host" opening into "interviewer" — one person, one label', () => {
+    const parsed = AnalysisSchema.parse({ confidence: 'high', attributes: { opening_speaker_role: 'host' } });
+    expect(parsed.attributes.opening_speaker_role).toBe('interviewer');
   });
 });

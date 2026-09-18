@@ -131,8 +131,9 @@ export function decideCandidate(db: Db, candidateId: number, decision: Candidate
       run(
         db,
         `INSERT INTO content_people (content_id, person_id, role, source, confidence)
-         VALUES (?, ?, 'guest', 'human', 1) ON CONFLICT DO NOTHING`,
+         VALUES (?, ?, CASE WHEN (SELECT type FROM people WHERE id = ?) = 'host' THEN 'host' ELSE 'guest' END, 'human', 1) ON CONFLICT DO NOTHING`,
         candidate.context_content_id,
+        Number(entityId),
         Number(entityId)
       );
     }
