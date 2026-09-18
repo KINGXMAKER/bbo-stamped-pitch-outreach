@@ -80,6 +80,23 @@ export const INTERVIEW_FORMATS = ['podcast', 'street_interview'] as const;
  */
 export const RETIRED_BUCKETS: Record<string, ContentBucket> = { BADDIE_OF_THE_MONTH: 'OTHER_IGNORE' };
 
+/**
+ * BBO's own hosts (operator, 2026-09-18). A host is never a guest: they ask the
+ * questions, so they are left out of guest comparisons and guest gender mix.
+ */
+export const BBO_HOSTS = [
+  { handle: 'kingmakerslurrty', name: 'King Maker', gender: 'male', note: 'Host and creator of BBO.' },
+  { handle: 'mstrillionairet', name: 'Trill', gender: 'female', note: 'Host; runs most of the street interviews.' },
+] as const;
+
+/**
+ * Retired attribute values and what they now mean. On a BBO clip the host is the
+ * interviewer, so "host" and "interviewer" were one person split in two at random.
+ */
+export const ATTRIBUTE_VALUE_ALIASES: Record<string, Record<string, string>> = {
+  opening_speaker_role: { host: 'interviewer' },
+};
+
 export function normalizeBucket(value: unknown): ContentBucket | null {
   if (typeof value !== 'string') return null;
   if ((CONTENT_BUCKETS as readonly string[]).includes(value)) return value as ContentBucket;
@@ -153,7 +170,7 @@ export const ATTRIBUTE_DEFINITIONS: AttrDef[] = [
   { key: 'strongest_moment_quote', label: 'Strongest moment', type: 'text', group: 'substance', comparable: false },
   { key: 'strongest_opening_quote', label: 'Strongest possible opening', type: 'text', group: 'hook', comparable: false },
   { key: 'opening_is_strongest', label: 'Current opening is the strongest available', type: 'boolean', group: 'hook' },
-  { key: 'opening_speaker_role', label: 'Speaker opening the clip', type: 'enum', group: 'hook', values: ['guest', 'host', 'interviewer', 'voiceover', 'none'] },
+  { key: 'opening_speaker_role', label: 'Speaker opening the clip', type: 'enum', group: 'hook', values: ['guest', 'interviewer', 'voiceover', 'none'] },
   { key: 'question_opening', label: 'Opens on a question', type: 'boolean', group: 'hook' },
   { key: 'payoff_first', label: 'Payoff-first opening', type: 'boolean', group: 'hook' },
   { key: 'opening_visual', label: 'Opening visual', type: 'enum', group: 'hook', values: ['hook_card', 'speaker_closeup', 'wide_panel', 'reaction_shot', 'b_roll', 'graphic', 'other'] },

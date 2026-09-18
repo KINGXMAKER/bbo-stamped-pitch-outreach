@@ -5,6 +5,7 @@ import * as m0004 from './0004_escalation';
 import * as m0005 from './0005_model_quality';
 import * as m0006 from './0006_three_buckets';
 import * as m0007 from './0007_true_corrections';
+import * as m0008 from './0008_host_is_interviewer';
 
 export type Migration = { version: number; name: string; sql: string };
 
@@ -17,4 +18,5 @@ export const MIGRATIONS: Migration[] = [
   { version: 5, name: m0005.name, sql: m0005.sql },
   { version: 6, name: m0006.name, sql: m0006.sql },
   { version: 7, name: m0007.name, sql: m0007.sql },
+  { version: 8, name: m0008.name, sql: m0008.sql },
 ];

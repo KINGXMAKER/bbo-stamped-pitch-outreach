@@ -150,6 +150,12 @@ export function refreshFranchise(db: Db, contentId: number): void {
   run(db, 'UPDATE content SET franchise_id = ?, updated_at = ? WHERE id = ?', franchise?.id ?? null, nowIso(), contentId);
 }
 
+/** A BBO host tagged in a caption is hosting, not guesting. */
+export function hostAwareRole(db: Db, personId: number, role: string): string {
+  if (role !== 'guest') return role;
+  return get<{ type: string }>(db, 'SELECT type FROM people WHERE id = ?', personId)?.type === 'host' ? 'host' : role;
+}
+
 export function linkPerson(db: Db, contentId: number, personId: number, role: string, source: string, confidence: number): void {
   run(
     db,
@@ -157,7 +163,7 @@ export function linkPerson(db: Db, contentId: number, personId: number, role: st
      ON CONFLICT (content_id, person_id, role) DO NOTHING`,
     contentId,
     personId,
-    role,
+    hostAwareRole(db, personId, role),
     source,
     confidence
   );
