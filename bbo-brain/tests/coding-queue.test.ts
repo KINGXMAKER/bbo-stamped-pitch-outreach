@@ -4,7 +4,19 @@ import { setAttribute, writeMetrics } from '@/lib/ingest/ingest';
 import { activeScoreVersion, computeAllScores } from '@/lib/scoring/engine';
 import { buildQueue, corpusStatus, processedToday, tierFor } from '@/lib/sync/media-queue';
 import { loadFacts } from '@/lib/intel/dataset';
-import { accuracyByModel, codingAccuracy, coverageStats, createValidationBatch, currentValidationBatch, recordReview, validationSample } from '@/lib/intel/validation';
+import {
+  accuracyByModel,
+  codingAccuracy,
+  coverageStats,
+  createValidationBatch,
+  currentValidationBatch,
+  fieldsHeldFromMining,
+  recordReview,
+  recordUnverifiedFields,
+  renderValidationReport,
+  validationReport,
+  validationSample,
+} from '@/lib/intel/validation';
 import { benchmarkReport, pairAgreement } from '@/lib/intel/benchmark';
 import { buildIntelligenceReport, renderIntelligenceReport } from '@/lib/intel/report';
 import { ATTRIBUTE_DEFINITIONS } from '@/lib/seed/reference';
@@ -283,6 +295,31 @@ describe('human validation of AI coding', () => {
     expect(hook.corrected).toBe(1);
     expect(hook.agreement).toBeCloseTo(0.75, 5);
     expect(opening.agreement).toBe(1); // never corrected
+  });
+
+  it('counts a human label that matches the AI as a confirmation, not a correction', () => {
+    const db = seedCatalogue(testDb());
+    const [id] = seedCoded(db);
+    recordReview(db, { contentId: id, status: 'APPROVED' });
+    setAttribute(db, id, 'hook_type', 'confession', 'human', 1); // the human confirms the AI's own value
+
+    expect(all(db, 'SELECT 1 FROM attribute_corrections WHERE content_id = ?', id)).toHaveLength(0);
+    expect(codingAccuracy(db).attributes.find((a) => a.key === 'hook_type')?.agreement).toBe(1);
+  });
+
+  it('keeps fields the reviewer never judged out of agreement figures and lesson mining', () => {
+    const db = seedCatalogue(testDb());
+    const ids = seedCoded(db);
+    for (const id of ids.slice(0, 4)) recordReview(db, { contentId: id, status: 'APPROVED' });
+    recordUnverifiedFields(db, ['opening_type', 'topics']);
+
+    const report = validationReport(db);
+    expect(report.unverified).toEqual(['opening_type', 'topics']);
+    expect(report.fields.map((f) => f.key)).not.toContain('opening_type'); // an approval is not evidence for an unchecked field
+    expect(report.fields.map((f) => f.key)).toContain('hook_type');
+    expect(report.topics.rate).toBeNull();
+    expect(fieldsHeldFromMining(db)).toEqual(expect.arrayContaining(['opening_type', 'topics']));
+    expect(renderValidationReport(report)).toContain('Not verified by the reviewer');
   });
 
   it('records which provider and model produced each reviewed label', () => {

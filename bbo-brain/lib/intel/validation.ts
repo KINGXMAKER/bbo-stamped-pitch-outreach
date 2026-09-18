@@ -300,6 +300,8 @@ export type ValidationReport = {
   byMedia: Array<{ input: 'with media' | 'caption only'; compared: number; agreed: number; rate: number }>;
   byModel: Array<{ model: string; compared: number; agreed: number; rate: number }>;
   unreliable: string[];
+  /** Fields the reviewer's approvals did not cover: not measured, held from mining. */
+  unverified: string[];
 };
 
 /**
@@ -308,11 +310,12 @@ export type ValidationReport = {
  * fall below the reliability bar stop feeding lesson mining (see unreliableCodedFields).
  */
 export function validationReport(db: Db): ValidationReport {
+  const unverified = unverifiedFields(db);
   const rows = all<{ content_id: number; key: string; ai_value: string; human_value: string | null; agreed: number; ai_provider: string | null; ai_model: string | null }>(
     db,
     `SELECT content_id, key, ai_value, human_value, agreed, ai_provider, ai_model FROM coding_agreement WHERE key IN (${REVIEW_KEYS.map(() => '?').join(',')})`,
     ...REVIEW_KEYS
-  );
+  ).filter((r) => !unverified.includes(r.key));
   const media = new Map(
     all<{ id: number; has_media: number }>(
       db,
@@ -368,11 +371,14 @@ export function validationReport(db: Db): ValidationReport {
     batchReviewed: batch?.reviewed ?? 0,
     overall: { compared: rows.length, agreed: rows.filter((r) => r.agreed === 1).length, rate: rows.length ? rows.filter((r) => r.agreed === 1).length / rows.length : null },
     fields,
-    // A reviewed post whose topics a human left alone counts as agreement.
-    topics: { compared: topicRows.length, agreed: topicRows.filter((r) => r.human === 0).length, rate: topicRows.length ? topicRows.filter((r) => r.human === 0).length / topicRows.length : null },
+    // A reviewed post whose topics a human left alone counts as agreement — unless the reviewer never checked topics.
+    topics: unverified.includes(TOPICS_FIELD)
+      ? { compared: 0, agreed: 0, rate: null }
+      : { compared: topicRows.length, agreed: topicRows.filter((r) => r.human === 0).length, rate: topicRows.length ? topicRows.filter((r) => r.human === 0).length / topicRows.length : null },
     byMedia: group((r) => (media.get(r.content_id) ? 'with media' : 'caption only')).map((g) => ({ input: g.key as 'with media' | 'caption only', compared: g.compared, agreed: g.agreed, rate: g.rate })),
     byModel: group((r) => `${r.ai_provider ?? '?'}/${r.ai_model ?? '?'}`).map((g) => ({ model: g.key, compared: g.compared, agreed: g.agreed, rate: g.rate })),
     unreliable: unreliableCodedFields(db),
+    unverified,
   };
 }
 
@@ -394,6 +400,28 @@ export function unreliableCodedFields(db: Db): string[] {
     .map((r) => r.key);
 }
 
+/**
+ * Approve records every field on a post as agreed, so a field the reviewer never
+ * actually judged would read as 100% human-verified. Fields listed here stay out
+ * of the agreement figures and out of lesson mining until they are checked.
+ */
+const UNVERIFIED_SETTING = 'validation_unverified_fields';
+export const TOPICS_FIELD = 'topics';
+
+export function unverifiedFields(db: Db): string[] {
+  const known = new Set<string>([...REVIEW_KEYS, TOPICS_FIELD]);
+  return (getSetting<string[] | undefined>(db, UNVERIFIED_SETTING) ?? []).filter((k) => known.has(k));
+}
+
+export function recordUnverifiedFields(db: Db, keys: string[]): void {
+  setSetting(db, UNVERIFIED_SETTING, [...new Set(keys)]);
+}
+
+/** What lesson mining must not treat as evidence: fields review showed are wrong, and fields review never checked. */
+export function fieldsHeldFromMining(db: Db): string[] {
+  return [...new Set([...unreliableCodedFields(db), ...unverifiedFields(db)])];
+}
+
 const vpct = (x: number | null) => (x === null ? '—' : `${Math.round(x * 100)}%`);
 
 /** The model-quality dataset, written down: what human review says the AI understands. */
@@ -402,12 +430,19 @@ export function renderValidationReport(r: ValidationReport): string {
   lines.push('# BBO BRAIN coding validation', '', `${r.reviewed} posts reviewed (batch ${r.batchReviewed}/${r.batchSize}) · ${r.overall.compared} labels compared`, '');
   lines.push(`**Overall agreement: ${vpct(r.overall.rate)}** (${r.overall.agreed}/${r.overall.compared} labels).`, '');
   const field = (key: string) => r.fields.find((f) => f.key === key);
+  const held = (key: string) => r.unverified.includes(key);
   lines.push('| Headline | Agreement | Compared |', '|---|---|---|');
   for (const key of ['hook_type', 'opening_type']) {
     const f = field(key);
-    lines.push(`| ${key.replace(/_/g, ' ')} | ${f ? vpct(f.rate) : '—'} | ${f?.compared ?? 0} |`);
+    lines.push(`| ${key.replace(/_/g, ' ')} | ${held(key) ? 'not verified' : f ? vpct(f.rate) : '—'} | ${f?.compared ?? 0} |`);
   }
-  lines.push(`| topics | ${vpct(r.topics.rate)} | ${r.topics.compared} |`, '');
+  lines.push(`| topics | ${held(TOPICS_FIELD) ? 'not verified' : vpct(r.topics.rate)} | ${r.topics.compared} |`, '');
+  if (r.unverified.length) {
+    lines.push(
+      `**Not verified by the reviewer:** ${r.unverified.map((k) => k.replace(/_/g, ' ')).join(', ')}. The approvals did not cover these, so they are left out of every agreement figure here and held out of lesson mining until they are checked.`,
+      ''
+    );
+  }
   lines.push('## Every field, worst first', '', '| Field | Agreement | Compared | Most common confusions (AI → human) |', '|---|---|---|---|');
   for (const f of r.fields) {
     lines.push(`| ${f.key.replace(/_/g, ' ')} | ${vpct(f.rate)} | ${f.compared} | ${f.confusions.map((c) => `${c.from} → ${c.to} (${c.n})`).join('; ') || '—'} |`);
