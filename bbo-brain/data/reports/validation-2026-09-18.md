@@ -1,8 +1,8 @@
 # BBO BRAIN coding validation
 
-31 posts reviewed (batch 25/25) · 573 labels compared
+31 posts reviewed (batch 25/25) · 542 labels compared
 
-**Overall agreement: 100%** (573/573 labels).
+**Overall agreement: 100%** (542/542 labels).
 
 | Headline | Agreement | Compared |
 |---|---|---|
@@ -10,7 +10,7 @@
 | opening type | 100% | 31 |
 | topics | not verified | 0 |
 
-**Not verified by the reviewer:** topics, controversy type, clarity rating. The approvals did not cover these, so they are left out of every agreement figure here and held out of lesson mining until they are checked.
+**Not verified by the reviewer:** topics, controversy type, clarity rating, guest gender mix. The approvals did not cover these, so they are left out of every agreement figure here and held out of lesson mining until they are checked.
 
 ## Every field, worst first
 
@@ -22,7 +22,6 @@
 | editing style | 100% | 31 | — |
 | emotional trigger | 100% | 31 | — |
 | guest answer opening | 100% | 31 | — |
-| guest gender mix | 100% | 31 | — |
 | has text hook | 100% | 31 | — |
 | hook type | 100% | 31 | — |
 | interview format | 100% | 24 | — |
@@ -40,12 +39,12 @@
 
 | Input | Agreement | Compared |
 |---|---|---|
-| with media | 100% | 573 |
+| with media | 100% | 542 |
 
 ## Accuracy by model
 
 | Model | Agreement | Compared |
 |---|---|---|
-| openrouter/qwen/qwen3-vl-32b-instruct | 100% | 573 |
+| openrouter/qwen/qwen3-vl-32b-instruct | 100% | 542 |
 
 No field is below 60% agreement on 10+ reviews, so none is excluded from lesson mining.

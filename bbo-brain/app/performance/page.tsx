@@ -1,3 +1,4 @@
+import { QualityMetrics } from '@/components/quality-metrics';
 import { createScoreVersionAction } from '@/app/actions';
 import { ScoreHistogram, TrendLine } from '@/components/charts';
 import { JobButton, SubmitButton } from '@/components/client';
@@ -20,7 +21,8 @@ export default async function Performance({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const db = getDb();
   const version = activeScoreVersion(db);
-  const facts = comparable(loadFacts(db));
+  const allFacts = loadFacts(db);
+  const facts = comparable(allFacts);
   const labels = all<{ label: string; n: number }>(db, 'SELECT label, COUNT(*) AS n FROM performance_scores WHERE score_version_id = ? GROUP BY label', version.id);
   const labelN = (l: string) => labels.find((x) => x.label === l)?.n ?? 0;
 
@@ -52,6 +54,8 @@ export default async function Performance({ searchParams }: { searchParams: Prom
         lede={<>A score of <em>1.0 is what BBO normally gets</em> from comparable posts published around the same time. Views alone never decide it — shares, comments, saves and retention carry most of the weight.</>}
         actions={<JobButton kind="score" label="Recompute scores" className="btn" />}
       />
+
+      <QualityMetrics db={db} facts={allFacts} sp={sp} threshold={version.thresholds.WINNER} />
 
       <div className="grid-4">
         <Stat label="Scored posts" value={facts.length.toLocaleString()} />
