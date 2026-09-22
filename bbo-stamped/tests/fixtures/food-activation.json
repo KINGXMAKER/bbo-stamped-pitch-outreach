@@ -1,0 +1,2572 @@
+{
+ "id": "act-food",
+ "createdAt": "2026-08-27T00:00:00.000Z",
+ "updatedAt": "2026-08-27T00:00:00.000Z",
+ "business": {
+  "name": "The Patio",
+  "city": "Newark, NJ"
+ },
+ "kitchenAccess": "approved",
+ "clientRequirements": [
+  "Signature food",
+  "Cocktails",
+  "Venue aesthetic",
+  "Group content",
+  "Chef / preparation"
+ ],
+ "photos": [],
+ "venueAnalysis": {
+  "business": {
+   "inferredCategory": "Restaurant",
+   "subcategories": [
+    "Bar",
+    "Lounge"
+   ],
+   "confidence": 95,
+   "reasoning": "The presence of stylized food and cocktail representations, combined with 'THE PATIO | KITCHEN' signage and operator notes about a chef, signature dish, and cocktails, strongly indicates a restaurant with a bar. The name 'The Patio' suggests outdoor dining or a lounge area."
+  },
+  "summary": "A stylish, dark-toned restaurant and bar with a focus on signature dishes and cocktails, likely featuring a patio area. The aesthetic is modern and minimalist, with warm, localized lighting.",
+  "visualProfile": {
+   "atmosphere": [
+    "Warm",
+    "Intimate",
+    "Modern",
+    "Minimalist"
+   ],
+   "visualIdentity": "Abstract and minimalist design with warm lighting and a dark, rich color palette.",
+   "dominantColors": [
+    "Dark Brown",
+    "Beige",
+    "Black",
+    "Gold",
+    "White",
+    "Pink",
+    "Green"
+   ],
+   "premiumLevel": "Mid-range",
+   "spatialFeel": "Cozy",
+   "crowdEnergyPotential": "Moderate",
+   "lighting": {
+    "overall": "Warm, localized, and generally dim.",
+    "strongestAreas": [
+     "Above dining/bar counter (under pendant lights)"
+    ],
+    "problemAreas": [
+     "General ambient darkness, especially lower sections of the frame.",
+     "Potential for uneven lighting if not positioned correctly."
+    ],
+    "recommendations": [
+     "Utilize natural light if available (especially for 'Patio' area, though not seen).",
+     "Bring portable LED panels for fill light, especially for talent and food close-ups.",
+     "Position talent directly under or near existing pendant lights to maximize warm glow.",
+     "Embrace the dim, intimate mood for certain shots."
+    ]
+   }
+  },
+  "zones": [
+   {
+    "id": "zone-bar-counter",
+    "name": "Bar/Dining Counter",
+    "description": "A dark brown counter surface featuring stylized food, cocktails, and a 'person' icon, illuminated by overhead pendant lights.",
+    "bestFor": [
+     "Cocktail preparation/showcase",
+     "Food plating (chef interaction)",
+     "Talent enjoying drinks/food",
+     "Group content (seated)",
+     "Interview segments"
+    ],
+    "sourcePhotoIds": [
+     "photo-1"
+    ],
+    "priority": "hero"
+   },
+   {
+    "id": "zone-kitchen",
+    "name": "Kitchen",
+    "description": "Back-of-house area where food preparation and plating will occur, as indicated by signage and operator notes. Not visually depicted in the provided image.",
+    "bestFor": [
+     "Chef / preparation content",
+     "Behind-the-scenes footage",
+     "Signature dish plating"
+    ],
+    "sourcePhotoIds": [
+     "photo-1"
+    ],
+    "priority": "strong"
+   },
+   {
+    "id": "zone-patio",
+    "name": "Patio Area",
+    "description": "An outdoor or semi-outdoor dining/lounge area, implied by the business name and owner's request. Not visually depicted in the provided image.",
+    "bestFor": [
+     "Venue aesthetic showcase",
+     "Group content (relaxed setting)",
+     "Natural light shots (if applicable)"
+    ],
+    "sourcePhotoIds": [
+     "photo-1"
+    ],
+    "priority": "strong"
+   }
+  ],
+  "standoutFeatures": [
+   {
+    "feature": "Minimalist, abstract aesthetic with warm, localized lighting.",
+    "opportunity": "Creates a distinct, sophisticated visual identity for the brand. Can be leveraged for stylized, artistic shots of food and cocktails.",
+    "sourcePhotoIds": [
+     "photo-1"
+    ]
+   },
+   {
+    "feature": "Clear 'THE PATIO | KITCHEN' branding visible in-frame.",
+    "opportunity": "Excellent for establishing shots, branding reinforcement, and transitions between front-of-house and back-of-house content.",
+    "sourcePhotoIds": [
+     "photo-1"
+    ]
+   },
+   {
+    "feature": "Stylized food and cocktail representations.",
+    "opportunity": "Can be used as a visual motif or a playful way to introduce the offerings, especially for short-form content.",
+    "sourcePhotoIds": [
+     "photo-1"
+    ]
+   }
+  ],
+  "usableProps": [
+   "Hanging pendant lights",
+   "Stylized cocktail glasses (pink, orange/gold)",
+   "Stylized food plate with two distinct items",
+   "Black rectangular screens/boards"
+  ],
+  "visibleProductsOrServices": [
+   "Signature food dish (represented by two items on a plate)",
+   "Cocktails (represented by two stylized glasses)"
+  ],
+  "filmingChallenges": [
+   "Overall dim lighting requiring supplemental light for talent and detailed shots.",
+   "Abstract nature of the visuals might require careful framing to convey real-world appeal.",
+   "Lack of visual information on the 'Patio' and 'Kitchen' areas means planning those shots based on operator notes, not visual scouting."
+  ],
+  "bestHeroLocation": {
+   "description": "The bar/dining counter area, featuring the stylized food, cocktails, and the 'THE PATIO | KITCHEN' signage in the background.",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "why": "This area immediately communicates the business type (restaurant/bar), showcases its core offerings (food, drinks), and highlights its unique minimalist aesthetic and branding. It also allows for dynamic interaction with talent and potential chef plating."
+  },
+  "observationsByPhoto": [
+   {
+    "photoId": "photo-1",
+    "observations": [
+     "The scene depicts a dark-toned interior with a brown counter/table.",
+     "Three warm, yellow/beige pendant lights hang from the ceiling, providing localized illumination.",
+     "Two black rectangular boards are visible; one on the right displays 'THE PATIO | KITCHEN' in pink text.",
+     "Stylized representations of cocktails (pink and orange/gold inverted triangles) with white oval bases are present.",
+     "A white oval plate in the center contains two abstract, colored food items (brown/orange and green ovals).",
+     "A beige circle and white rectangle on the left board suggest a stylized person.",
+     "The overall aesthetic is minimalist and abstract."
+    ],
+    "shotOpportunities": [
+     "Close-ups of the stylized food and cocktails.",
+     "Shots featuring the 'THE PATIO | KITCHEN' signage for branding.",
+     "Wide shots capturing the intimate, warm ambiance created by the pendant lights.",
+     "Talent interacting with the drinks and food at the counter.",
+     "Establishing shots of the venue's unique visual identity."
+    ]
+   }
+  ]
+ },
+ "reels": [
+  {
+   "id": "reel-1",
+   "title": "The Patio Newark: Full Experience",
+   "concept": "Follow the talent through a complete night at The Patio \u2014 from the chef plating the signature dish in the kitchen, to cocktails at the bar, to the group vibing on the patio. This is the hero Reel that shows every dimension of the space in one fluid story.",
+   "goal": "Establish The Patio as a complete experience destination for Black and Latina women in Newark \u2014 not just a meal, but a whole vibe from kitchen to patio.",
+   "recommendedDuration": 45,
+   "format": "experience",
+   "hook": "Open on tight shot of chef's hands plating signature dish in kitchen under focused light \u2014 immediate luxury food content that stops the scroll before viewers even know where they are.",
+   "audienceReactionGoal": "Save this spot for their next Newark girls' night. Feel like they got an insider look at a spot that delivers on food, drinks, and atmosphere.",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "sequence": [
+    {
+     "id": "reel-1-beat-1",
+     "order": 1,
+     "label": "Kitchen Opening",
+     "startSecond": 0,
+     "endSecond": 4,
+     "purpose": "Hook with high-value food content and behind-the-scenes access that immediately signals quality.",
+     "description": "Tight shot of chef's hands plating signature dish in kitchen. Focus on precision, garnish, drizzle. THE PATIO | KITCHEN signage visible in background blur.",
+     "shotsNeeded": [
+      "Overhead or side angle of chef plating signature dish with deliberate precision",
+      "Close-up of garnish or sauce being added",
+      "Quick cut to finished plate being lifted",
+      "Kitchen signage in soft focus background"
+     ],
+     "voiceover": "",
+     "dialogue": "",
+     "onScreenText": "Newark's been hiding this \ud83d\udc40",
+     "editingDirection": "Fast cuts synchronized to music beat. Keep tight and intimate. Warm color grade to emphasize lighting."
+    },
+    {
+     "id": "reel-1-beat-2",
+     "order": 2,
+     "label": "Bar Transition",
+     "startSecond": 4,
+     "endSecond": 10,
+     "purpose": "Establish the bar as a destination and introduce talent naturally receiving their order.",
+     "description": "Wide shot of bar counter with pendant lights, then cut to bartender sliding two signature cocktails across the dark counter toward Kayla and Amber seated at bar. They react with genuine excitement.",
+     "shotsNeeded": [
+      "Wide establishing shot of bar counter under pendant lights with THE PATIO branding visible",
+      "Medium shot of bartender sliding cocktails across counter",
+      "Reaction shot of Kayla and Amber receiving drinks",
+      "Close-up of cocktails on dark counter surface with lighting highlighting colors"
+     ],
+     "voiceover": "",
+     "dialogue": "Kayla (natural, not scripted): 'Wait, this is gorgeous'",
+     "onScreenText": "The Patio Newark",
+     "editingDirection": "Smooth transition from kitchen to bar. Let the pendant light create visual continuity. Hold on cocktail close-up for 1.5 seconds."
+    },
+    {
+     "id": "reel-1-beat-3",
+     "order": 3,
+     "label": "First Bite Moment",
+     "startSecond": 10,
+     "endSecond": 18,
+     "purpose": "Deliver the food payoff and genuine talent reaction that validates the quality.",
+     "description": "Signature dish arrives at bar. Kayla takes first bite while Amber watches. Real reaction, not performed. Cut to close-up of the dish, then back to Kayla's face.",
+     "shotsNeeded": [
+      "Server or chef placing signature dish on bar counter",
+      "Close-up of dish from overhead showing both components clearly",
+      "Wide shot of Kayla taking first bite with Amber leaning in",
+      "Tight shot of Kayla's genuine reaction",
+      "B-roll of second bite or Amber reaching for her fork"
+     ],
+     "voiceover": "",
+     "dialogue": "Kayla (authentic reaction): 'Oh this is\u2014' Amber: 'That good?' Kayla: 'Yeah that's the one'",
+     "onScreenText": "",
+     "editingDirection": "Let the reaction breathe. Don't cut too fast. Real moments sell better than performed ones. Audio mix should capture authentic conversation."
+    },
+    {
+     "id": "reel-1-beat-4",
+     "order": 4,
+     "label": "Group Energy Shift",
+     "startSecond": 18,
+     "endSecond": 28,
+     "purpose": "Transition to the patio and show this is a spot for groups, not just couples or solo diners.",
+     "description": "All four talent now on the patio. Nia and Dee have joined. Group is laughing, cocktails in hand, relaxed body language. Multiple angles of genuine interaction \u2014 not posed, just vibing.",
+     "shotsNeeded": [],
+     "voiceover": "",
+     "dialogue": "Natural conversation audio mixed low under music, occasional laughter audible",
+     "onScreenText": "Bring your girls",
+     "editingDirection": "Multiple quick cuts showing different pairs and angles. Energy should feel spontaneous. If patio has natural light, use it. If evening/night, lean into warm artificial lighting."
+    },
+    {
+     "id": "reel-1-beat-5",
+     "order": 5,
+     "label": "Verdict Moment",
+     "startSecond": 28,
+     "endSecond": 36,
+     "purpose": "Deliver the BBO Stamped verdict clearly and confidently without corporate language.",
+     "description": "Kayla addresses camera directly from patio with group visible behind her. She delivers the verdict in BBO voice \u2014 direct, confident, no hedging.",
+     "shotsNeeded": [
+      "Medium shot of Kayla addressing camera with group and patio in background",
+      "Quick cut to group behind her still vibing",
+      "Return to Kayla for final line",
+      "B-roll of bar or food as visual punctuation"
+     ],
+     "voiceover": "",
+     "dialogue": "Kayla to camera: 'The Patio got the food, the drinks, and the vibe. Newark girls, this is the spot. We're stamping it.'",
+     "onScreenText": "",
+     "editingDirection": "Kayla's delivery should feel natural and authoritative. Cut to group behind her when she says 'the vibe' to show proof. End on her confident final line."
+    },
+    {
+     "id": "reel-1-beat-6",
+     "order": 6,
+     "label": "Closing Shot",
+     "startSecond": 36,
+     "endSecond": 45,
+     "purpose": "End with branding and location information while maintaining the vibe.",
+     "description": "Final wide shot of the bar with pendant lights and THE PATIO | KITCHEN signage clearly visible. Group silhouettes visible on patio in background if possible. Hold for location tag and handle.",
+     "shotsNeeded": [
+      "Wide shot of bar counter with signage and lighting showcased",
+      "Optional: slow push-in on branding",
+      "Optional: final shot of cocktails on counter"
+     ],
+     "voiceover": "",
+     "dialogue": "",
+     "onScreenText": "@thepationwk | Newark, NJ",
+     "editingDirection": "Clean, simple end. Let the space speak. Hold shot long enough for viewers to read handle and location. Music fades out or cuts cleanly."
+    }
+   ],
+   "audioDirection": {
+    "type": "music-bed",
+    "direction": "Uptempo instrumental with warm, smooth energy that works for both food content and group vibes. Not aggressive club music, not soft jazz \u2014 something in between that feels like a night out but still polished. Beat should hit on key editing cuts.",
+    "searchTerms": [
+     "r&b instrumental upbeat",
+     "neo soul instrumental modern",
+     "smooth hip hop beat food content"
+    ]
+   },
+   "captionIdeas": [
+    "Newark been keeping secrets and The Patio is one of them \ud83c\udf7d\ufe0f\u2728",
+    "Chef in the kitchen, cocktails at the bar, your girls on the patio \u2014 The Patio Newark got everything",
+    "When the food hits AND the vibe is right \ud83d\udd25 @thepationwk doing it for Newark",
+    "We stamped it. The Patio Newark is the move for your next girls' night \ud83d\udc6f\u200d\u2640\ufe0f"
+   ],
+   "selected": true,
+   "locked": false
+  },
+  {
+   "id": "reel-2",
+   "title": "Signature Dish Spotlight",
+   "concept": "A tight, food-focused Reel that follows the signature dish from chef's hands to first bite. This is pure culinary content for the foodie algorithm \u2014 less talking, more showing.",
+   "goal": "Drive food-motivated traffic to The Patio by showcasing the signature dish as a must-try item in Newark.",
+   "recommendedDuration": 25,
+   "format": "voiceover",
+   "hook": "Open on extreme close-up of signature dish component being plated \u2014 a detail so appetizing viewers stop mid-scroll.",
+   "audienceReactionGoal": "Comment 'What is this called?' and 'Where in Newark?' Save for their food bucket list. Tag friends who need to try it.",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "sequence": [
+    {
+     "id": "reel-2-beat-1",
+     "order": 1,
+     "label": "Plating Sequence",
+     "startSecond": 0,
+     "endSecond": 10,
+     "purpose": "Hook with high-detail food prep that shows craft and quality.",
+     "description": "Series of tight shots showing chef building the signature dish step by step in the kitchen. Each component gets a moment. Hands move with confidence and precision.",
+     "shotsNeeded": [
+      "Extreme close-up of first component being placed on plate",
+      "Chef's hands adding second element",
+      "Sauce or garnish being drizzled or placed with precision",
+      "Quick overhead of complete dish before it leaves kitchen",
+      "Shot of chef's focused expression or hands wiping plate edge"
+     ],
+     "voiceover": "Kayla (confident, not overly excited): 'The Patio's signature dish. Chef plates it himself.'",
+     "dialogue": "",
+     "onScreenText": "The Patio | Newark",
+     "editingDirection": "Tight, methodical cuts. Each shot should be 1-2 seconds max. Let the food be the star. Warm color grade. Shallow depth of field where possible."
+    },
+    {
+     "id": "reel-2-beat-2",
+     "order": 2,
+     "label": "The Presentation",
+     "startSecond": 10,
+     "endSecond": 15,
+     "purpose": "Show the finished dish in the actual dining environment to bridge kitchen and experience.",
+     "description": "Finished dish is placed on the dark bar counter under pendant lighting. Camera circles or pushes in slowly. Lighting hits the dish perfectly. No hands, no distraction \u2014 just the food.",
+     "shotsNeeded": [
+      "Wide shot of dish being set on bar counter",
+      "Slow push-in or circle around dish showcasing both components",
+      "Overhead shot showing dish composition against dark counter",
+      "Side angle showing depth and plating height if applicable"
+     ],
+     "voiceover": "Kayla: 'Two components. Both hit.'",
+     "dialogue": "",
+     "onScreenText": "",
+     "editingDirection": "Slow down here. Let viewers take it in. This is the hero moment for the dish. Music should build slightly."
+    },
+    {
+     "id": "reel-2-beat-3",
+     "order": 3,
+     "label": "First Bite Payoff",
+     "startSecond": 15,
+     "endSecond": 21,
+     "purpose": "Validate the food with genuine human reaction that viewers trust.",
+     "description": "Amber takes the first bite at the bar. Real reaction \u2014 eyes, face, body language. Cut to close-up of fork cutting through the dish, then back to her reaction.",
+     "shotsNeeded": [
+      "Medium shot of Amber taking first bite",
+      "Close-up of fork cutting into dish showing texture",
+      "Tight shot of Amber's face reacting",
+      "Optional: second angle of her nodding or saying something to Kayla off-camera"
+     ],
+     "voiceover": "",
+     "dialogue": "Amber (natural, minimal): 'Okay. Yeah.' or just a genuine facial reaction with no words",
+     "onScreenText": "",
+     "editingDirection": "Keep it real. Over-the-top reactions kill credibility. A subtle nod or genuine surprise is more valuable. Audio can be minimal or mixed low."
+    },
+    {
+     "id": "reel-2-beat-4",
+     "order": 4,
+     "label": "The Stamp",
+     "startSecond": 21,
+     "endSecond": 25,
+     "purpose": "Close with clear call-to-action and location information.",
+     "description": "Final shot of the dish on the counter with THE PATIO branding visible in background. Hold for handle and location tag.",
+     "shotsNeeded": [
+      "Clean final shot of dish with bar and signage in background",
+      "Optional: pull-out revealing more of the bar environment"
+     ],
+     "voiceover": "Kayla: 'The Patio. Newark.'",
+     "dialogue": "",
+     "onScreenText": "@thepationwk",
+     "editingDirection": "Simple, clean end. No need to overcomplicate. The food already did the work."
+    }
+   ],
+   "audioDirection": {
+    "type": "music-bed",
+    "direction": "Minimal, atmospheric instrumental that doesn't compete with voiceover. Something with subtle rhythm but not overpowering \u2014 think moody, sophisticated, food-focused. Low-end warmth without heavy bass.",
+    "searchTerms": [
+     "minimal food content music",
+     "atmospheric instrumental cooking",
+     "lofi beat subtle food"
+    ]
+   },
+   "captionIdeas": [
+    "Chef-plated. Every single time. \ud83d\udc68\ud83c\udffe\u200d\ud83c\udf73",
+    "The Patio's signature dish and why Newark keeps coming back",
+    "When the chef plates it himself, you know it's serious @thepationwk",
+    "This is what $[price if known, otherwise remove this caption] gets you at The Patio Newark"
+   ],
+   "selected": true,
+   "locked": false
+  },
+  {
+   "id": "reel-3",
+   "title": "Cocktail Aesthetic",
+   "concept": "A visually driven Reel focused entirely on the cocktails, the bar aesthetic, and the dark minimalist vibe. This is for the audience that chooses spots based on how they look on camera.",
+   "goal": "Position The Patio as an Instagram-worthy cocktail destination with a distinct visual identity that photographs and films beautifully.",
+   "recommendedDuration": 20,
+   "format": "lifestyle",
+   "hook": "Open on a cocktail being placed on the dark counter under pendant light \u2014 the colors pop against the dark background immediately.",
+   "audienceReactionGoal": "Save for date night or girls' night. Comment on the aesthetic. Ask what cocktail that is. Share to story and tag the location.",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "sequence": [
+    {
+     "id": "reel-3-beat-1",
+     "order": 1,
+     "label": "Cocktail Arrival",
+     "startSecond": 0,
+     "endSecond": 5,
+     "purpose": "Immediate visual hook with color, lighting, and composition that signals aesthetic content.",
+     "description": "Bartender places signature cocktail on dark bar counter. Camera is low, slightly angled. Pendant light illuminates the drink. Colors \u2014 pink or orange/gold \u2014 pop against dark background. Slow motion or regular speed depending on music tempo.",
+     "shotsNeeded": [
+      "Low angle shot of cocktail being placed on counter",
+      "Close-up of cocktail glass showing color and garnish under pendant light",
+      "Overhead shot showing drink against dark counter texture",
+      "Optional: bartender's hand releasing glass and pulling away"
+     ],
+     "voiceover": "",
+     "dialogue": "",
+     "onScreenText": "The Patio Newark",
+     "editingDirection": "Let the visual do the talking. Slow push-in or hold steady. Color grade to emphasize warm lighting and cocktail colors against dark background."
+    },
+    {
+     "id": "reel-3-beat-2",
+     "order": 2,
+     "label": "Bar Environment",
+     "startSecond": 5,
+     "endSecond": 10,
+     "purpose": "Establish the minimalist aesthetic and show this is a designed space, not just a drink.",
+     "description": "Series of shots showcasing the bar area \u2014 pendant lights, dark counter, THE PATIO | KITCHEN signage, clean lines. No people yet, just space and mood.",
+     "shotsNeeded": [
+      "Wide shot of bar counter with pendant lights and signage",
+      "Close-up of pendant light fixture",
+      "Slow pan across bar surface",
+      "Detail shot of branding or architectural element"
+     ],
+     "voiceover": "",
+     "dialogue": "",
+     "onScreenText": "",
+     "editingDirection": "Smooth, deliberate camera movement. Think high-end restaurant content. Let each shot breathe for 1-2 seconds. Maintain warm, moody color grade."
+    },
+    {
+     "id": "reel-3-beat-3",
+     "order": 3,
+     "label": "Talent and Cocktail",
+     "startSecond": 10,
+     "endSecond": 16,
+     "purpose": "Show how the space and drinks look with real people \u2014 the aspirational lifestyle moment.",
+     "description": "Nia and Kayla seated at bar with cocktails. They're not performing \u2014 just existing beautifully in the space. Laughing, sipping, vibing. Camera captures them as part of the aesthetic.",
+     "shotsNeeded": [
+      "Wide shot of both talent at bar with pendant lights above",
+      "Close-up of Nia holding cocktail glass near face, light hitting it perfectly",
+      "Over-the-shoulder shot of Kayla with her drink, bar in background",
+      "Medium shot of both laughing naturally with drinks in hand"
+     ],
+     "voiceover": "",
+     "dialogue": "No dialogue, just ambient audio or muted conversation mixed very low under music",
+     "onScreenText": "Where Newark goes for cocktails",
+     "editingDirection": "Keep it elegant. Not rushed. Show that this is a place to be seen and to relax. Shots should feel composed but not stiff."
+    },
+    {
+     "id": "reel-3-beat-4",
+     "order": 4,
+     "label": "Closing Visual",
+     "startSecond": 16,
+     "endSecond": 20,
+     "purpose": "End with a clean, beautiful shot that makes viewers want to visit and post their own content.",
+     "description": "Final shot of two cocktails side by side on the dark counter under perfect lighting. Hold for location tag. No people, no movement \u2014 just the drinks and the vibe.",
+     "shotsNeeded": [
+      "Overhead or straight-on shot of two cocktails on counter",
+      "Ensure THE PATIO branding is visible in background blur",
+      "Perfect lighting showcasing drink colors"
+     ],
+     "voiceover": "",
+     "dialogue": "",
+     "onScreenText": "@thepationwk | Newark",
+     "editingDirection": "Static or very slow push-in. Hold long enough for viewers to screenshot. This is the 'I want to post this from this spot' shot."
+    }
+   ],
+   "audioDirection": {
+    "type": "music-bed",
+    "direction": "Smooth, sensual, downtempo beat with sophisticated energy. Something that feels like nighttime, cocktails, and good lighting. Not club music, not lounge jazz \u2014 modern, stylish, slightly sexy without being aggressive.",
+    "searchTerms": [
+     "downtempo r&b instrumental",
+     "smooth night out beat",
+     "sophisticated lifestyle music"
+    ]
+   },
+   "captionIdeas": [
+    "The lighting. The drinks. The vibe. The Patio Newark gets it \ud83c\udf78",
+    "Newark's most aesthetic bar? We're calling it \ud83d\udc40",
+    "When the spot looks this good, your camera roll thanks you @thepationwk",
+    "Dark bars, bright cocktails, good energy \u2728 The Patio Newark"
+   ],
+   "selected": true,
+   "locked": false
+  }
+ ],
+ "shots": [
+  {
+   "id": "reel-1-shot-1",
+   "title": "Chef Hands Plating Signature Dish - Overhead",
+   "category": "service",
+   "priority": "must",
+   "description": "Overhead or high-angle tight shot of chef's hands plating the signature dish in the kitchen. Focus on precision movements: placing components, adding garnish, drizzling sauce. THE PATIO | KITCHEN signage visible in soft focus background.",
+   "purpose": "Opens the Reel with immediate credibility and craft. Shows the care behind the food before anyone tastes it.",
+   "zoneId": "zone-kitchen",
+   "location": "Kitchen prep station or plating area",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Chef plating signature dish",
+   "talentIds": [],
+   "camera": {
+    "framing": "Tight overhead or high-angle on hands and plate",
+    "zoomOrLens": "50mm or tighter to isolate action",
+    "movement": "Static or slow push-in on final garnish",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Chef plates the signature dish as they normally would, with deliberate, confident movements. No rush. Focus on the final touches: garnish placement, sauce drizzle, any finishing detail.",
+   "dialogue": "None",
+   "props": [
+    "Signature dish components",
+    "Plating tools",
+    "Garnishes",
+    "Sauce bottles"
+   ],
+   "minimumUsefulDuration": 12,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-1"
+    }
+   ],
+   "editingNote": "Cut tight on the most deliberate moments: garnish drop, sauce drizzle, final adjustment. Use the signage blur as a background anchor. This is the cold open \u2014 it must look precise and intentional.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-1-shot-2",
+   "title": "Chef Hands Plating - Side Angle Close-Up",
+   "category": "service",
+   "priority": "strong",
+   "description": "Side-angle close-up of chef's hands adding final garnish or sauce to the signature dish. Tighter than shot 1, focusing on a single deliberate action.",
+   "purpose": "Provides alternate angle and tighter detail for beat 1 opening sequence. Allows editor to cut between overhead and side for dynamic pacing.",
+   "zoneId": "zone-kitchen",
+   "location": "Kitchen prep station or plating area",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Chef's hands finishing signature dish",
+   "talentIds": [],
+   "camera": {
+    "framing": "Close-up on hands and one component of dish",
+    "zoomOrLens": "85mm or macro for detail",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Chef performs one finishing action in isolation: placing a single garnish element, drizzling sauce in a line, or adjusting plating. Repeat as needed.",
+   "dialogue": "None",
+   "props": [
+    "Signature dish",
+    "Garnish or sauce"
+   ],
+   "minimumUsefulDuration": 6,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-1"
+    }
+   ],
+   "editingNote": "Use as a quick cut within the opening 4 seconds to add texture and detail. Pair with overhead shot for rhythm.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-1-shot-3",
+   "title": "Finished Plate Lift in Kitchen",
+   "category": "product",
+   "priority": "must",
+   "description": "Medium shot of chef or kitchen staff lifting the finished signature dish from the prep station. THE PATIO | KITCHEN signage visible in background, slightly out of focus.",
+   "purpose": "Transition moment from kitchen to front-of-house. Shows the dish is ready and moving toward the talent.",
+   "zoneId": "zone-kitchen",
+   "location": "Kitchen prep station",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Finished signature dish being lifted",
+   "talentIds": [],
+   "camera": {
+    "framing": "Medium shot capturing hands, plate, and background signage",
+    "zoomOrLens": "35mm to capture context",
+    "movement": "Static or slight tilt-up as plate lifts",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Chef or server lifts the finished plate confidently from the counter. Hold for a beat, then carry it out of frame toward the bar.",
+   "dialogue": "None",
+   "props": [
+    "Finished signature dish",
+    "Kitchen counter"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-1"
+    }
+   ],
+   "editingNote": "Final shot of the kitchen sequence. Cut just as the plate exits frame or use as a transition to the bar. The signage in background reinforces location branding.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-1-shot-4",
+   "title": "Bar Counter Wide Establishing with Pendant Lights",
+   "category": "establishing",
+   "priority": "must",
+   "description": "Wide shot of the bar counter under pendant lights with THE PATIO | KITCHEN signage visible in frame. Dark counter surface, warm lighting from above. May include stylized cocktail and food elements if present.",
+   "purpose": "Establishes the bar zone and venue aesthetic. Sets the visual tone for the front-of-house experience. Also serves as the closing shot for beat 6.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter area",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Bar counter, pendant lights, signage, venue aesthetic",
+   "talentIds": [],
+   "camera": {
+    "framing": "Wide shot capturing full counter, lights, and signage",
+    "zoomOrLens": "24mm or wider to capture environment",
+    "movement": "Static or slow push-in on signage",
+    "orientation": "vertical"
+   },
+   "talentDirection": "No talent in frame initially. If bartender is visible in background, they should be working naturally.",
+   "dialogue": "None",
+   "props": [
+    "Pendant lights",
+    "Bar counter",
+    "THE PATIO | KITCHEN signage",
+    "Stylized cocktail glasses or food elements if present"
+   ],
+   "minimumUsefulDuration": 6,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-2"
+    },
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-6"
+    },
+    {
+     "reelId": "reel-3",
+     "beatId": "reel-3-beat-2"
+    }
+   ],
+   "editingNote": "Use at the start of beat 2 to establish the bar space after kitchen sequence. Reuse at the end (beat 6) as the final wide shot with optional slow push on branding. Hold long enough for location tag and handle overlay.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-1-shot-5",
+   "title": "Bartender Sliding Cocktails Across Counter",
+   "category": "service",
+   "priority": "must",
+   "description": "Medium shot of bartender's hands sliding two signature cocktails across the dark bar counter toward Kayla and Amber. Focus on the movement of the glasses and the contrast of cocktail colors against the dark surface.",
+   "purpose": "Dynamic service moment that introduces the cocktails with energy and intention. Shows the bar in action.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Bartender sliding signature cocktails to talent",
+   "talentIds": [
+    "talent-1",
+    "talent-2"
+   ],
+   "camera": {
+    "framing": "Medium shot capturing bartender's hands, cocktails, and counter surface",
+    "zoomOrLens": "50mm to isolate the action",
+    "movement": "Static or slight pan following the slide",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Kayla and Amber are seated at the bar, just out of frame or in soft focus background. Bartender slides both cocktails confidently across the counter toward them. Kayla and Amber's hands should enter frame to receive the drinks.",
+   "dialogue": "None",
+   "props": [
+    "Two signature cocktails",
+    "Bar counter"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-2"
+    }
+   ],
+   "editingNote": "Cut on the slide motion for energy. This is the handoff moment that connects the bar to the talent.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-1-shot-6",
+   "title": "Kayla and Amber Receiving Cocktails - Reaction",
+   "category": "reaction",
+   "priority": "must",
+   "description": "Medium shot of Kayla and Amber seated at the bar as they receive the cocktails. Genuine reaction: smiles, eye contact, excited energy. Pendant lights visible above.",
+   "purpose": "Captures the talent's authentic excitement and connects them to the cocktails. This is the moment the experience becomes personal.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter seating",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Kayla and Amber receiving cocktails",
+   "talentIds": [
+    "talent-1",
+    "talent-2"
+   ],
+   "camera": {
+    "framing": "Medium shot, chest-up, both talent in frame",
+    "zoomOrLens": "35mm to capture both and environment",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Kayla and Amber are seated at the bar. As the cocktails arrive, react naturally: reach for them, make eye contact with each other, smile, maybe a quick 'ooh' or laugh. Don't perform \u2014 just respond to getting something you're genuinely excited about.",
+   "dialogue": "Natural reactions only: 'Ooh,' 'Yes,' laughter, etc.",
+   "props": [
+    "Two signature cocktails",
+    "Bar counter",
+    "Pendant lights"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-2"
+    }
+   ],
+   "editingNote": "Cut to this immediately after the slide. The reaction should feel spontaneous and connected to the previous shot.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-1-shot-7",
+   "title": "Cocktails Close-Up on Dark Counter",
+   "category": "product",
+   "priority": "must",
+   "description": "Close-up of the two signature cocktails on the dark bar counter, lit by the pendant lights above. Focus on the colors, glassware, and contrast against the dark surface.",
+   "purpose": "Hero shot of the cocktails. Shows the product clearly and beautifully. Can be used as a cutaway or transition.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Two signature cocktails",
+   "talentIds": [],
+   "camera": {
+    "framing": "Close-up on both cocktails, slightly overhead or straight-on",
+    "zoomOrLens": "50mm or 85mm for detail and depth",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "No talent in frame. Cocktails are placed on the counter under the best light.",
+   "dialogue": "None",
+   "props": [
+    "Two signature cocktails",
+    "Bar counter",
+    "Pendant lights"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-2"
+    },
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-6"
+    }
+   ],
+   "editingNote": "Use in beat 2 as a product showcase after the reaction. Can also be used in beat 6 as optional final B-roll over the wide closing shot.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-1-shot-8",
+   "title": "Signature Dish Arriving at Bar",
+   "category": "service",
+   "priority": "must",
+   "description": "Medium shot of server or chef placing the signature dish on the bar counter in front of Kayla and Amber. Focus on the plate landing and the talent's immediate visual reaction.",
+   "purpose": "Transition from cocktails to food. The arrival moment builds anticipation before the first bite.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter seating",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Signature dish being placed in front of talent",
+   "talentIds": [
+    "talent-1",
+    "talent-2"
+   ],
+   "camera": {
+    "framing": "Medium shot capturing server's hands, plate, and talent's upper bodies",
+    "zoomOrLens": "35mm to capture action and context",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Kayla and Amber are seated at the bar. As the dish is placed in front of them, react naturally: lean in slightly, look at the food, maybe exchange a glance. No dialogue yet \u2014 just visual interest.",
+   "dialogue": "None or minimal natural reactions",
+   "props": [
+    "Signature dish",
+    "Bar counter"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-3"
+    }
+   ],
+   "editingNote": "Opens beat 3. The placement should feel intentional and the talent's reaction should show genuine interest.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-1-shot-9",
+   "title": "Signature Dish Overhead Close-Up",
+   "category": "product",
+   "priority": "must",
+   "description": "Overhead close-up of the signature dish on the bar counter, clearly showing both components. Lighting from pendant lights highlights the plating and colors.",
+   "purpose": "Hero shot of the food. Shows exactly what the dish is and how it's presented. Essential product showcase.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Signature dish",
+   "talentIds": [],
+   "camera": {
+    "framing": "Overhead close-up, full plate in frame",
+    "zoomOrLens": "50mm or tighter for detail",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "No talent in frame. Dish is styled and lit optimally on the counter.",
+   "dialogue": "None",
+   "props": [
+    "Signature dish",
+    "Bar counter",
+    "Pendant lights"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-3"
+    },
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-2"
+    }
+   ],
+   "editingNote": "Cut to this after the arrival shot. Hold long enough for viewers to register what the dish is. This is the 'here's what you're getting' moment.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-1-shot-10",
+   "title": "Kayla First Bite with Amber Watching",
+   "category": "reaction",
+   "priority": "must",
+   "description": "Wide shot of Kayla taking the first bite of the signature dish while Amber leans in and watches. Both talent visible, seated at the bar. Pendant lights and bar aesthetic in frame.",
+   "purpose": "The core reaction moment. This is where the food is validated or not. Must feel real and unscripted.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter seating",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Kayla tasting signature dish, Amber reacting",
+   "talentIds": [
+    "talent-1",
+    "talent-2"
+   ],
+   "camera": {
+    "framing": "Wide shot, both talent visible from waist or chest up",
+    "zoomOrLens": "35mm to capture both and environment",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Kayla takes a real bite of the signature dish. Chew, process, react honestly. Amber watches her face and reacts to Kayla's reaction. This is not performed \u2014 let the food do the work. If it's good, show it. If it's just okay, show that too.",
+   "dialogue": "Natural reactions only: 'Mm,' 'Oh,' 'Wait,' etc.",
+   "props": [
+    "Signature dish",
+    "Fork or utensil",
+    "Bar counter",
+    "Pendant lights"
+   ],
+   "minimumUsefulDuration": 6,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-3"
+    }
+   ],
+   "editingNote": "This is the payoff of beat 3. Cut to this after the overhead dish shot. Hold on Kayla's face as she processes the taste, then catch Amber's response.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-1-shot-11",
+   "title": "Kayla Reaction Close-Up",
+   "category": "reaction",
+   "priority": "must",
+   "description": "Tight shot of Kayla's face as she reacts to the first bite. Focus on her eyes and expression. Real, unfiltered response.",
+   "purpose": "Isolates the authentic reaction for maximum impact. This is the moment that sells the food.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter seating",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Kayla's facial reaction",
+   "talentIds": [
+    "talent-1"
+   ],
+   "camera": {
+    "framing": "Tight close-up, shoulders to top of head",
+    "zoomOrLens": "85mm for shallow depth and intimacy",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Kayla takes the bite and reacts naturally. The camera is close, so the reaction must be genuine \u2014 no exaggeration, no performance. Just the honest response to the taste.",
+   "dialogue": "Natural reactions only",
+   "props": [
+    "Signature dish",
+    "Fork or utensil"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-3"
+    }
+   ],
+   "editingNote": "Cut to this immediately after the wide shot of the first bite. This is the reaction the editor will build the beat around. If the reaction is strong, hold it. If it's subtle, cut quickly.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-1-shot-12",
+   "title": "Second Bite or Amber Reaching In",
+   "category": "broll",
+   "priority": "strong",
+   "description": "B-roll of Kayla taking a second bite or Amber reaching in with her fork to try the dish. Casual, natural movement. Bar and lighting visible in background.",
+   "purpose": "Extends the food moment and shows continued engagement. Gives the editor flexibility to lengthen beat 3 if needed.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter seating",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Talent engaging with signature dish",
+   "talentIds": [
+    "talent-1",
+    "talent-2"
+   ],
+   "camera": {
+    "framing": "Medium shot capturing hands, plate, and upper bodies",
+    "zoomOrLens": "50mm for natural perspective",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Kayla or Amber continues to eat naturally. No forced interaction \u2014 just two people enjoying food together. Amber can reach in with her fork if she wants to try it.",
+   "dialogue": "Natural conversation or silence",
+   "props": [
+    "Signature dish",
+    "Forks or utensils",
+    "Bar counter"
+   ],
+   "minimumUsefulDuration": 6,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-3"
+    }
+   ],
+   "editingNote": "Optional extension of beat 3. Use if the editor needs more food content or wants to show both talent engaging with the dish.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-1-shot-13",
+   "title": "Group on Patio - Wide Establishing",
+   "category": "venue",
+   "priority": "must",
+   "description": "Wide shot of all four talent on the patio. Nia and Dee have joined Kayla and Amber. Group is relaxed, cocktails in hand, natural body language. Patio aesthetic and lighting visible.",
+   "purpose": "Establishes the patio space and shifts the energy from intimate bar to social group vibe. Shows the venue's versatility.",
+   "zoneId": "zone-patio",
+   "location": "Patio area",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "All four talent on patio",
+   "talentIds": [
+    "talent-1",
+    "talent-2",
+    "talent-3",
+    "talent-4"
+   ],
+   "camera": {
+    "framing": "Wide shot capturing all four talent and patio environment",
+    "zoomOrLens": "24mm or 35mm to capture group and space",
+    "movement": "Static or slow pan across group",
+    "orientation": "vertical"
+   },
+   "talentDirection": "All four talent are on the patio, standing or seated casually. Cocktails in hand. Talk naturally, laugh, vibe \u2014 no scripted interaction. This is just four friends hanging out. Let the energy be loose and genuine.",
+   "dialogue": "Natural conversation and laughter",
+   "props": [
+    "Cocktails",
+    "Patio furniture or decor",
+    "Ambient patio lighting"
+   ],
+   "minimumUsefulDuration": 8,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-4"
+    }
+   ],
+   "editingNote": "Opens beat 4. This is the energy shift from food focus to social experience. The wide shot establishes the patio and the group dynamic.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-1-shot-14",
+   "title": "Group Interaction on Patio - Medium Angles",
+   "category": "talent",
+   "priority": "must",
+   "description": "Multiple medium angles of the group on the patio: pairs talking, someone laughing, cocktails being raised, genuine moments of connection. Not posed \u2014 just captured.",
+   "purpose": "Provides coverage for beat 4's group energy. Multiple angles give the editor options to build a dynamic sequence.",
+   "zoneId": "zone-patio",
+   "location": "Patio area",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Group interactions on patio",
+   "talentIds": [
+    "talent-1",
+    "talent-2",
+    "talent-3",
+    "talent-4"
+   ],
+   "camera": {
+    "framing": "Medium shots, capturing 2-3 talent at a time",
+    "zoomOrLens": "50mm for natural framing",
+    "movement": "Static or handheld for organic feel",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Continue the natural vibe from the wide shot. Talk, laugh, react to each other. The camera will move around the group to capture different angles and pairs. Don't acknowledge the camera \u2014 stay in the moment with each other.",
+   "dialogue": "Natural conversation and laughter",
+   "props": [
+    "Cocktails",
+    "Patio furniture or decor"
+   ],
+   "minimumUsefulDuration": 12,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-4"
+    }
+   ],
+   "editingNote": "Cut between these angles to build the 10-second group energy sequence in beat 4. Look for genuine laughter, eye contact, and relaxed body language. Avoid anything that feels staged.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-1-shot-15",
+   "title": "Kayla Verdict to Camera on Patio",
+   "category": "verdict",
+   "priority": "must",
+   "description": "Medium shot of Kayla addressing the camera directly from the patio. Group visible in soft focus behind her, still vibing. Kayla delivers the verdict in BBO voice: direct, confident, no hedging.",
+   "purpose": "The verdict moment. This is where Kayla tells the audience whether The Patio is BBO Stamped or not. Must feel authoritative and authentic.",
+   "zoneId": "zone-patio",
+   "location": "Patio area",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Kayla delivering verdict",
+   "talentIds": [
+    "talent-1",
+    "talent-2",
+    "talent-3",
+    "talent-4"
+   ],
+   "camera": {
+    "framing": "Medium shot, Kayla chest-up, group visible in background",
+    "zoomOrLens": "50mm for natural perspective and background separation",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Kayla addresses the camera directly. Speak in BBO voice: confident, plain-spoken, no corporate language. Deliver the verdict clearly \u2014 whether it's a yes or a qualified yes. The group behind you should continue their natural vibe, not freeze or pose. You're speaking for them and to the audience.",
+   "dialogue": "Verdict script to be determined on-site based on actual experience. Example structure: 'The Patio in Newark \u2014 the food hits, the drinks are solid, and the vibe is exactly what you want for a night out. BBO Stamped.'",
+   "props": [
+    "Patio environment",
+    "Group in background"
+   ],
+   "minimumUsefulDuration": 8,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-5"
+    }
+   ],
+   "editingNote": "This is the verdict beat. Kayla's delivery must feel confident and final. Cut to group behind her briefly to show they're still vibing, then return to Kayla for the final line. The background activity reinforces that this is a real experience, not a scripted review.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-1-shot-16",
+   "title": "Group Behind Kayla During Verdict",
+   "category": "broll",
+   "priority": "strong",
+   "description": "Quick cutaway shot of the group behind Kayla during the verdict. They're still talking, laughing, enjoying themselves \u2014 not performing for the camera.",
+   "purpose": "Reinforces the authenticity of the verdict by showing the group genuinely enjoying the space while Kayla speaks.",
+   "zoneId": "zone-patio",
+   "location": "Patio area",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Group on patio during verdict",
+   "talentIds": [
+    "talent-2",
+    "talent-3",
+    "talent-4"
+   ],
+   "camera": {
+    "framing": "Medium shot of group, Kayla out of frame or in foreground blur",
+    "zoomOrLens": "85mm for shallow depth",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Amber, Nia, and Dee continue the natural conversation and vibe from shot 14. You're not in the verdict shot \u2014 just keep enjoying yourselves in the background.",
+   "dialogue": "Natural conversation, muted under Kayla's verdict audio",
+   "props": [
+    "Cocktails",
+    "Patio furniture or decor"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-1",
+     "beatId": "reel-1-beat-5"
+    }
+   ],
+   "editingNote": "Quick cut during Kayla's verdict to show the group still vibing. Use as visual punctuation or to extend the verdict beat if needed.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-2-shot-1",
+   "title": "First Component Placement XCU",
+   "category": "product",
+   "priority": "must",
+   "description": "Extreme close-up of chef's hands placing the first component of the signature dish onto the plate. Focus on the precision and the texture of the ingredient as it lands.",
+   "purpose": "Opens the plating sequence with immediate visual interest and establishes the dish build.",
+   "zoneId": "zone-kitchen",
+   "location": "Kitchen prep station or plating area",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Chef's hands and first dish component",
+   "talentIds": [],
+   "camera": {
+    "framing": "Extreme close-up",
+    "zoomOrLens": "Macro or 50mm+",
+    "movement": "Static or slight follow",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Chef places first component with deliberate, confident motion. One clean placement per take.",
+   "dialogue": "",
+   "props": [
+    "Plate",
+    "First dish component",
+    "Chef's hands"
+   ],
+   "minimumUsefulDuration": 3,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-1"
+    }
+   ],
+   "editingNote": "Cut on the moment of contact. Use best take with cleanest motion and focus.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-2-shot-2",
+   "title": "Second Element Addition",
+   "category": "product",
+   "priority": "must",
+   "description": "Close-up of chef's hands adding the second element to the plate. Capture the layering or positioning that shows intentional composition.",
+   "purpose": "Continues the build sequence, showing progression and technique.",
+   "zoneId": "zone-kitchen",
+   "location": "Kitchen prep station or plating area",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Chef's hands adding second component",
+   "talentIds": [],
+   "camera": {
+    "framing": "Close-up",
+    "zoomOrLens": "50mm or 35mm",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Chef adds second element with same confidence. Show both components in frame if possible.",
+   "dialogue": "",
+   "props": [
+    "Plate with first component",
+    "Second dish component",
+    "Chef's hands"
+   ],
+   "minimumUsefulDuration": 3,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-1"
+    }
+   ],
+   "editingNote": "Cut in as hands enter frame. Show the placement and settle.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-2-shot-3",
+   "title": "Sauce or Garnish Precision",
+   "category": "product",
+   "priority": "must",
+   "description": "Tight shot of sauce being drizzled or garnish being placed with precision. The finishing touch that completes the dish.",
+   "purpose": "Peak moment of the plating sequence showing craft and attention to detail.",
+   "zoneId": "zone-kitchen",
+   "location": "Kitchen prep station or plating area",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Sauce drizzle or garnish placement",
+   "talentIds": [],
+   "camera": {
+    "framing": "Close-up to extreme close-up",
+    "zoomOrLens": "50mm+",
+    "movement": "Static or slight tilt-down following drizzle",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Chef executes final garnish or sauce with deliberate, smooth motion. One continuous action per take.",
+   "dialogue": "",
+   "props": [
+    "Nearly complete dish",
+    "Sauce bottle or garnish",
+    "Chef's hands"
+   ],
+   "minimumUsefulDuration": 3,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-1"
+    }
+   ],
+   "editingNote": "Use the cleanest, most visually satisfying execution. This is the money shot of the prep sequence.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-2-shot-4",
+   "title": "Overhead Complete Dish in Kitchen",
+   "category": "product",
+   "priority": "must",
+   "description": "Quick overhead shot of the completed dish on the prep station before it leaves the kitchen. Shows full composition.",
+   "purpose": "Caps the plating sequence and transitions to presentation. Reveals the complete work.",
+   "zoneId": "zone-kitchen",
+   "location": "Kitchen prep station or plating area",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Completed signature dish",
+   "talentIds": [],
+   "camera": {
+    "framing": "Overhead, medium-tight on plate",
+    "zoomOrLens": "35mm or 24mm",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Chef steps back or holds position. Plate is stationary and perfectly positioned.",
+   "dialogue": "",
+   "props": [
+    "Completed dish on plate",
+    "Prep station surface"
+   ],
+   "minimumUsefulDuration": 2,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-1"
+    }
+   ],
+   "editingNote": "Brief hold, 1-2 seconds max. Punctuation before the reveal at the bar.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-2-shot-5",
+   "title": "Chef Focus or Plate Wipe",
+   "category": "product",
+   "priority": "strong",
+   "description": "Shot of chef's focused expression while working or hands wiping the plate edge clean before service.",
+   "purpose": "Humanizes the preparation, shows care and professionalism.",
+   "zoneId": "zone-kitchen",
+   "location": "Kitchen prep station or plating area",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Chef's face or hands finishing plate",
+   "talentIds": [],
+   "camera": {
+    "framing": "Medium close-up on face or close-up on hands",
+    "zoomOrLens": "50mm",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Chef works naturally. If face shot, capture concentration. If hands, show the final wipe or adjustment.",
+   "dialogue": "",
+   "props": [
+    "Plate",
+    "Towel (if wiping edge)",
+    "Chef in kitchen environment"
+   ],
+   "minimumUsefulDuration": 2,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-1"
+    }
+   ],
+   "editingNote": "Optional insert to add texture to the sequence. Use if pacing needs variety or to emphasize craftsmanship.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-2-shot-6",
+   "title": "Dish Set on Bar Counter Wide",
+   "category": "product",
+   "priority": "must",
+   "description": "Wide shot of the finished dish being placed onto the dark bar counter under the pendant lights. Captures the transition from kitchen to presentation.",
+   "purpose": "Establishes the dish in its hero location and begins the presentation beat.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar/dining counter under pendant lighting",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Signature dish being set down on counter",
+   "talentIds": [],
+   "camera": {
+    "framing": "Wide, showing counter, dish, and lighting",
+    "zoomOrLens": "24mm or 35mm",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Server or chef places dish gently and confidently on the counter, then exits frame.",
+   "dialogue": "",
+   "props": [
+    "Completed dish",
+    "Dark bar counter",
+    "Pendant lights"
+   ],
+   "minimumUsefulDuration": 3,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-2"
+    }
+   ],
+   "editingNote": "Cut in as dish enters frame or just after it's set. Establishes the environment and lighting.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-2-shot-7",
+   "title": "Slow Push-In on Dish",
+   "category": "product",
+   "priority": "must",
+   "description": "Slow, steady push-in or circle around the dish on the bar counter. Lighting from pendant hits perfectly. No hands, no distraction\u2014just the food.",
+   "purpose": "Hero moment for the dish. Pure product showcase with cinematic movement.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar/dining counter under pendant lighting",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Signature dish on counter",
+   "talentIds": [],
+   "camera": {
+    "framing": "Medium to close-up",
+    "zoomOrLens": "35mm or 50mm",
+    "movement": "Slow push-in or 180-degree arc",
+    "orientation": "vertical"
+   },
+   "talentDirection": "No talent in frame. Dish is stationary and perfectly lit.",
+   "dialogue": "",
+   "props": [
+    "Completed dish",
+    "Dark bar counter",
+    "Pendant lights"
+   ],
+   "minimumUsefulDuration": 5,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-2"
+    }
+   ],
+   "editingNote": "This is the glamour shot. Use the smoothest take with perfect lighting. Speed up slightly in edit if needed to fit timing.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-2-shot-9",
+   "title": "Side Angle Dish Depth",
+   "category": "product",
+   "priority": "strong",
+   "description": "Side angle showing depth and plating height of the dish if applicable. Reveals dimensionality.",
+   "purpose": "Adds visual variety and showcases dish structure if it has vertical elements.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar/dining counter under pendant lighting",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Signature dish from side",
+   "talentIds": [],
+   "camera": {
+    "framing": "Medium close-up, side profile",
+    "zoomOrLens": "50mm",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "No talent. Dish is positioned to show profile.",
+   "dialogue": "",
+   "props": [
+    "Completed dish",
+    "Dark bar counter"
+   ],
+   "minimumUsefulDuration": 2,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-2"
+    }
+   ],
+   "editingNote": "Use only if dish has notable height or layering. Otherwise skip.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-2-shot-10",
+   "title": "Amber First Bite Medium",
+   "category": "reaction",
+   "priority": "must",
+   "description": "Medium shot of Amber seated at the bar taking the first bite of the signature dish. Capture real reaction\u2014eyes, face, body language.",
+   "purpose": "Delivers the payoff moment. Authentic reaction sells the experience.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar/dining counter, Amber seated",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Amber eating and reacting",
+   "talentIds": [
+    "talent-2"
+   ],
+   "camera": {
+    "framing": "Medium shot, chest up",
+    "zoomOrLens": "35mm or 50mm",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Amber takes a genuine first bite. Let the reaction happen naturally\u2014eyes, facial expression, body language. No performance, just real response.",
+   "dialogue": "Optional natural reaction sounds or brief comment",
+   "props": [
+    "Signature dish",
+    "Fork",
+    "Bar counter"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-3"
+    }
+   ],
+   "editingNote": "Cut in just before bite, hold through chewing and initial reaction. Use the most authentic take.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-2-shot-11",
+   "title": "Fork Cutting Through Dish XCU",
+   "category": "product",
+   "priority": "must",
+   "description": "Extreme close-up of fork cutting into the dish, revealing texture and interior. Shows what the bite actually delivers.",
+   "purpose": "Insert that heightens anticipation and showcases food texture.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar/dining counter",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Fork cutting through signature dish",
+   "talentIds": [],
+   "camera": {
+    "framing": "Extreme close-up on fork and dish",
+    "zoomOrLens": "Macro or 50mm+",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Amber or stand-in hand cuts through dish with fork in one smooth motion. Show the texture reveal.",
+   "dialogue": "",
+   "props": [
+    "Signature dish",
+    "Fork"
+   ],
+   "minimumUsefulDuration": 2,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-3"
+    }
+   ],
+   "editingNote": "Quick insert between bite and reaction. Use cleanest cut with best texture reveal.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-2-shot-12",
+   "title": "Amber Face Reaction Tight",
+   "category": "reaction",
+   "priority": "must",
+   "description": "Tight shot of Amber's face reacting to the dish. Eyes, expression, the moment of approval.",
+   "purpose": "Emotional punctuation of the taste experience.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar/dining counter, Amber seated",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Amber's face reacting",
+   "talentIds": [
+    "talent-2"
+   ],
+   "camera": {
+    "framing": "Close-up, face only",
+    "zoomOrLens": "50mm or 85mm",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Amber reacts naturally after tasting. Eyes, nod, smile\u2014whatever is genuine. No forced performance.",
+   "dialogue": "Optional brief verbal reaction",
+   "props": [],
+   "minimumUsefulDuration": 2,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-3"
+    }
+   ],
+   "editingNote": "Cut back to this after the fork insert. Use the most expressive moment.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-2-shot-13",
+   "title": "Amber Nod or Comment to Kayla",
+   "category": "reaction",
+   "priority": "optional",
+   "description": "Second angle of Amber nodding or saying something to Kayla off-camera. Adds social dimension to the reaction.",
+   "purpose": "Optional extension of reaction beat if more coverage is needed.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar/dining counter, Amber seated",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Amber reacting toward Kayla",
+   "talentIds": [
+    "talent-2"
+   ],
+   "camera": {
+    "framing": "Medium shot, slight profile",
+    "zoomOrLens": "35mm or 50mm",
+    "movement": "Static",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Amber turns slightly and makes a brief comment or nod to Kayla off-camera. Keep it natural and conversational.",
+   "dialogue": "Brief natural comment like 'Yo, this is fire' or similar",
+   "props": [
+    "Signature dish",
+    "Bar counter"
+   ],
+   "minimumUsefulDuration": 2,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-3"
+    }
+   ],
+   "editingNote": "Use only if reaction beat needs extension or social element. Otherwise skip.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-2-shot-14",
+   "title": "Final Dish with Branding",
+   "category": "verdict",
+   "priority": "must",
+   "description": "Clean final shot of the dish on the bar counter with THE PATIO branding visible in the background. Hold for handle and location tag.",
+   "purpose": "Closing stamp. Reinforces brand and location while showcasing the dish one last time.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar/dining counter with signage visible",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Signature dish with THE PATIO branding in background",
+   "talentIds": [],
+   "camera": {
+    "framing": "Medium wide, dish in foreground, signage in background",
+    "zoomOrLens": "35mm or 24mm",
+    "movement": "Static or slow pull-out",
+    "orientation": "vertical"
+   },
+   "talentDirection": "No talent. Dish is positioned with clear sightline to THE PATIO | KITCHEN signage.",
+   "dialogue": "",
+   "props": [
+    "Signature dish",
+    "Bar counter",
+    "THE PATIO | KITCHEN signage",
+    "Pendant lights"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-2",
+     "beatId": "reel-2-beat-4"
+    }
+   ],
+   "editingNote": "Hold for 3-4 seconds. Room for handle, location tag, and final voiceover line. Pull-out optional if it reveals more environment.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-3-shot-1",
+   "title": "Cocktail Placement on Bar Counter",
+   "category": "product",
+   "priority": "must",
+   "description": "Low angle shot of bartender placing signature cocktail on dark bar counter under pendant light. Camera positioned slightly below counter level, angled up. Pendant light illuminates drink from above. Capture the moment glass touches surface and bartender's hand releases.",
+   "purpose": "Opens the Reel with immediate product focus and establishes the bar's dark aesthetic with warm lighting contrast.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter, positioned to capture pendant light directly above placement spot",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Signature cocktail being placed by bartender",
+   "talentIds": [],
+   "camera": {
+    "framing": "Low angle, slightly below counter level, angled upward to capture glass, hand, and pendant light in same frame",
+    "zoomOrLens": "35mm equivalent or wider to capture context while keeping drink prominent",
+    "movement": "Static locked-off, let the action provide movement",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Bartender: Place glass deliberately but naturally on counter. Hold hand on glass for half-second after placement, then pull away smoothly. Repeat for multiple takes with consistent placement spot.",
+   "dialogue": "None",
+   "props": [
+    "Signature cocktail in glass",
+    "Dark bar counter",
+    "Pendant light"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 4,
+   "reelUsages": [
+    {
+     "reelId": "reel-3",
+     "beatId": "reel-3-beat-1"
+    }
+   ],
+   "editingNote": "Cut on the moment glass contacts counter or just before. Can play at regular speed or 50% slow-mo depending on music tempo. Use the cleanest take where light hits glass perfectly and hand movement is smooth.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-3-shot-2",
+   "title": "Cocktail Close-Up Under Pendant Light",
+   "category": "product",
+   "priority": "must",
+   "description": "Tight close-up of signature cocktail glass on counter, shot from slightly above bar level. Pendant light creates rim lighting and illuminates the drink's color. Frame shows drink detail, garnish, and how the pink or orange/gold color pops against dark background.",
+   "purpose": "Hero product shot showing cocktail detail and color vibrancy under the venue's signature lighting.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter directly under pendant light, same placement spot as shot 1",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Signature cocktail glass with garnish",
+   "talentIds": [],
+   "camera": {
+    "framing": "Close-up, slightly above bar level, isolating glass with minimal background",
+    "zoomOrLens": "50mm equivalent or tighter to compress and isolate subject",
+    "movement": "Static hold for 3 seconds minimum",
+    "orientation": "vertical"
+   },
+   "talentDirection": "No talent in frame",
+   "dialogue": "None",
+   "props": [
+    "Signature cocktail with garnish",
+    "Dark bar counter",
+    "Pendant light"
+   ],
+   "minimumUsefulDuration": 3,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-3",
+     "beatId": "reel-3-beat-1"
+    }
+   ],
+   "editingNote": "Use as insert cut during beat 1 to showcase drink detail. Hold for 1-2 seconds. Ensure color saturation is accurate and light creates appealing contrast.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-3-shot-3",
+   "title": "Overhead Cocktail on Dark Counter Texture",
+   "category": "product",
+   "priority": "strong",
+   "description": "Directly overhead shot of cocktail on dark bar counter. Camera positioned straight down, capturing drink from above with counter texture visible around it. Pendant light creates circular pool of light around glass.",
+   "purpose": "Provides alternative angle for beat 1 and establishes overhead perspective used in closing beat.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter under pendant light, camera rigged or handheld directly overhead",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Signature cocktail from overhead perspective",
+   "talentIds": [],
+   "camera": {
+    "framing": "Overhead, straight down, centered on glass with counter texture filling frame edges",
+    "zoomOrLens": "35mm equivalent to capture drink and surrounding counter",
+    "movement": "Static hold",
+    "orientation": "vertical"
+   },
+   "talentDirection": "No talent in frame",
+   "dialogue": "None",
+   "props": [
+    "Signature cocktail",
+    "Dark bar counter",
+    "Pendant light"
+   ],
+   "minimumUsefulDuration": 3,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-3",
+     "beatId": "reel-3-beat-1"
+    }
+   ],
+   "editingNote": "Optional insert for beat 1 if needed for pacing. Can also serve as transition into beat 2 environmental shots.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-3-shot-5",
+   "title": "Pendant Light Fixture Close-Up",
+   "category": "broll",
+   "priority": "strong",
+   "description": "Close-up of single pendant light fixture showing its design and warm glow. Frame isolates the light against dark background, capturing how it creates the venue's signature lighting aesthetic.",
+   "purpose": "Detail shot for beat 2 that showcases the venue's lighting design and creates visual variety in environmental sequence.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter area, camera positioned to isolate one pendant light fixture",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Pendant light fixture",
+   "talentIds": [],
+   "camera": {
+    "framing": "Close-up on single pendant light, isolated against dark background or ceiling",
+    "zoomOrLens": "50mm equivalent to compress and isolate fixture",
+    "movement": "Static hold",
+    "orientation": "vertical"
+   },
+   "talentDirection": "No talent",
+   "dialogue": "None",
+   "props": [
+    "Pendant light fixture"
+   ],
+   "minimumUsefulDuration": 2,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-3",
+     "beatId": "reel-3-beat-2"
+    }
+   ],
+   "editingNote": "Use as quick insert during beat 2 environmental montage. 1 second hold maximum. Creates visual punctuation between wider shots.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-3-shot-6",
+   "title": "Slow Pan Across Bar Surface",
+   "category": "broll",
+   "priority": "must",
+   "description": "Slow horizontal pan across empty bar counter surface, starting from one end and moving across the dark texture. Camera at bar level or slightly above. Pendant lights create pools of light along the pan. Movement reveals the length and clean lines of the space.",
+   "purpose": "Provides movement and flow during beat 2 environmental sequence. Shows the bar's linear design and dark aesthetic.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter, camera positioned at counter level for lateral pan",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Bar counter surface and pendant lights",
+   "talentIds": [],
+   "camera": {
+    "framing": "Medium shot at bar level, panning horizontally across counter length",
+    "zoomOrLens": "35mm equivalent for natural perspective during movement",
+    "movement": "Slow, steady horizontal pan from left to right (or right to left), 4-5 second duration",
+    "orientation": "vertical"
+   },
+   "talentDirection": "No talent. Ensure bar surface is clean and styled.",
+   "dialogue": "None",
+   "props": [
+    "Dark bar counter",
+    "Pendant lights",
+    "Clean bar surface"
+   ],
+   "minimumUsefulDuration": 5,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-3",
+     "beatId": "reel-3-beat-2"
+    }
+   ],
+   "editingNote": "Use full pan or cut into it during beat 2. Creates cinematic movement between static environmental shots. Pan should be smooth and deliberate, not rushed.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-3-shot-7",
+   "title": "Branding or Architectural Detail",
+   "category": "broll",
+   "priority": "strong",
+   "description": "Detail shot of THE PATIO | KITCHEN signage, logo, or distinctive architectural element visible in the bar area. Close enough to show texture and design, but recognizable as branding.",
+   "purpose": "Reinforces venue identity during beat 2 and provides branding coverage for client.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter area where THE PATIO | KITCHEN signage or branding is visible",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "THE PATIO | KITCHEN branding or architectural detail",
+   "talentIds": [],
+   "camera": {
+    "framing": "Close-up or medium close-up on branding element, ensuring it's recognizable but artfully framed",
+    "zoomOrLens": "50mm equivalent to isolate detail",
+    "movement": "Static hold",
+    "orientation": "vertical"
+   },
+   "talentDirection": "No talent",
+   "dialogue": "None",
+   "props": [
+    "THE PATIO | KITCHEN signage or branded element"
+   ],
+   "minimumUsefulDuration": 2,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-3",
+     "beatId": "reel-3-beat-2"
+    }
+   ],
+   "editingNote": "Quick insert during beat 2, 1-1.5 seconds. Reinforces location and brand without being heavy-handed.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-3-shot-8",
+   "title": "Wide Two-Shot of Nia and Kayla at Bar",
+   "category": "talent",
+   "priority": "must",
+   "description": "Wide shot of Nia (talent-3) and Kayla (talent-1) seated at bar counter with cocktails. Both are in frame, pendant lights hang above them creating pools of light. They're laughing and talking naturally, existing in the space. Camera captures them as part of the aesthetic, not performing for camera.",
+   "purpose": "Establishes both talent in the space for beat 3. Shows group content and how people enjoy the venue.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter, camera positioned to capture both talent with pendant lights and bar environment visible",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Nia and Kayla at bar with cocktails",
+   "talentIds": [
+    "talent-1",
+    "talent-3"
+   ],
+   "camera": {
+    "framing": "Wide shot capturing both talent from waist or chest up, bar counter in lower frame, pendant lights above",
+    "zoomOrLens": "35mm equivalent to capture both subjects and environment",
+    "movement": "Static hold, let talent provide movement",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Nia and Kayla: Sit naturally at the bar with your cocktails. Have a real conversation, laugh, sip your drinks, react to each other. Don't look at camera. You're just two friends enjoying the vibe. Let moments happen naturally \u2014 we'll capture them.",
+   "dialogue": "Natural conversation between talent, not scripted",
+   "props": [
+    "Two signature cocktails",
+    "Bar counter",
+    "Pendant lights",
+    "Bar stools"
+   ],
+   "minimumUsefulDuration": 8,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-3",
+     "beatId": "reel-3-beat-3"
+    }
+   ],
+   "editingNote": "Opens beat 3 or serves as establishing shot for talent sequence. Cut to moments where interaction feels genuine and lighting is flattering. Can intercut with closer shots from this same setup.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-3-shot-9",
+   "title": "Close-Up Nia with Cocktail Near Face",
+   "category": "talent",
+   "priority": "must",
+   "description": "Close-up of Nia holding cocktail glass near her face, pendant light illuminating both her and the drink. Frame captures her expression and the drink's color together. She's not posing \u2014 just naturally holding her drink while talking or reacting, and the light hits perfectly.",
+   "purpose": "Hero talent moment for beat 3 that combines product and personality. Shows how the cocktail looks in context with a person enjoying it.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter, camera positioned close to Nia, pendant light directly above or slightly in front",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Nia with cocktail glass",
+   "talentIds": [
+    "talent-3"
+   ],
+   "camera": {
+    "framing": "Close-up from shoulders up, cocktail glass held near face, pendant light visible or creating rim lighting",
+    "zoomOrLens": "50mm equivalent to compress background and isolate subject",
+    "movement": "Static hold",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Nia: Hold your cocktail naturally near your face \u2014 like you're about to take a sip or just brought it up while talking. Look at Kayla or off-camera, not at lens. React naturally to conversation. We're capturing the in-between moments.",
+   "dialogue": "Natural reactions and conversation, not scripted",
+   "props": [
+    "Signature cocktail",
+    "Pendant light"
+   ],
+   "minimumUsefulDuration": 5,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-3",
+     "beatId": "reel-3-beat-3"
+    }
+   ],
+   "editingNote": "Use best moment where Nia's expression is genuine, light hits both her and the drink beautifully, and drink color pops. Cut holds 1.5-2 seconds in beat 3.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-3-shot-10",
+   "title": "Over-Shoulder Kayla with Drink and Bar Background",
+   "category": "talent",
+   "priority": "strong",
+   "description": "Over-the-shoulder shot from behind Kayla, showing her holding her cocktail with the bar environment in background. Pendant lights, dark counter, and depth of bar visible behind her. She's engaged in conversation with Nia (who may be slightly visible or out of frame).",
+   "purpose": "Provides reverse angle for beat 3 and shows bar environment from talent perspective. Creates depth and variety in talent sequence.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter, camera positioned behind Kayla looking toward bar depth",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Kayla with cocktail, bar environment in background",
+   "talentIds": [
+    "talent-1"
+   ],
+   "camera": {
+    "framing": "Over-shoulder, Kayla's shoulder and partial back in foreground left or right, her drink visible, bar environment in focus behind",
+    "zoomOrLens": "35mm equivalent to capture environmental depth",
+    "movement": "Static hold",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Kayla: Sit naturally, hold your drink, talk with Nia. We're shooting from behind you to show the bar environment. Just stay engaged in conversation \u2014 your body language and the space behind you are what we're capturing.",
+   "dialogue": "Natural conversation",
+   "props": [
+    "Signature cocktail",
+    "Bar counter",
+    "Pendant lights",
+    "Bar environment"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 2,
+   "reelUsages": [
+    {
+     "reelId": "reel-3",
+     "beatId": "reel-3-beat-3"
+    }
+   ],
+   "editingNote": "Use as cutaway during beat 3 to show environment from talent POV. Creates spatial awareness and breaks up direct talent shots. 1-1.5 second hold.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": false
+  },
+  {
+   "id": "reel-3-shot-11",
+   "title": "Medium Two-Shot Laughing with Drinks",
+   "category": "talent",
+   "priority": "must",
+   "description": "Medium shot of both Nia and Kayla laughing naturally together, both holding cocktails. Frame is tighter than shot 8 \u2014 chest up or waist up. Pendant lights above, dark bar aesthetic visible but talent and drinks are the focus. Capturing genuine moment of connection and enjoyment.",
+   "purpose": "Key moment for beat 3 showing authentic reaction and group content. This is the human moment that makes the Reel relatable.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter, camera positioned to capture both talent in medium frame with drinks visible",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Nia and Kayla laughing together with cocktails",
+   "talentIds": [
+    "talent-1",
+    "talent-3"
+   ],
+   "camera": {
+    "framing": "Medium shot, both talent from chest or waist up, both drinks visible in frame, pendant lights above",
+    "zoomOrLens": "50mm equivalent to compress slightly and keep focus on talent",
+    "movement": "Static hold",
+    "orientation": "vertical"
+   },
+   "talentDirection": "Nia and Kayla: Keep talking, joking, reacting naturally. When something genuinely makes you laugh, let it happen. Hold your drinks naturally \u2014 sip them, gesture with them, whatever feels real. We're waiting for the authentic moment, not a forced one.",
+   "dialogue": "Natural conversation and laughter",
+   "props": [
+    "Two signature cocktails",
+    "Pendant lights",
+    "Bar counter"
+   ],
+   "minimumUsefulDuration": 6,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-3",
+     "beatId": "reel-3-beat-3"
+    }
+   ],
+   "editingNote": "Find the most genuine laugh or reaction moment. This is the emotional peak of beat 3. Cut holds 2-3 seconds to let the moment land. Both talent and drinks should be clearly visible.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  },
+  {
+   "id": "reel-3-shot-12",
+   "title": "Two Cocktails Side by Side Final Shot",
+   "category": "product",
+   "priority": "must",
+   "description": "Final hero shot of two signature cocktails placed side by side on dark bar counter under perfect pendant lighting. Camera positioned straight-on or slightly overhead. THE PATIO branding visible but softly blurred in background. No people, no movement \u2014 just the drinks, the lighting, and the aesthetic. This is the hold-for-tag moment.",
+   "purpose": "Closing visual for beat 4 and location tag moment. Clean product shot that summarizes the vibe and gives space for text overlay.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter under pendant light, THE PATIO signage positioned in background for soft blur",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Two signature cocktails side by side",
+   "talentIds": [],
+   "camera": {
+    "framing": "Straight-on or slightly overhead, two cocktails centered and side by side, THE PATIO branding visible but blurred in background",
+    "zoomOrLens": "50mm equivalent to compress background and isolate drinks as hero subjects",
+    "movement": "Static hold, 4 seconds minimum",
+    "orientation": "vertical"
+   },
+   "talentDirection": "No talent in frame. Ensure both drinks are perfectly placed, garnishes are fresh, and lighting is even across both glasses.",
+   "dialogue": "None",
+   "props": [
+    "Two signature cocktails",
+    "Dark bar counter",
+    "Pendant light",
+    "THE PATIO signage in background"
+   ],
+   "minimumUsefulDuration": 4,
+   "recommendedTakeCount": 3,
+   "reelUsages": [
+    {
+     "reelId": "reel-3",
+     "beatId": "reel-3-beat-4"
+    }
+   ],
+   "editingNote": "This is the final frame of the Reel. Hold for full 4 seconds to allow location tag, text overlay, and viewer absorption. Ensure both drinks look perfect, colors pop against dark background, and THE PATIO branding is legible but not competing with drinks for attention. This shot carries the entire vibe.",
+   "completed": false,
+   "locked": false,
+   "clientRequired": true
+  }
+ ],
+ "photoPlan": [
+  {
+   "id": "photo-shot-1",
+   "title": "Signature Dish \u2014 Untouched Hero",
+   "category": "hero-food",
+   "priority": "must",
+   "description": "The signature dish plated by the chef, shot immediately after plating and before anyone touches it. This is the single best thing The Patio sells, captured in its perfect state under the warm pendant lighting at the bar counter.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter under pendant lights, dark surface",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Signature dish, plated and untouched",
+   "talentIds": [],
+   "camera": {
+    "framing": "Tight overhead or 45-degree angle, dish fills frame",
+    "angle": "Overhead to 45-degree",
+    "orientation": "both"
+   },
+   "styling": "Clean, minimalist composition on dark counter. Let the warm pendant light create natural shadows and depth. No hands, no distractions \u2014 just the dish.",
+   "timing": "food-untouched",
+   "clientRequired": true,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-2",
+   "title": "Full Spread at the Bar",
+   "category": "full-spread",
+   "priority": "must",
+   "description": "The complete experience laid out on the bar counter: signature dish, multiple cocktails, appetizers if available. This shows abundance and the full range of what The Patio offers in one frame.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter, wide section under pendant lights",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Full spread of food and cocktails",
+   "talentIds": [],
+   "camera": {
+    "framing": "Wide overhead or elevated angle capturing the full counter spread",
+    "angle": "Overhead to high 45-degree",
+    "orientation": "both"
+   },
+   "styling": "Arrange dishes and cocktails with intentional spacing on the dark counter. Use the pendant lights to create pools of warm light. Include the stylized bar elements visible in the background if possible.",
+   "timing": "food-untouched",
+   "clientRequired": false,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-3",
+   "title": "All Four on the Patio",
+   "category": "group-hero",
+   "priority": "must",
+   "description": "All four talent together in the patio area \u2014 the hero group shot while everyone is still there and still looking good. This is the frame that shows the vibe and the crew together.",
+   "zoneId": "zone-patio",
+   "location": "Patio area, best-lit or most visually interesting section",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Group of four talent",
+   "talentIds": [
+    "talent-1",
+    "talent-2",
+    "talent-3",
+    "talent-4"
+   ],
+   "camera": {
+    "framing": "Medium-wide, all four visible and engaged with each other or the space",
+    "angle": "Eye level to slightly elevated",
+    "orientation": "both"
+   },
+   "styling": "Natural, candid energy. Let them interact with drinks or the space. Capture the patio aesthetic and the group dynamic together. This is BBO \u2014 confident, fun, not stiff.",
+   "timing": "during-service",
+   "clientRequired": false,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-4",
+   "title": "Bar Counter Hero Zone",
+   "category": "venue",
+   "priority": "must",
+   "description": "The hero location: bar counter with 'THE PATIO | KITCHEN' branding visible, pendant lights glowing, stylized cocktail and food elements in frame. This establishes the space and the brand in one shot.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter with branding signage visible in background",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Bar counter and venue branding",
+   "talentIds": [],
+   "camera": {
+    "framing": "Wide or medium shot capturing counter, pendant lights, and 'THE PATIO | KITCHEN' signage",
+    "angle": "Straight-on to slight angle",
+    "orientation": "horizontal"
+   },
+   "styling": "Clean, architectural shot that shows the minimalist aesthetic and warm lighting. Include the stylized cocktail glasses and food plate if they enhance the composition. This is the money shot for the client's website.",
+   "timing": "before-service",
+   "clientRequired": false,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-5",
+   "title": "Signature Cocktail \u2014 Untouched",
+   "category": "product",
+   "priority": "must",
+   "description": "One of the signature cocktails, shot immediately after the bartender finishes it. Clean, untouched, perfect. This is the cocktail content the client requested.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter under pendant light",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Signature cocktail",
+   "talentIds": [],
+   "camera": {
+    "framing": "Tight to medium, cocktail is the clear hero",
+    "angle": "Eye level to slightly elevated",
+    "orientation": "vertical"
+   },
+   "styling": "Isolate the cocktail on the dark counter. Use the warm pendant light to make the drink glow. Minimal background distractions \u2014 let the drink and the aesthetic speak.",
+   "timing": "food-untouched",
+   "clientRequired": true,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-6",
+   "title": "Chef Plating the Signature Dish",
+   "category": "process",
+   "priority": "must",
+   "description": "The chef plating the signature dish in the kitchen \u2014 hands in motion, the dish coming together. This is the preparation content the client specifically requested and kitchen access allows.",
+   "zoneId": "zone-kitchen",
+   "location": "Kitchen prep or plating station",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Chef plating signature dish",
+   "talentIds": [],
+   "camera": {
+    "framing": "Medium to tight on hands and plate, chef's face optional but welcome",
+    "angle": "Slightly elevated or side angle to show the action",
+    "orientation": "both"
+   },
+   "styling": "Capture the motion and the craft. This is behind-the-scenes content that shows care and skill. Watch for good light in the kitchen \u2014 supplement if needed.",
+   "timing": "before-service",
+   "clientRequired": true,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-7",
+   "title": "Patio Aesthetic Shot",
+   "category": "venue",
+   "priority": "must",
+   "description": "The patio area itself \u2014 the space, the seating, the vibe. Owner specifically wants the patio in frame. This is the venue aesthetic content the client requested.",
+   "zoneId": "zone-patio",
+   "location": "Patio area, widest or most representative view",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Patio space and aesthetic",
+   "talentIds": [],
+   "camera": {
+    "framing": "Wide shot capturing the patio layout and vibe",
+    "angle": "Eye level or slightly elevated",
+    "orientation": "horizontal"
+   },
+   "styling": "Show the space as a destination. If there's natural light, use it. If it's evening and lit artificially, lean into that mood. This is the frame that makes people want to pull up.",
+   "timing": "before-service",
+   "clientRequired": true,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-8",
+   "title": "Talent at the Bar \u2014 Group Content",
+   "category": "candid",
+   "priority": "strong",
+   "description": "Two or three talent seated at the bar counter with drinks and food, naturally interacting. This is group content at the bar, fulfilling the client's group content request in a different setting than the patio.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter, talent seated or standing",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Talent interacting at the bar",
+   "talentIds": [
+    "talent-1",
+    "talent-2",
+    "talent-3"
+   ],
+   "camera": {
+    "framing": "Medium shot, multiple talent visible with drinks/food",
+    "angle": "Eye level to slightly elevated",
+    "orientation": "vertical"
+   },
+   "styling": "Natural, mid-moment energy. Capture conversation, laughter, or the moment someone reacts to the food. Pendant lights should create warm pools of light on faces. This is lifestyle content, not posed.",
+   "timing": "during-service",
+   "clientRequired": true,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-9",
+   "title": "Cocktail Detail \u2014 Garnish and Glass",
+   "category": "detail",
+   "priority": "strong",
+   "description": "Extreme close-up on a cocktail detail: the garnish, the rim, the condensation on the glass, the color of the liquid catching light. This is the detail shot that shows craft and makes people thirsty.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter under pendant light",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Cocktail detail",
+   "talentIds": [],
+   "camera": {
+    "framing": "Tight close-up, one detail fills the frame",
+    "angle": "Eye level or slightly elevated",
+    "orientation": "vertical"
+   },
+   "styling": "Isolate one beautiful detail. Shallow depth of field if possible. Use the warm light to create mood. This is the shot that lives on the cocktail menu.",
+   "timing": "anytime",
+   "clientRequired": false,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-10",
+   "title": "Signature Dish \u2014 First Bite",
+   "category": "candid",
+   "priority": "strong",
+   "description": "Talent taking the first bite of the signature dish, or the moment right after \u2014 the reaction, the fork in motion, the dish now lived-in. This is the human moment that follows the perfect plate.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter, talent seated",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Talent eating signature dish",
+   "talentIds": [
+    "talent-1"
+   ],
+   "camera": {
+    "framing": "Medium to tight, talent and dish both visible",
+    "angle": "Eye level or slightly elevated",
+    "orientation": "vertical"
+   },
+   "styling": "Capture the genuine reaction. This is the frame that says 'it's really that good.' Watch the light on the face \u2014 supplement if the pendant lights aren't enough.",
+   "timing": "during-service",
+   "clientRequired": false,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-11",
+   "title": "Individual Portrait \u2014 Kayla at the Bar",
+   "category": "individual-portrait",
+   "priority": "strong",
+   "description": "Solo portrait of Kayla at the bar counter with a cocktail, styled and confident. This is grid content for BBO talent and a lifestyle shot for the venue.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter under pendant lights",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Kayla, solo portrait",
+   "talentIds": [
+    "talent-1"
+   ],
+   "camera": {
+    "framing": "Medium shot, Kayla is the clear subject with cocktail or space as context",
+    "angle": "Eye level",
+    "orientation": "vertical"
+   },
+   "styling": "Confident, direct energy. Use the warm pendant light as a key light. Let the dark minimalist background stay dark \u2014 it creates contrast and mood. This is BBO: she owns the space.",
+   "timing": "during-service",
+   "clientRequired": false,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-12",
+   "title": "Bar Pendant Lights \u2014 Aesthetic Detail",
+   "category": "detail",
+   "priority": "optional",
+   "description": "The pendant lights themselves, glowing warm against the dark space. This is a pure aesthetic detail shot that reinforces the venue's visual identity and the minimalist vibe.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter area, looking up or angled toward lights",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Pendant lights",
+   "talentIds": [],
+   "camera": {
+    "framing": "Tight to medium, lights are the subject",
+    "angle": "Low angle or straight-on",
+    "orientation": "vertical"
+   },
+   "styling": "Let the lights glow. Embrace the darkness around them. This is a mood shot, an interstitial image for carousels or transitions. Minimal context needed \u2014 just the light and the vibe.",
+   "timing": "anytime",
+   "clientRequired": false,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-13",
+   "title": "Hands Holding Cocktails \u2014 Group Toast",
+   "category": "detail",
+   "priority": "optional",
+   "description": "Multiple hands holding cocktails in a toast or casual cheers moment at the bar. This is a detail-level group shot that focuses on the drinks and the gesture, not faces.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter, talent gathered",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Hands holding cocktails",
+   "talentIds": [
+    "talent-1",
+    "talent-2",
+    "talent-3"
+   ],
+   "camera": {
+    "framing": "Tight on hands and glasses, dark counter visible below",
+    "angle": "Slightly elevated or eye level",
+    "orientation": "vertical"
+   },
+   "styling": "Natural, mid-moment. Capture the glasses catching light, the hands in motion or paused. This is the shot that says 'we're here, we're together, we're having a good time.'",
+   "timing": "during-service",
+   "clientRequired": false,
+   "completed": false,
+   "locked": false
+  },
+  {
+   "id": "photo-shot-14",
+   "title": "Kitchen Branding \u2014 'THE PATIO | KITCHEN' Sign",
+   "category": "venue",
+   "priority": "optional",
+   "description": "Clean shot of 'THE PATIO | KITCHEN' branding visible in the space. This is a branding asset for the client and a transition image for content.",
+   "zoneId": "zone-bar-counter",
+   "location": "Bar counter area with branding visible in background",
+   "sourcePhotoIds": [
+    "photo-1"
+   ],
+   "subject": "Venue branding signage",
+   "talentIds": [],
+   "camera": {
+    "framing": "Medium shot, signage clear and legible",
+    "angle": "Straight-on",
+    "orientation": "horizontal"
+   },
+   "styling": "Clean, simple, architectural. Let the branding be the hero. This is a utility shot that the client will use everywhere.",
+   "timing": "before-service",
+   "clientRequired": false,
+   "completed": false,
+   "locked": false
+  }
+ ],
+ "skits": [],
+ "talent": [
+  {
+   "id": "talent-1",
+   "name": "Kayla",
+   "role": "BBO Talent"
+  },
+  {
+   "id": "talent-2",
+   "name": "Amber",
+   "role": "Creator"
+  },
+  {
+   "id": "talent-3",
+   "name": "Nia",
+   "role": "BBO Talent"
+  },
+  {
+   "id": "talent-4",
+   "name": "Dee",
+   "role": "Photographer"
+  }
+ ],
+ "editBlueprints": [],
+ "generationMeta": {}
+}
