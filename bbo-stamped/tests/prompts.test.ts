@@ -1,14 +1,18 @@
 import { describe, expect, test } from 'vitest';
 import { LOCATION_SCOUT_SYSTEM, buildLocationScoutPrompt } from '@/lib/ai/prompts/location-scout';
 import { REEL_SYSTEM, buildReelPrompt } from '@/lib/ai/prompts/reel-generator';
-import { DEDUPE_SYSTEM, SHOT_SYSTEM, buildDedupePrompt } from '@/lib/ai/prompts/shot-builder';
+import {
+  DEDUPE_SYSTEM,
+  SHOT_SYSTEM,
+  buildDedupeAdjudicationPrompt,
+} from '@/lib/ai/prompts/shot-builder';
 import { PHOTO_SYSTEM } from '@/lib/ai/prompts/photo-plan';
 import { SKIT_SYSTEM } from '@/lib/ai/prompts/skit-generator';
 import { BLUEPRINT_SYSTEM } from '@/lib/ai/prompts/edit-blueprint';
 import { PITCH_SYSTEM, buildPitchPrompt } from '@/lib/ai/prompts/pitch-intel';
 import { RELEASE_REMINDER, budgetLine } from '@/lib/ai/prompts/shared';
 import { buildShootPlanText } from '@/lib/export/text';
-import { makeActivation, makeVenueAnalysis } from './fixtures';
+import { makeActivation, makeShot, makeVenueAnalysis } from './fixtures';
 
 const ALL_SYSTEMS = {
   scout: LOCATION_SCOUT_SYSTEM,
@@ -123,38 +127,38 @@ describe('scout grounding', () => {
 });
 
 describe('dedupe pass', () => {
-  const shots = [
-    {
+  const pair = {
+    a: makeShot({
       id: 'a',
       title: 'Bartender Cocktail Shake',
-      category: 'product' as const,
       zoneId: 'zone-bar',
       subject: 'bartender',
       description: 'shake at the bar',
       onCamera: 'staff member',
-    },
-    {
+    }),
+    b: makeShot({
       id: 'b',
       title: 'Bartender Cocktail Slide',
-      category: 'product' as const,
       zoneId: 'zone-bar',
       subject: 'bartender',
       description: 'slides the drink over',
       onCamera: 'staff member',
-    },
-  ];
+    }),
+  };
 
-  test('shows the model what a real merge looks like, not only what is not one', () => {
-    const prompt = buildDedupePrompt(shots);
-    expect(prompt).toMatch(/MERGE these/);
-    expect(prompt).toMatch(/DO NOT merge these/);
+  test('asks one yes/no per pair rather than to search a list', () => {
+    const prompt = buildDedupeAdjudicationPrompt([pair]);
+    expect(prompt).toMatch(/would a crew film this ONCE, or TWICE/i);
+    expect(prompt).toContain('PAIR 1');
   });
 
   test('keeps separate performances apart', () => {
-    expect(buildDedupePrompt(shots)).toMatch(/Separate posts need separate takes/);
+    expect(buildDedupeAdjudicationPrompt([pair])).toMatch(/Separate posts need separate takes/);
   });
 
-  test('sends on-camera direction so identical setups are recognisable', () => {
-    expect(buildDedupePrompt(shots)).toContain('on camera: staff member');
+  test('sends framing and on-camera direction so setups are comparable', () => {
+    const prompt = buildDedupeAdjudicationPrompt([pair]);
+    expect(prompt).toContain('on camera: staff member');
+    expect(prompt).toContain('framing:');
   });
 });

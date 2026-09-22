@@ -1,6 +1,12 @@
 import { runStage } from './router';
-import { ShotDedupeSchema, ShotListSchema } from './schemas';
-import { DEDUPE_SYSTEM, SHOT_SYSTEM, buildDedupePrompt, buildShotPromptForReel } from './prompts/shot-builder';
+import { ShotDedupeDecisionSchema, ShotListSchema } from './schemas';
+import {
+  DEDUPE_SYSTEM,
+  SHOT_SYSTEM,
+  buildDedupeAdjudicationPrompt,
+  buildShotPromptForReel,
+} from './prompts/shot-builder';
+import { findCandidatePairs, pairsToGroups } from './dedupe-candidates';
 import type { PromptActivation } from './prompts/shared';
 import type { GenerationAttempt, GenerationInfo, ReelConcept, Shot, SkitConcept, VenueAnalysis } from '@/types';
 
@@ -39,7 +45,17 @@ export async function buildShotList(args: {
     )
   );
 
-  const shots: Shot[] = perReel.flatMap((result) => result.data.shots as Shot[]);
+  // Each Reel is planned by its own call, and each call numbers its shots from
+  // "shot-1". Left alone, three Reels all produce a "shot-1" — and every lookup
+  // downstream is a Map keyed by id, which silently keeps only the last one.
+  // Namespacing by Reel is what makes the ids mean one setup each.
+  const shots: Shot[] = perReel.flatMap((result, index) => {
+    const reelId = args.reels[index]?.id ?? `reel-${index + 1}`;
+    return (result.data.shots as Shot[]).map((shot) => ({
+      ...shot,
+      id: `${reelId}--${shot.id}`,
+    }));
+  });
   const attempts: GenerationAttempt[] = perReel.flatMap((result) => result.generation.attempts);
   const usage = mergeUsage(perReel.map((result) => result.generation.usage));
   const primary = perReel[0].generation;
@@ -66,29 +82,49 @@ export async function buildShotList(args: {
   let dedupeAttempts: GenerationAttempt[] = [];
   let dedupeUsage = usage;
 
-  try {
-    const dedupe = await runStage({
-      stage: 'shots:dedupe',
-      capability: 'creative',
-      system: DEDUPE_SYSTEM,
-      prompt: buildDedupePrompt(shots),
-      schema: ShotDedupeSchema,
-      temperature: 0.2,
-      maxTokens: 3_000,
-      budgetMs: 70_000,
-      attemptTimeoutMs: 45_000,
-      signal: args.signal,
-    });
-    merged = applyDedupe(shots, dedupe.data.groups);
-    dedupeAttempts = dedupe.generation.attempts;
-    dedupeUsage = mergeUsage([usage, dedupe.generation.usage]);
-  } catch (error) {
-    // A failed merge must never lose the plan. The crew gets every shot, with
-    // some duplication, rather than nothing at all.
-    console.warn('[bbo-ai] shots:dedupe failed — keeping every shot unmerged', error);
+  // The search is deterministic; the model only judges the shortlist. Asking it
+  // to find duplicates across the whole list made it answer "none" every time.
+  const candidates = findCandidatePairs(shots);
+
+  if (candidates.length === 0) {
     dedupeAttempts = [
-      { provider: 'router', model: null, status: 'error', latencyMs: 0, errorType: 'dedupe-skipped' },
+      { provider: 'local', model: null, status: 'ok', latencyMs: 0, errorType: undefined },
     ];
+  } else {
+    try {
+      const decision = await runStage({
+        stage: 'shots:dedupe',
+        capability: 'creative',
+        system: DEDUPE_SYSTEM,
+        prompt: buildDedupeAdjudicationPrompt(candidates),
+        schema: ShotDedupeDecisionSchema,
+        temperature: 0.1,
+        maxTokens: 3_000,
+        budgetMs: 70_000,
+        attemptTimeoutMs: 45_000,
+        signal: args.signal,
+      });
+
+      // Only pairs the model actually confirmed, and only ones it was offered —
+      // a hallucinated id must never collapse two real setups.
+      // Match regardless of the order the model echoed the pair back in.
+      const key = (x: string, y: string) => [x, y].sort().join('|');
+      const offered = new Set(candidates.map((pair) => key(pair.a.id, pair.b.id)));
+      const confirmed = decision.data.decisions.filter(
+        (item) => item.sameSetup && offered.has(key(item.aId, item.bId))
+      );
+
+      merged = applyDedupe(shots, pairsToGroups(confirmed));
+      dedupeAttempts = decision.generation.attempts;
+      dedupeUsage = mergeUsage([usage, decision.generation.usage]);
+    } catch (error) {
+      // A failed merge must never lose the plan. The crew gets every shot, with
+      // some duplication, rather than nothing at all.
+      console.warn('[bbo-ai] shots:dedupe failed — keeping every shot unmerged', error);
+      dedupeAttempts = [
+        { provider: 'router', model: null, status: 'error', latencyMs: 0, errorType: 'dedupe-skipped' },
+      ];
+    }
   }
 
   return {

@@ -272,6 +272,20 @@ export const ShotListSchema = z.object({
 });
 
 /** Cross-Reel merge instructions. Applied deterministically, never trusted blindly. */
+export const ShotDedupeDecisionSchema = z.object({
+  decisions: z
+    .array(
+      z.object({
+        aId: nonEmpty,
+        bId: nonEmpty,
+        sameSetup: z.boolean().nullish().transform((value) => value ?? false),
+        reason: z.string().default(''),
+      })
+    )
+    .nullish()
+    .transform((value) => value ?? []),
+});
+
 export const ShotDedupeSchema = z.object({
   groups: z
     .array(

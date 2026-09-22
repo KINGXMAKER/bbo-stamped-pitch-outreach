@@ -184,51 +184,48 @@ the crew films the setup once instead of twice.
 
 ${JSON_ONLY}`;
 
-export function buildDedupePrompt(
-  shots: Array<
-    Pick<
-      Shot,
-      'id' | 'title' | 'category' | 'zoneId' | 'subject' | 'description' | 'onCamera'
-    > & { camera?: Shot['camera'] }
-  >
+/**
+ * One yes/no per candidate pair. The search already happened in
+ * lib/ai/dedupe-candidates.ts — asking the model to find duplicates in a long
+ * list made it answer "none" every time, so it now only judges pairs it is
+ * handed.
+ */
+export function buildDedupeAdjudicationPrompt(
+  pairs: Array<{ a: Shot; b: Shot }>
 ): string {
-  const rows = shots
-    .map((shot) => {
-      const framing = shot.camera
-        ? ` | framing: ${shot.camera.framing || '—'}, ${shot.camera.movement || 'static'}`
-        : '';
-      return `- ${shot.id} | ${shot.title} | zone: ${shot.zoneId || 'any'} | ${shot.category} | subject: ${shot.subject || '—'} | on camera: ${shot.onCamera || '—'}${framing} | ${shot.description.slice(0, 130)}`;
-    })
-    .join('\n');
+  const describe = (shot: Shot) =>
+    `"${shot.title}" — ${shot.category} in ${shot.zoneId || 'any zone'} | subject: ${shot.subject || '—'} | on camera: ${shot.onCamera || '—'} | framing: ${shot.camera?.framing || '—'}, ${shot.camera?.movement || 'static'} | ${shot.description.slice(0, 130)}`;
 
-  return `These shots were planned independently for different Reels of the same visit. Expect real
-overlap — a bar pour, a group toast, an exterior or a room reveal often gets requested by two or three
-Reels under different names.
+  const rows = pairs
+    .map(
+      (pair, index) =>
+        `PAIR ${index + 1}\n  A (${pair.a.id}) ${describe(pair.a)}\n  B (${pair.b.id}) ${describe(pair.b)}`
+    )
+    .join('\n\n');
+
+  return `These shots were planned independently for different Reels of the same visit. Each pair below
+is in the same venue zone and describes a similar moment, so each one MIGHT be a single camera setup
+requested twice under different titles.
+
+For every pair, decide one thing: would a crew film this ONCE, or TWICE?
 
 ${rows}
 
-Group the ones that are genuinely the SAME physical camera setup: same place, same subject, same
-framing intent, same moment in the day. One take then serves every Reel that asked for it.
+Answer TRUE (one setup) when the crew would point the camera at the same thing, in the same place, at
+the same moment, and could hand the single clip to both Reels. Different titles mean nothing — judge
+the setup.
 
-MERGE these — they are the same setup wearing different titles:
-- "Bartender Cocktail Shake" and "Bartender Cocktail Slide" — one bartender action at the bar
-- "Bar to Patio Transition POV" and "Transition to the Patio" — one walk
-- "Patio Group Toast" and "Upward POV Group Toast" — one toast, if the framing note matches
-- "BOH Burger Sizzle" and "Sizzling BOH Burger Melt" — one pass-side moment
+Answer FALSE when the crew genuinely shoots twice:
+- Different framing on the same thing — a wide of the bar and a close-up at the bar.
+- The same dish or drink from two angles.
+- Food in a different state — an untouched hero plate versus anything after the plate is disturbed.
+- An unrepeatable moment versus a directed one — a real first-bite reaction versus a staged beauty shot.
+- Two creator-owned concepts that each need their own performance, dialogue, reaction or timing, even
+  in the same spot. Separate posts need separate takes.
+- Different audio requirements — a silent B-roll pass versus a spoken piece to camera.
 
-DO NOT merge these — the crew genuinely shoots them twice:
-- A wide of the bar and a close-up at the bar: different framing.
-- The same dish from two angles: different setup.
-- An untouched hero plate and anything filmed after the plate has been disturbed: the food is in a different state.
-- A first-bite reaction and a staged beauty shot: one is unrepeatable, the other is directed.
-- Two creator-owned concepts that each need their own performance, dialogue, reaction or timing — even in the same spot. Separate posts need separate takes.
-- Shots whose audio requirement differs, such as a silent B-roll pass versus a spoken piece to camera.
-
-Judge by the setup, not the wording of the title. Two titles that read differently but describe one
-crew action in one place at one moment are a merge. Shots with no duplicate are simply left out.
-
-For each group, name which Reel usages the merged setup will serve in the reason.
+Return a decision for every pair, in order.
 
 Return this exact shape:
-{ "groups": [{ "keepId": string, "duplicateIds": string[], "reason": string }] }`;
+{ "decisions": [{ "aId": string, "bId": string, "sameSetup": boolean, "reason": string }] }`;
 }
