@@ -216,3 +216,24 @@ describe('optional fields tolerate null', () => {
     expect(parsed.reels[0].sequence[0].shotsNeeded).toEqual([]);
   });
 });
+
+describe('PitchIntelSchema confidence', () => {
+  const base = {
+    inferredCategory: 'Bar',
+    categoryReasoning: 'from the name',
+    fit: 'POTENTIAL FIT',
+    fitReasoning: 'plausible',
+  };
+
+  // The prompt asks for a phrase because a number would imply research nobody
+  // did. The schema has to accept what the prompt asks for, or every call pays
+  // for a repair round trip.
+  test('accepts the phrase the prompt asks for', () => {
+    const parsed = PitchIntelSchema.parse({ ...base, categoryConfidence: 'fairly confident' });
+    expect(parsed.categoryConfidence).toBe('fairly confident');
+  });
+
+  test('defaults rather than inventing certainty when the field is absent', () => {
+    expect(PitchIntelSchema.parse(base).categoryConfidence).toBe('not stated');
+  });
+});

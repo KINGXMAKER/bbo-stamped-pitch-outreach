@@ -422,7 +422,10 @@ export const EditBlueprintSchema = z.object({
 
 export const PitchIntelSchema = z.object({
   inferredCategory: z.string().default('Unclear'),
-  categoryConfidence: confidence.default(50),
+  // Words, never a number: a numeric confidence here would imply research
+  // nobody performed. The prompt asks for a phrase, so the schema must accept
+  // one — a number schema made every call fail validation and pay for a repair.
+  categoryConfidence: z.string().default('not stated'),
   categoryReasoning: z.string().default(''),
   fit: z
     .enum(['STRONG FIT', 'POTENTIAL FIT', 'WEAK FIT', 'INSUFFICIENT DATA'])
