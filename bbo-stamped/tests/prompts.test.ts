@@ -162,3 +162,39 @@ describe('dedupe pass', () => {
     expect(prompt).toContain('framing:');
   });
 });
+
+describe('house formats and voice modes', () => {
+  // "hidden gem" is a BBO house angle. It was previously caught by the
+  // anti-hype rule, which banned the brand's own format.
+  test('"hidden gem" is no longer banned language', () => {
+    for (const [, system] of Object.entries(ALL_SYSTEMS)) {
+      expect(system).not.toMatch(/"a hidden gem"/);
+    }
+  });
+
+  test('the anti-hype rule still bans the genuinely unsupportable claims', () => {
+    expect(REEL_SYSTEM).toMatch(/"safe"/);
+    expect(REEL_SYSTEM).toMatch(/"the best"/);
+    expect(REEL_SYSTEM).toMatch(/"viral"/);
+    expect(REEL_SYSTEM).toMatch(/"worth it"/);
+  });
+
+  test('Reels reaches for the house formats by name', () => {
+    expect(REEL_SYSTEM).toMatch(/hidden gem/);
+    expect(REEL_SYSTEM).toMatch(/can a baddie eat good for\s+\$X/);
+    expect(REEL_SYSTEM).toMatch(/not banned language and not overused/);
+  });
+
+  test('BBO-owned is "we", creator-owned is "I"', () => {
+    expect(REEL_SYSTEM).toMatch(/BBO-OWNED: first-person-plural \("we", "us"\)/);
+    expect(REEL_SYSTEM).toMatch(/CREATOR-OWNED: first-person singular \("I"\)/);
+    expect(REEL_SYSTEM).toMatch(/The "I" organic angle is the\s+forward default/);
+  });
+
+  test('the organic illusion is protected in both the system and the task prompt', () => {
+    expect(REEL_SYSTEM).toMatch(/no mention of BBO, no crew, no gifted or\s+sponsored language/);
+    const prompt = buildReelPrompt(promptContext(), makeVenueAnalysis(), 2);
+    expect(prompt).toMatch(/Creator-owned concepts are written in "I"/);
+    expect(prompt).toMatch(/breaks the organic read/);
+  });
+});

@@ -54,8 +54,8 @@ An INFERRED item must never be written as a verified fact. If something is unkno
 relevant field. Never fill a gap with a plausible-sounding assumption.
 
 Reactions, ratings and verdicts are opinions, and must read as opinions. Do not call a venue "safe",
-"the best", "viral", "a hidden gem" or "worth it" unless it is clearly framed as someone's opinion or
-is backed by supplied evidence.
+"the best", "viral" or "worth it" unless it is clearly framed as someone's opinion or is backed by
+supplied evidence.
 
 Never manufacture criticism to create tension. If nothing genuinely negative was observed, build the
 tension from a real question, an uncertainty, an expectation, a comparison, a price-versus-value

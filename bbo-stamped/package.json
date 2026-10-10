@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prompts": "tsx scripts/dump-prompts.mts"
   },
   "dependencies": {
     "next": "16.3.3",
@@ -25,6 +26,7 @@
     "eslint": "^9.38.0",
     "eslint-config-next": "16.3.3",
     "fake-indexeddb": "^6.2.5",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }
