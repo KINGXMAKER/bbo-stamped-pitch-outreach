@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TEMPLATE — not installed. Runs the BBO BRAIN weekly loop on Thursdays at 09:00 local time.
+  It processes only new or changed data; it does not reprocess the whole archive.
+  Install (only when you decide to):
+    cp scripts/launchd/com.bbo.brain.weekly.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.bbo.brain.weekly.plist
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.bbo.brain.weekly.plist
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.bbo.brain.weekly</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>cd /Users/ulysses/bbo-stamped-pitch/bbo-brain &amp;&amp; npm run -s job -- weekly &gt;&gt; data/weekly.log 2&gt;&amp;1</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>4</integer>
+    <key>Hour</key>
+    <integer>9</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardErrorPath</key>
+  <string>/Users/ulysses/bbo-stamped-pitch/bbo-brain/data/launchd.err</string>
+</dict>
+</plist>

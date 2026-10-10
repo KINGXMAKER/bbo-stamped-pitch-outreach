@@ -1,0 +1,9 @@
+reviews:
+  path_filters:
+    - "!videos/**"
+    - "!bbo-output/**"
+    - "!output/**"
+    - "!**/*.mp4"
+    - "!**/*.mov"
+    - "!**/*.mp3"
+    - "!**/*.wav"
