@@ -44,11 +44,24 @@ ${TRUTH_RULES}
 
 ${JSON_ONLY}`;
 
+/** Which voice this pass is writing. Both kinds are generated in parallel. */
+export type ReelVoice = 'GROUP' | 'SOLO' | 'BOTH';
+
 export function buildReelPrompt(
   activation: PromptActivation,
   analysis: VenueAnalysis,
-  count = 4
+  count = 6,
+  voice: ReelVoice = 'BOTH'
 ): string {
+  const brief =
+    voice === 'GROUP'
+      ? `Write ${count} GROUP concepts only, all written in "we". Every one is filmed with the whole
+crew in the room. Do not write a solo concept in this pass.`
+      : voice === 'SOLO'
+        ? `Write ${count} SOLO concepts only, all written in "I". Every one must read as a creator who
+went there on her own. Do not write a group concept in this pass.`
+        : `Design ${count} Reel concepts. At least two must be GROUP ("we") and at least two SOLO ("I")
+whenever ${count} is four or more. Below four, still include at least one of each.`;
   return `You already have the scouting report below. You will not see the photos again — work from this.
 
 ${businessBlock(activation)}
@@ -60,13 +73,31 @@ ${BBO_FORMATS}
 
 ${SHOT_BANK}
 
-Design ${count} Reel concepts that can genuinely be filmed at THIS location on one visit.
+${brief}
 
-Mix of ownership:
-- At least one BBO-OWNED hero concept: the main story of the visit, ending on the BBO Stamped verdict.
-- Several CREATOR-OWNED concepts. Name each by its content angle — "First Bite Voiceover",
-  "Girls' Night Audit", "Date-Night Test", "Value-for-Money Review", "Would I Come Back?",
-  "Photo-Lighting Check", "Atmosphere Review". Never by a person, a number or a letter.
+They must genuinely be filmable at THIS location on one visit.
+
+Mix of ownership — the shoot needs BOTH kinds, and roughly in balance. Do not reduce the group
+content to a single hero recap: a crew in the room is the thing a solo creator cannot film, so the
+"we" concepts are half the reason for the visit.
+
+- GROUP concepts, written in "we". One of them is the hero: the main story of the visit, ending on
+  the BBO Stamped verdict. The rest should use the group as the mechanism — the thing that only works
+  because several people are there. Angles to reach for, chosen to fit THIS venue: "Stamped or Scam?",
+  "Girls' Night Audit", "Date Spot or Girls Night?" debate, "First Bite Round-Table" where everyone
+  reacts to the same dish, "The Table Tour" across a full spread, a group verdict, a group reaction
+  to one standout feature, or "Can a baddie eat good for $X" split across the table.
+
+- SOLO concepts, written in "I". Angles to reach for: "Hidden Gem", "First Bite Verdict", "First
+  Drink Reaction", "Date-Night Test", "Value-for-Money Review", "Would I Come Back?",
+  "Photo-Lighting Check", "Atmosphere Review", "Can a baddie eat good for $X".
+
+Name every concept by its content angle — never by a person, a number or a letter.
+
+Both kinds must be specific to THIS venue. A group concept that would work in any restaurant with a
+table is as weak as a solo concept that never names what it is looking at. Say in whyThisVenue what
+in the scouting report makes each one work here, and pick group mechanisms the room can actually
+support: a long table needs seating the report shows, a toast needs somewhere to stand.
 
 Each creator-owned concept must have its own perspective, hook, footage needs, voiceover framework,
 reaction moment, payoff and CTA. Do not hand the same script a different title. State in

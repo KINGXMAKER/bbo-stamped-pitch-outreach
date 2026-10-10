@@ -107,7 +107,7 @@ export function analyzeLocation(activation: BBOActivation) {
   });
 }
 
-export function generateReels(activation: BBOActivation, venueAnalysis: VenueAnalysis, count = 4) {
+export function generateReels(activation: BBOActivation, venueAnalysis: VenueAnalysis, count = 6) {
   return post<Staged<{ reels: ReelConcept[] }>>('/api/ai/generate-reels', {
     activation: toContext(activation, false),
     venueAnalysis,

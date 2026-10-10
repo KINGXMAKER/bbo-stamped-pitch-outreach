@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { LOCATION_SCOUT_SYSTEM, buildLocationScoutPrompt } from '@/lib/ai/prompts/location-scout';
 import { REEL_SYSTEM, buildReelPrompt } from '@/lib/ai/prompts/reel-generator';
+import { splitCount } from '@/lib/ai/reel-pipeline';
 import {
   DEDUPE_SYSTEM,
   SHOT_SYSTEM,
@@ -196,5 +197,51 @@ describe('house formats and voice modes', () => {
     const prompt = buildReelPrompt(promptContext(), makeVenueAnalysis(), 2);
     expect(prompt).toMatch(/Creator-owned concepts are written in "I"/);
     expect(prompt).toMatch(/breaks the organic read/);
+  });
+});
+
+describe('group and solo balance', () => {
+  // The balance used to be an instruction a single call could ignore, and one
+  // invented word in a six-Reel batch cost four good concepts. It is structural
+  // now: two parallel passes, each asked for one voice only.
+  test('always produces both voices, never rounding one away', () => {
+    for (const total of [2, 3, 4, 5, 6, 7, 8]) {
+      const { groupCount, soloCount } = splitCount(total);
+      expect(groupCount).toBeGreaterThanOrEqual(1);
+      expect(soloCount).toBeGreaterThanOrEqual(1);
+      expect(groupCount + soloCount).toBe(Math.max(2, total));
+    }
+  });
+
+  test('gives each voice at least two once there is room', () => {
+    for (const total of [4, 6, 8]) {
+      const { groupCount, soloCount } = splitCount(total);
+      expect(groupCount).toBeGreaterThanOrEqual(2);
+      expect(soloCount).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  test('a group pass asks for group concepts only', () => {
+    const prompt = buildReelPrompt(promptContext(), makeVenueAnalysis(), 3, 'GROUP');
+    expect(prompt).toMatch(/GROUP concepts only, all written in "we"/);
+    expect(prompt).toMatch(/Do not write a solo concept in this pass/);
+  });
+
+  test('a solo pass asks for solo concepts only', () => {
+    const prompt = buildReelPrompt(promptContext(), makeVenueAnalysis(), 3, 'SOLO');
+    expect(prompt).toMatch(/SOLO concepts only, all written in "I"/);
+    expect(prompt).toMatch(/went there on her own/);
+  });
+
+  test('gives group concepts their own angles, not just the hero recap', () => {
+    const prompt = buildReelPrompt(promptContext(), makeVenueAnalysis(), 6, 'GROUP');
+    for (const angle of ['Stamped or Scam?', 'First Bite Round-Table', 'The Table Tour']) {
+      expect(prompt).toContain(angle);
+    }
+  });
+
+  test('requires the group mechanism to suit the actual room', () => {
+    const prompt = buildReelPrompt(promptContext(), makeVenueAnalysis(), 6, 'GROUP');
+    expect(prompt).toMatch(/a long table needs seating the report shows/);
   });
 });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ReelFormat } from '@/types';
 
 // Every AI stage returns JSON that is parsed, then validated here. App-managed
 // state (selected / locked / completed) is defaulted so a model that omits it
@@ -170,9 +171,17 @@ export const ReelConceptSchema = z.object({
   concept: z.string().default(''),
   goal: z.string().default(''),
   recommendedDuration: z.number().positive().default(38),
+  // A format the model invented ("debate", "challenge") used to fail the whole
+  // batch — one unknown word costing five good Reels. Unknown values land on
+  // "other" instead, because the label is a filter hint, not load-bearing data.
   format: z
-    .enum(['experience', 'lifestyle', 'opinion', 'skit', 'review', 'voiceover', 'other'])
-    .default('experience'),
+    .string()
+    .nullish()
+    .transform((value) => {
+      const known = ['experience', 'lifestyle', 'opinion', 'skit', 'review', 'voiceover', 'other'];
+      const normalised = (value ?? '').trim().toLowerCase();
+      return (known.includes(normalised) ? normalised : 'other') as ReelFormat;
+    }),
   hook: z.string().default(''),
   audienceReactionGoal: z.string().default(''),
   sourcePhotoIds: idArray,

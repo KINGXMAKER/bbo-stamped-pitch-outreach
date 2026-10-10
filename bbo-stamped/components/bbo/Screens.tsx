@@ -81,7 +81,7 @@ export function ReelsScreen({
             type="button"
             className="btn-primary"
             disabled={busy !== null}
-            onClick={() => void runReels({ count: 4 })}
+            onClick={() => void runReels({ count: 6 })}
           >
             {busy === 'reels' ? 'Writing…' : 'Generate Reel concepts'}
           </button>
@@ -89,14 +89,31 @@ export function ReelsScreen({
       ) : (
         <>
           <div className="stack">
-            {activation.reels.map((reel) => (
-              <ReelCard
-                key={reel.id}
-                reel={reel}
-                shots={activation.shots}
-                onOpenBlueprint={(id) => setBlueprintFor(id)}
-              />
-            ))}
+            {/* Split by voice so the balance of the shoot is visible at a glance —
+                a day that is all solo concepts needs a different crew call than
+                one built around the table. */}
+            {([
+              ['Group — we', activation.reels.filter((reel) => (reel.contentOwner ?? 'BBO') === 'BBO')],
+              ['Solo — I', activation.reels.filter((reel) => reel.contentOwner === 'CREATOR')],
+            ] as const).map(([label, group]) =>
+              group.length === 0 ? null : (
+                <section key={label}>
+                  <SectionHead
+                    label={label}
+                    note={`${group.filter((reel) => reel.selected).length} of ${group.length} shooting`}
+                    tone={label.startsWith('Group') ? 'pink' : 'gold'}
+                  />
+                  {group.map((reel) => (
+                    <ReelCard
+                      key={reel.id}
+                      reel={reel}
+                      shots={activation.shots}
+                      onOpenBlueprint={(id) => setBlueprintFor(id)}
+                    />
+                  ))}
+                </section>
+              )
+            )}
           </div>
 
           {blueprintReel ? (

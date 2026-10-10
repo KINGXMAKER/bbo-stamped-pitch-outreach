@@ -105,10 +105,13 @@ describe('ReelSetSchema', () => {
     expect(ReelSetSchema.safeParse({ reels: [thin] }).success).toBe(false);
   });
 
-  test('rejects an unknown format value', () => {
-    expect(ReelSetSchema.safeParse({ reels: [{ ...reel, format: 'tiktok-dance' }] }).success).toBe(
-      false
-    );
+  // Behaviour deliberately changed: this used to reject, and rejecting cost a
+  // whole batch of good Reels over one invented label. The format is a filter
+  // hint, so an unknown value is absorbed rather than allowed to fail the set.
+  test('absorbs an unknown format rather than failing the whole set', () => {
+    const parsed = ReelSetSchema.safeParse({ reels: [{ ...reel, format: 'tiktok-dance' }] });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.reels[0].format).toBe('other');
   });
 });
 
@@ -235,5 +238,30 @@ describe('PitchIntelSchema confidence', () => {
 
   test('defaults rather than inventing certainty when the field is absent', () => {
     expect(PitchIntelSchema.parse(base).categoryConfidence).toBe('not stated');
+  });
+});
+
+describe('ReelConceptSchema format', () => {
+  const reel = (format: unknown) => ({
+    reels: [{
+      id: 'reel-1', title: 'Hero', concept: 'c', goal: 'g', recommendedDuration: 30,
+      format, hook: 'h', audienceReactionGoal: 'r', sourcePhotoIds: [],
+      sequence: [
+        { id: 'b1', order: 0, label: 'Hook', startSecond: 0, endSecond: 3, purpose: 'p', description: 'd', shotsNeeded: [], editingDirection: 'cut' },
+        { id: 'b2', order: 1, label: 'Pay', startSecond: 3, endSecond: 6, purpose: 'p', description: 'd', shotsNeeded: [], editingDirection: 'cut' },
+      ],
+      captionIdeas: [],
+    }],
+  });
+
+  test('keeps a known format', () => {
+    expect(ReelSetSchema.parse(reel('lifestyle')).reels[0].format).toBe('lifestyle');
+  });
+
+  // One invented label used to fail the entire batch, and the repair pass then
+  // returned two Reels where six had been asked for.
+  test('an invented format falls back to "other" instead of failing the batch', () => {
+    expect(ReelSetSchema.parse(reel('challenge')).reels[0].format).toBe('other');
+    expect(ReelSetSchema.parse(reel(null)).reels[0].format).toBe('other');
   });
 });

@@ -88,6 +88,7 @@ export function ReelCard({
   const { toggleReelSelected, toggleReelLock, runReels, busy } = useStore();
   const [open, setOpen] = useState(false);
   const coverage = computeReelCoverage(reel, shots);
+  const isGroup = (reel.contentOwner ?? 'BBO') === 'BBO';
   const hasShots = coverage.linkedShots > 0;
 
   return (
@@ -95,6 +96,13 @@ export function ReelCard({
       <div className="spread" style={{ alignItems: 'flex-start' }}>
         <div style={{ minWidth: 0 }}>
           <div className="row-tight" style={{ marginBottom: 6 }}>
+            {/* Group vs solo is the first thing to know about a concept: it
+                decides the voice, the crew needed and whether it can be handed
+                to one creator. It leads the badges for that reason. */}
+            <span className={cx('badge', isGroup ? 'badge-multi' : 'badge-client')}>
+              {isGroup ? 'Group · we' : 'Solo · I'}
+            </span>
+            {reel.angle ? <span className="badge badge-zone">{reel.angle}</span> : null}
             <span className="badge badge-strong">{reel.format}</span>
             <span className="badge badge-zone">{Math.round(reel.recommendedDuration)}s</span>
             {reel.locked ? <span className="badge badge-client">Locked</span> : null}
